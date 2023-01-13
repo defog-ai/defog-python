@@ -60,12 +60,18 @@ class Defog:
                     conn = psycopg2.connect(**self.db_creds)
                     cur = conn.cursor()
                     cur.execute(query["query_generated"])
+                    colnames = [desc[0] for desc in cur.description]
                     result = cur.fetchall()
                     cur.close()
                     conn.close()
-                    return result
+                    return {
+                        "columns": colnames,
+                        "data": result,
+                        "sql": query["query_generated"],
+                        "ran_successfully": True
+                    }
                 except Exception as e:
-                    raise Exception(e)
+                    return {"error_message": str(e), "ran_successfully": False}
             else:
                 raise Exception("Database type not yet supported.")
         else:
