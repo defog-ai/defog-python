@@ -21,10 +21,9 @@ class Defog:
         """
         r = requests.post("https://api.defog.ai/generate_query",
             json={
-                question: question,
-                hard_filters: hard_filters
-            }, headers={
-                "x-api-key": self.api_key
+                "question": question,
+                "hard_filters": hard_filters,
+                "api_key": self.api_key
             }
         )
         resp = r.json()
