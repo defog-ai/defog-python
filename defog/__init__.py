@@ -11,8 +11,6 @@ class Defog:
         :param api_key: The API key for the defog account.
         """
         self.api_key = api_key
-        self.db_type = db_type
-        self.db_creds = db_creds
     
     def get_query(self, question: str, hard_filters: list):
         """
@@ -33,24 +31,24 @@ class Defog:
         query_generated = resp["query_generated"]
         ran_successfully = resp["ran_successfully"]
         error_message =  resp["error_message"]
+        query_db = resp.get("query_db", 'postgres')
         return {
             "query_generated": query_generated,
             "ran_successfully": ran_successfully,
-            "error_message": error_message
+            "error_message": error_message,
+            "query_db": query_db
         }
     
-    def run_query(self, question: str, hard_filters: list):
+    def run_query(self, question: str, hard_filters: list = []):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
         :param hard_filters: The hard filters to be applied.
         :return: The response from the defog server.
         """
-        if self.db_type is None or self.db_creds is None:
-            raise Exception("Database type and credentials not provided.")
         query =  self.get_query(self.api_key, question, hard_filters)
         if query["ran_successfully"]:
-            if self.db_type == "postgres":
+            if query['query_db'] == "postgres":
                 try:
                     import psycopg2
                 except:
