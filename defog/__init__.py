@@ -11,6 +11,31 @@ class Defog:
         :param api_key: The API key for the defog account.
         """
         self.api_key = api_key
+        self.db_type = db_type
+        self.db_creds = db_creds
+        if db_type is not None:
+            self.get_db_type()
+    
+    def get_db_type(self):
+        """
+        Updates the database type.
+        """
+        r = requests.post("https://api.defog.ai/update_db_type",
+            json={
+                "api_key": self.api_key,
+            }
+        )
+        resp = r.json()
+        creds = resp['postgres_creds']
+        self.db_type = "psotgres"
+        self.db_creds = {
+            "host": creds["postgres_host"],
+            "port": creds["postgres_port"],
+            "database": creds["postgres_db"],
+            "user": creds["postgres_username"],
+            "password": creds["postgres_password"]
+        }
+        return True
     
     def get_query(self, question: str, hard_filters: list):
         """
