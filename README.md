@@ -13,7 +13,7 @@ You can get your API key by emailing founders@defog.ai.
 
 ## Running after giving your database details to Defog
 
-If you give us your database schema, you can do this the following way
+If you give us your database credentials, you can just run the following code
 
 ```
 from defog import Defog
@@ -31,7 +31,7 @@ results = defog.run_query(
 
 ## Running without giving your database details to Defog
 
-If you want to store your database schema locally and do not want to give us access, you can run the query like this
+If you want to store your database credentials locally and do not want to give us access, you can run the query like this
 
 ```
 from defog import Defog
