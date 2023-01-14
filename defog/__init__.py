@@ -13,21 +13,22 @@ class Defog:
         self.api_key = api_key
         self.db_type = db_type
         self.db_creds = db_creds
-        if db_type is not None:
-            self.get_db_type()
+        if db_creds is None:
+            self.update_db_creds()
     
-    def get_db_type(self):
+    def update_db_creds(self):
         """
         Updates the database type.
         """
-        r = requests.post("https://api.defog.ai/update_db_type",
+        print("Fetching database credentials...")
+        r = requests.post("https://api.defog.ai/get_postgres_creds",
             json={
                 "api_key": self.api_key,
             }
         )
         resp = r.json()
         creds = resp['postgres_creds']
-        self.db_type = "psotgres"
+        self.db_type = "postgres"
         self.db_creds = {
             "host": creds["postgres_host"],
             "port": creds["postgres_port"],
@@ -37,24 +38,22 @@ class Defog:
         }
         return True
     
-    def get_query(self, question: str, hard_filters: list):
+    def get_query(self, question: str):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
-        :param hard_filters: The hard filters to be applied.
         :return: The response from the defog server.
         """
         r = requests.post("https://api.defog.ai/generate_query",
             json={
                 "question": question,
-                "hard_filters": hard_filters,
                 "api_key": self.api_key
             }
         )
         resp = r.json()
-        query_generated = resp["query_generated"]
+        query_generated = resp.get("query_generated")
         ran_successfully = resp["ran_successfully"]
-        error_message =  resp["error_message"]
+        error_message =  resp.get("error_message")
         query_db = resp.get("query_db", 'postgres')
         return {
             "query_generated": query_generated,
@@ -63,15 +62,16 @@ class Defog:
             "query_db": query_db
         }
     
-    def run_query(self, question: str, hard_filters: list = []):
+    def run_query(self, question: str):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
-        :param hard_filters: The hard filters to be applied.
         :return: The response from the defog server.
         """
-        query =  self.get_query(self.api_key, question, hard_filters)
+        print("generating the SQL query for your question...")
+        query =  self.get_query(question)
         if query["ran_successfully"]:
+            print("SQL query generated, now running it on your database...")
             if query['query_db'] == "postgres":
                 try:
                     import psycopg2
@@ -86,6 +86,7 @@ class Defog:
                     result = cur.fetchall()
                     cur.close()
                     conn.close()
+                    print("Query ran succesfully!")
                     return {
                         "columns": colnames,
                         "data": result,
