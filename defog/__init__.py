@@ -38,7 +38,7 @@ class Defog:
         }
         return True
     
-    def get_query(self, question: str):
+    def get_query(self, question: str, hard_filters: str = None):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
@@ -47,7 +47,8 @@ class Defog:
         r = requests.post("https://api.defog.ai/generate_query",
             json={
                 "question": question,
-                "api_key": self.api_key
+                "api_key": self.api_key,
+                "hard_filters": hard_filters
             }
         )
         resp = r.json()
@@ -62,14 +63,14 @@ class Defog:
             "query_db": query_db
         }
     
-    def run_query(self, question: str):
+    def run_query(self, question: str, hard_filters: str = None):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
         print("generating the SQL query for your question...")
-        query =  self.get_query(question)
+        query =  self.get_query(question, hard_filters)
         if query["ran_successfully"]:
             print("SQL query generated, now running it on your database...")
             if query['query_db'] == "postgres":
