@@ -52,7 +52,7 @@ class Defog:
         else:
             raise Exception("Database type not yet supported.")
     
-    def generate_postgres_schema(self, tables: list, output_file: str = "schemas.json"):
+    def generate_postgres_schema(self, tables: list):
         try:
             import psycopg2
         except:
@@ -61,6 +61,8 @@ class Defog:
         conn = psycopg2.connect(**self.db_creds)
         cur = conn.cursor()
         schemas = {}
+        
+        print("Getting schema for each tables in your database...")
         # get the schema for each table
         for table_name in tables:
             cur.execute("SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;", (table_name,))
@@ -71,9 +73,40 @@ class Defog:
         
         conn.close()
 
-        with open(output_file, "w") as f:
-            json.dump(schemas, f, indent=4)
-        return schemas
+        print("Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes...")
+        # send the schemas dict to the defog servers
+        r = requests.post("https://api.defog.ai/get_postgres_schema_gsheets",
+            json={
+                "api_key": self.api_key,
+                "schemas": schemas
+            }
+        )
+        resp = r.json()
+        try:
+            gsheet_url = resp['sheet_url']
+            return gsheet_url
+        except Exception as e:
+            print(resp)
+            raise resp['message']
+    
+    def update_postgres_schema(self, gsheet_url : str):
+        """
+        Updates the postgres schema on the defog servers.
+        :param gsheet_url: The url of the google sheet containing the schema.
+        """
+        r = requests.post("https://api.defog.ai/update_postgres_schema",
+            json={
+                "api_key": self.api_key,
+                "gsheet_url": gsheet_url
+            }
+        )
+        resp = r.json()
+        ran_successfully = resp["ran_successfully"]
+        error_message =  resp.get("error_message")
+        return {
+            "ran_successfully": ran_successfully,
+            "error_message": error_message
+        }
 
     def get_query(self, question: str, hard_filters: str = None):
         """
