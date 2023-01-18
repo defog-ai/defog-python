@@ -4,7 +4,7 @@ Defog converts your natural language text queries into SQL and other machine rea
 ![](defog-python.gif)
 
 # Installation
-`pip install defog`
+`pip install --upgrade defog`
 
 # Getting your API Key
 You can get your API key by going to [https://defog.ai/account](https://defog.ai/account) and creating an account.
