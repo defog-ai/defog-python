@@ -22,13 +22,15 @@ class Defog:
         Updates the database type.
         """
         print("Fetching database credentials...")
-        if self.db_type == "postgres":
-            r = requests.post("https://api.defog.ai/get_postgres_creds",
-                json={
-                    "api_key": self.api_key,
-                }
-            )
-            resp = r.json()
+        r = requests.post("https://api.defog.ai/get_db_creds",
+            json={
+                "api_key": self.api_key,
+            }
+        )
+        resp = r.json()
+        db_type = resp['db_type']
+        self.db_type = db_type
+        if db_type == "postgres":
             creds = resp['postgres_creds']
             self.db_creds = {
                 "host": creds["postgres_host"],
@@ -38,20 +40,14 @@ class Defog:
                 "password": creds["postgres_password"]
             }
             return True
-        elif self.db_type == "mongo":
-            r = requests.post("https://api.defog.ai/get_mongo_creds",
-                json={
-                    "api_key": self.api_key,
-                }
-            )
-            resp = r.json()
+        elif db_type == "mongo":
             creds = resp['mongo_creds']
-            self.db_type = "mongo"
             self.db_creds = {
                 "connection_string": creds["mongo_connection_string"]
             }
             return True
         elif self.db_type == "bigquery":
+            print("Please enter the path to your service account json file when initializing Defog\n\ndefog = Defog(api_key=key, db_type='bigquery', db_creds='path/to/service_account.json)")
             pass
         else:
             raise Exception("Database type not yet supported.")
