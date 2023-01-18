@@ -101,13 +101,8 @@ class Defog:
             }
         )
         resp = r.json()
-        ran_successfully = resp["ran_successfully"]
-        error_message =  resp.get("error_message")
-        return {
-            "ran_successfully": ran_successfully,
-            "error_message": error_message
-        }
-
+        return resp
+    
     def get_query(self, question: str, hard_filters: str = None):
         """
         Sends the query to the defog servers, and return the response.
