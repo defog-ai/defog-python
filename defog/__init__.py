@@ -6,7 +6,7 @@ class Defog:
     The main class for Defog
     """
 
-    def __init__(self, api_key: str, db_type: str = None, db_creds: dict = None):
+    def __init__(self, api_key: str, db_type: str = "postgres", db_creds: dict = None):
         """
         Initializes the Defog class.
         :param api_key: The API key for the defog account.
@@ -22,22 +22,39 @@ class Defog:
         Updates the database type.
         """
         print("Fetching database credentials...")
-        r = requests.post("https://api.defog.ai/get_postgres_creds",
-            json={
-                "api_key": self.api_key,
+        if self.db_type == "postgres":
+            r = requests.post("https://api.defog.ai/get_postgres_creds",
+                json={
+                    "api_key": self.api_key,
+                }
+            )
+            resp = r.json()
+            creds = resp['postgres_creds']
+            self.db_creds = {
+                "host": creds["postgres_host"],
+                "port": creds["postgres_port"],
+                "database": creds["postgres_db"],
+                "user": creds["postgres_username"],
+                "password": creds["postgres_password"]
             }
-        )
-        resp = r.json()
-        creds = resp['postgres_creds']
-        self.db_type = "postgres"
-        self.db_creds = {
-            "host": creds["postgres_host"],
-            "port": creds["postgres_port"],
-            "database": creds["postgres_db"],
-            "user": creds["postgres_username"],
-            "password": creds["postgres_password"]
-        }
-        return True
+            return True
+        elif self.db_type == "mongo":
+            r = requests.post("https://api.defog.ai/get_mongo_creds",
+                json={
+                    "api_key": self.api_key,
+                }
+            )
+            resp = r.json()
+            creds = resp['mongo_creds']
+            self.db_type = "mongo"
+            self.db_creds = {
+                "connection_string": creds["mongo_connection_string"]
+            }
+            return True
+        elif self.db_type == "bigquery":
+            pass
+        else:
+            raise Exception("Database type not yet supported.")
     
     def generate_postgres_schema(self, tables: list, output_file: str = "schemas.json"):
         try:
@@ -61,7 +78,7 @@ class Defog:
         with open(output_file, "w") as f:
             json.dump(schemas, f, indent=4)
         return True
-    
+
     def get_query(self, question: str, hard_filters: str = None):
         """
         Sends the query to the defog servers, and return the response.
@@ -93,10 +110,10 @@ class Defog:
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
-        print("generating the SQL query for your question...")
+        print("generating the query for your question...")
         query =  self.get_query(question, hard_filters)
         if query["ran_successfully"]:
-            print("SQL query generated, now running it on your database...")
+            print("Query generated, now running it on your database...")
             if query['query_db'] == "postgres":
                 try:
                     import psycopg2
@@ -120,6 +137,44 @@ class Defog:
                     }
                 except Exception as e:
                     return {"error_message": str(e), "ran_successfully": False}
+            elif query['query_db'] == "mongo":
+                try:
+                    from pymongo import MongoClient
+                except:
+                    raise Exception("pymongo not installed.")
+                try:
+                    client = MongoClient(self.db_creds["connection_string"])
+                    db = client.get_database()
+                    results = eval(query['query_generated'])
+                    return {
+                        "columns": results[0].keys(), # assumes that all objects have the same keys
+                        "data": results,
+                        "mongo_query": query["query_generated"],
+                        "ran_successfully": True
+                    }
+                except Exception as e:
+                    return {"error_message": str(e), "ran_successfully": False}
+            elif query['query_db'] == "bigquery":
+                try:
+                    from google.cloud import bigquery
+                except:
+                    raise Exception("google.cloud.bigquery not installed.")
+                
+                json_key = self.db_creds["json_key"]
+                client = bigquery.Client.from_service_account_json(json_key)
+                query_job = client.query(query["query_generated"])
+                results = query_job.result()
+                columns = [i.name for i in results.schema]
+                rows = []
+                for row in results:
+                    rows.append([row[i] for i in range(len(row))])
+                
+                return {
+                    "columns": columns, # assumes that all objects have the same keys
+                    "data": rows,
+                    "mongo_query": query["query_generated"],
+                    "ran_successfully": True
+                }
             else:
                 raise Exception("Database type not yet supported.")
         else:
