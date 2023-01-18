@@ -145,7 +145,7 @@ class Defog:
                 try:
                     client = MongoClient(self.db_creds["connection_string"])
                     db = client.get_database()
-                    results = eval(query['query_generated'])
+                    results = eval(f"db.{query['query_generated']}")
                     return {
                         "columns": results[0].keys(), # assumes that all objects have the same keys
                         "data": results,
