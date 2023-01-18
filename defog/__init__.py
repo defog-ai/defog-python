@@ -1,4 +1,5 @@
 import requests
+import json
 
 class Defog:
     """
@@ -38,12 +39,37 @@ class Defog:
         }
         return True
     
+    def generate_postgres_schema(self, tables: list, output_file: str = "schemas.json"):
+        try:
+            import psycopg2
+        except:
+            raise Exception("psycopg2 not installed.")
+        
+        conn = psycopg2.connect(**self.db_creds)
+        cur = conn.cursor()
+        schemas = {}
+        # get the schema for each table
+        for table_name in tables:
+            cur.execute("SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;", (table_name,))
+            rows = cur.fetchall()
+            rows = [row for row in rows]
+            rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
+            schemas[table_name] = rows
+        
+        conn.close()
+
+        with open(output_file, "w") as f:
+            json.dump(schemas, f, indent=4)
+        return True
+    
     def get_query(self, question: str, hard_filters: str = None):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
+        conn = psycopg2.connect(**self.db_creds)
+        cur = conn.cursor()
         r = requests.post("https://api.defog.ai/generate_query",
             json={
                 "question": question,
