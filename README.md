@@ -7,32 +7,11 @@ Defog converts your natural language text queries into SQL and other machine rea
 `pip install defog`
 
 # Getting your API Key
-You can get your API key by emailing founders@defog.ai.
+You can get your API key by going to [https://defog.ai/account](https://defog.ai/account) and creating an account.
 
 # Usage
 
-## Running after giving your database details to Defog
-
-If you give us your database credentials, you can just run the following code
-
-```
-from defog import Defog
-
-defog = Defog(api_key="YOUR_API_KEY")
-
-question = "question asked by a user"
-
-results = defog.run_query(
-  question=question
-)
-# {"is_success": True, "error_message": "", "col_names": [...], "data": [[...], ...] "viz_type": "table", "generated_query": ""}
-```
-
-
-## Running without giving your database details to Defog
-
-If you want to store your database credentials locally and do not want to give us access, you can run the query like this
-
+## Postgres
 ```
 from defog import Defog
 
@@ -49,10 +28,12 @@ defog = Defog(
     }
 )
 
-question = "question asked by a user"
+gsheets_url = defog.generate_postgres_schema() # generate a schema of your postgres DB. feel free to make changes to the google sheet url generated
+defog.update_postgres_schema(gsheet_url) # update the postgres schema in our database
 
+question = "question asked by a user"
 results = defog.run_query(
   question=question
 )
-# {"is_success": True, "error_message": "", "col_names": [...], "data": [[...], ...] "viz_type": "table", "generated_query": ""}
-```
+
+print(results)
