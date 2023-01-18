@@ -68,8 +68,6 @@ class Defog:
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
-        conn = psycopg2.connect(**self.db_creds)
-        cur = conn.cursor()
         r = requests.post("https://api.defog.ai/generate_query",
             json={
                 "question": question,
