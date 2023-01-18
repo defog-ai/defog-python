@@ -73,7 +73,7 @@ class Defog:
 
         with open(output_file, "w") as f:
             json.dump(schemas, f, indent=4)
-        return True
+        return schemas
 
     def get_query(self, question: str, hard_filters: str = None):
         """
@@ -85,7 +85,8 @@ class Defog:
             json={
                 "question": question,
                 "api_key": self.api_key,
-                "hard_filters": hard_filters
+                "hard_filters": hard_filters,
+                "db_type": self.db_type
             }
         )
         resp = r.json()
@@ -128,7 +129,7 @@ class Defog:
                     return {
                         "columns": colnames,
                         "data": result,
-                        "sql": query["query_generated"],
+                        "query_generated": query["query_generated"],
                         "ran_successfully": True
                     }
                 except Exception as e:
@@ -145,7 +146,7 @@ class Defog:
                     return {
                         "columns": results[0].keys(), # assumes that all objects have the same keys
                         "data": results,
-                        "mongo_query": query["query_generated"],
+                        "query_generated": query["query_generated"],
                         "ran_successfully": True
                     }
                 except Exception as e:
@@ -168,7 +169,7 @@ class Defog:
                 return {
                     "columns": columns, # assumes that all objects have the same keys
                     "data": rows,
-                    "mongo_query": query["query_generated"],
+                    "query_generated": query["query_generated"],
                     "ran_successfully": True
                 }
             else:
