@@ -134,7 +134,7 @@ class Defog:
         client = bigquery.Client.from_service_account_json(self.db_creds)
         schemas = {}
         
-        print("Getting schema for each tables in your database...")
+        print("Getting the schema for each table in your database...")
         # get the schema for each table
         for table_name in tables:
             table = client.get_table(table_name)
@@ -144,7 +144,7 @@ class Defog:
         
         client.close()
 
-        print("Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes...")
+        print("Sending the schema to Defog servers and generating a Google Sheet. This might take up to 2 minutes...")
         # send the schemas dict to the defog servers
         r = requests.post("https://api.defog.ai/get_bigquery_schema_gsheets",
             json={
