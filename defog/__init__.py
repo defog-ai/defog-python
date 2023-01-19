@@ -260,7 +260,8 @@ class Defog:
                         "ran_successfully": True
                     }
                 except Exception as e:
-                    print("There was an error running the query. Retrying with adaptive learning...")
+                    print(f"Query generated was: {query['query_generated']}")
+                    print(f"There was an error {str(e)} when running the previous query. Retrying with adaptive learning...")
                     # retry the query with the exception
                     r = requests.post("https://api.defog.ai/retry_query_after_error",
                         json={
@@ -276,7 +277,7 @@ class Defog:
                     conn = psycopg2.connect(**self.db_creds)
                     cur = conn.cursor()
                     try:
-                        cur.execute(query["query_generated"])
+                        cur.execute(query["new_query"])
                         colnames = [desc[0] for desc in cur.description]
                         result = cur.fetchall()
                         cur.close()
@@ -285,7 +286,7 @@ class Defog:
                         return {
                             "columns": colnames,
                             "data": result,
-                            "query_generated": query["query_generated"],
+                            "query_generated": query["new_query"],
                             "ran_successfully": True
                         }
                     except Exception as e:
