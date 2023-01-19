@@ -125,6 +125,41 @@ class Defog:
             print(resp)
             raise resp['message']
 
+    def generate_bigquery_schema(self, tables: list):
+        try:
+            from google.cloud import bigquery
+        except:
+            raise Exception("google-cloud-bigquery not installed.")
+        
+        client = bigquery.Client.from_service_account_json(self.db_creds)
+        schemas = {}
+        
+        print("Getting schema for each tables in your database...")
+        # get the schema for each table
+        for table_name in tables:
+            table = client.get_table(table_name)
+            rows = table.schema
+            rows = [{"column_name": i.name, "data_type": i.field_type} for i in rows]
+            schemas[table_name] = rows
+        
+        client.close()
+
+        print("Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes...")
+        # send the schemas dict to the defog servers
+        r = requests.post("https://api.defog.ai/get_bigquery_schema_gsheets",
+            json={
+                "api_key": self.api_key,
+                "schemas": schemas
+            }
+        )
+        resp = r.json()
+        try:
+            gsheet_url = resp['sheet_url']
+            return gsheet_url
+        except Exception as e:
+            print(resp)
+            raise resp['message']
+
     def update_postgres_schema(self, gsheet_url : str):
         """
         Updates the postgres schema on the defog servers.
@@ -145,6 +180,20 @@ class Defog:
         :param gsheet_url: The url of the google sheet containing the schema.
         """
         r = requests.post("https://api.defog.ai/update_mongo_schema",
+            json={
+                "api_key": self.api_key,
+                "gsheet_url": gsheet_url
+            }
+        )
+        resp = r.json()
+        return resp
+    
+    def update_bigquery_schema(self, gsheet_url : str):
+        """
+        Updates the mongo schema on the defog servers.
+        :param gsheet_url: The url of the google sheet containing the schema.
+        """
+        r = requests.post("https://api.defog.ai/update_bigquery_schema",
             json={
                 "api_key": self.api_key,
                 "gsheet_url": gsheet_url
