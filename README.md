@@ -30,7 +30,7 @@ defog = Defog(
 
 # generate a schema of your postgres DB
 # feel free to make changes to the google sheet url generated
-gsheets_url = defog.generate_postgres_schema() 
+gsheets_url = defog.generate_postgres_schema(tables=['your_table_name_1', 'your_table_name_2']) 
 
 # update the postgres schema in our database
 defog.update_postgres_schema(gsheet_url)
@@ -79,17 +79,15 @@ from defog import Defog
 defog = Defog(
     api_key="YOUR_API_KEY",
     db_type="mongo",
-    db_creds={
-        "json_key": "/path/to/service/json.key",
-    }
+    db_creds="/path/to/service/json.key",
 )
 
-# generate a schema of your mongo collection
+# generate a schema of your selected Bigquery tables
 # feel free to make changes to the google sheet url generated
-gsheets_url = defog.generate_mongo_schema()
+gsheets_url = defog.generate_bigquery_schema(tables=['your_table_name_1', 'your_table_name_2'])
 
 # update the postgres schema in our database
-defog.update_mongo_schema(gsheet_url)
+defog.update_biguery_schema(gsheet_url)
 
 question = "question asked by a user"
 results = defog.run_query(
