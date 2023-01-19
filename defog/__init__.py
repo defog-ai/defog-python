@@ -244,9 +244,9 @@ class Defog:
                 except:
                     raise Exception("psycopg2 not installed.")
                 
+                conn = psycopg2.connect(**self.db_creds)
+                cur = conn.cursor()
                 try:
-                    conn = psycopg2.connect(**self.db_creds)
-                    cur = conn.cursor()
                     cur.execute(query["query_generated"])
                     colnames = [desc[0] for desc in cur.description]
                     result = cur.fetchall()
@@ -260,19 +260,51 @@ class Defog:
                         "ran_successfully": True
                     }
                 except Exception as e:
-                    return {"error_message": str(e), "ran_successfully": False}
+                    # retry the query with the exception
+                    r = requests.post("https://api.defog.ai/retry_query_after_error",
+                        json={
+                            "api_key": self.api_key,
+                            "previous_query": query["query_generated"],
+                            "error": str(e),
+                            "db_type": self.db_type,
+                            "hard_filters": hard_filters,
+                            "question": question
+                        }
+                    )
+                    query = r.json()
+                    conn = psycopg2.connect(**self.db_creds)
+                    cur = conn.cursor()
+                    try:
+                        cur.execute(query["query_generated"])
+                        colnames = [desc[0] for desc in cur.description]
+                        result = cur.fetchall()
+                        cur.close()
+                        conn.close()
+                        print("Query ran succesfully!")
+                        return {
+                            "columns": colnames,
+                            "data": result,
+                            "query_generated": query["query_generated"],
+                            "ran_successfully": True
+                        }
+                    except Exception as e:
+                        return {"error_message": str(e), "ran_successfully": False}
             elif query['query_db'] == "mongo":
                 try:
                     from pymongo import MongoClient
                 except:
                     raise Exception("pymongo not installed.")
+                client = MongoClient(self.db_creds["connection_string"])
+                db = client.get_database()
                 try:
-                    client = MongoClient(self.db_creds["connection_string"])
-                    db = client.get_database()
                     results = eval(f"{query['query_generated']}")
                     results = [i for i in results]
+                    if len(results) > 0:
+                        columns = results[0].keys()
+                    else:
+                        columns = []
                     return {
-                        "columns": results[0].keys(), # assumes that all objects have the same keys
+                        "columns": columns, # assumes that all objects have the same keys
                         "data": results,
                         "query_generated": query["query_generated"],
                         "ran_successfully": True
