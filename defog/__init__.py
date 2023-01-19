@@ -260,6 +260,7 @@ class Defog:
                         "ran_successfully": True
                     }
                 except Exception as e:
+                    print("There was an error running the query. Retrying with adaptive learning...")
                     # retry the query with the exception
                     r = requests.post("https://api.defog.ai/retry_query_after_error",
                         json={
