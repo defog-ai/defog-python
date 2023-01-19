@@ -58,7 +58,7 @@ defog = Defog(
 
 # generate a schema of your mongo collection
 # feel free to make changes to the google sheet url generated
-gsheets_url = defog.generate_mongo_schema()
+gsheets_url = defog.generate_mongo_schema(collections=['collection_name_1', 'collection_name_2'])
 
 # update the postgres schema in our database
 defog.update_mongo_schema(gsheets_url)
