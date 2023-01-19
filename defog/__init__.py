@@ -284,7 +284,7 @@ class Defog:
                 except:
                     raise Exception("google.cloud.bigquery not installed.")
                 
-                json_key = self.db_creds["json_key"]
+                json_key = self.db_creds
                 client = bigquery.Client.from_service_account_json(json_key)
                 query_job = client.query(query["query_generated"])
                 results = query_job.result()
