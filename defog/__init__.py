@@ -95,7 +95,7 @@ class Defog:
             raise Exception("pymongo not installed.")
         
         client = MongoClient(self.db_creds['connection_string'])
-        db = client.get_default_database()
+        db = client.get_database()
         
         schemas = {}
         
@@ -104,7 +104,7 @@ class Defog:
         for collection_name in collections:
             collection = db[collection_name]
             rows = collection.find_one()
-            rows = [{"column_name": i, "data_type": str(type(rows[i]))} for i in rows]
+            rows = [{"field_name": i, "data_type": type(rows[i]).__name__} for i in rows]
             schemas[collection_name] = rows
         
         client.close()
@@ -269,7 +269,8 @@ class Defog:
                 try:
                     client = MongoClient(self.db_creds["connection_string"])
                     db = client.get_database()
-                    results = eval(f"db.{query['query_generated']}")
+                    results = eval(f"{query['query_generated']}")
+                    results = [i for i in results]
                     return {
                         "columns": results[0].keys(), # assumes that all objects have the same keys
                         "data": results,

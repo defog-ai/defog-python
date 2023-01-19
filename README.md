@@ -33,7 +33,7 @@ defog = Defog(
 gsheets_url = defog.generate_postgres_schema(tables=['your_table_name_1', 'your_table_name_2']) 
 
 # update the postgres schema in our database
-defog.update_postgres_schema(gsheet_url)
+defog.update_postgres_schema(gsheets_url)
 
 question = "question asked by a user"
 results = defog.run_query(
@@ -61,7 +61,7 @@ defog = Defog(
 gsheets_url = defog.generate_mongo_schema()
 
 # update the postgres schema in our database
-defog.update_mongo_schema(gsheet_url)
+defog.update_mongo_schema(gsheets_url)
 
 question = "question asked by a user"
 results = defog.run_query(
@@ -78,7 +78,7 @@ from defog import Defog
 # your credentials are never sent to our server, and always run locally
 defog = Defog(
     api_key="YOUR_API_KEY",
-    db_type="mongo",
+    db_type="bigquery",
     db_creds="/path/to/service/json.key",
 )
 
@@ -87,7 +87,7 @@ defog = Defog(
 gsheets_url = defog.generate_bigquery_schema(tables=['your_table_name_1', 'your_table_name_2'])
 
 # update the postgres schema in our database
-defog.update_biguery_schema(gsheet_url)
+defog.update_biguery_schema(gsheets_url)
 
 question = "question asked by a user"
 results = defog.run_query(
