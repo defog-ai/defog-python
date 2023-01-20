@@ -88,6 +88,43 @@ class Defog:
             print(resp)
             raise resp['message']
     
+    def generate_mysql_schema(self, tables: list):
+        try:
+            import mysql.connector
+        except:
+            raise Exception("mysql-connector not installed.")
+        
+        conn = mysql.connector.connect(**self.db_creds)
+        cur = conn.cursor()
+        schemas = {}
+        
+        print("Getting schema for each tables in your database...")
+        # get the schema for each table
+        for table_name in tables:
+            cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s;", (table_name,))
+            rows = cur.fetchall()
+            rows = [row for row in rows]
+            rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
+            schemas[table_name] = rows
+        
+        conn.close()
+
+        print("Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes...")
+        # send the schemas dict to the defog servers
+        r = requests.post("https://api.defog.ai/get_mysql_schema_gsheets",
+            json={
+                "api_key": self.api_key,
+                "schemas": schemas
+            }
+        )
+        resp = r.json()
+        try:
+            gsheet_url = resp['sheet_url']
+            return gsheet_url
+        except Exception as e:
+            print(resp)
+            raise resp['message']
+    
     def generate_mongo_schema(self, collections: list):
         try:
             from pymongo import MongoClient
@@ -159,7 +196,21 @@ class Defog:
         except Exception as e:
             print(resp)
             raise resp['message']
-
+    
+    def update_mysql_schema(self, gsheet_url : str):
+        """
+        Updates the postgres schema on the defog servers.
+        :param gsheet_url: The url of the google sheet containing the schema.
+        """
+        r = requests.post("https://api.defog.ai/update_postgres_schema",
+            json={
+                "api_key": self.api_key,
+                "gsheet_url": gsheet_url
+            }
+        )
+        resp = r.json()
+        return resp
+    
     def update_postgres_schema(self, gsheet_url : str):
         """
         Updates the postgres schema on the defog servers.
