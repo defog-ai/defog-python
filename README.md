@@ -71,6 +71,38 @@ results = defog.run_query(
 print(results)
 ```
 
+## MySQL
+```
+from defog import Defog
+
+# your credentials are never sent to our server, and always run locally
+defog = Defog(
+    api_key="YOUR_API_KEY",
+    db_type="mysql",
+    db_creds={
+        "host": YOUR_DB_HOST,
+        "database": YOUR_DATABASE_NAME,
+        "user": YOUR_USER_NAME, # often `defogdata`, if you have followed our setup instructions
+        "password": YOUR_PASSWORD
+    }
+)
+
+# generate a schema of your postgres DB
+# feel free to make changes to the google sheet url generated
+gsheets_url = defog.generate_mysql_schema(tables=['your_table_name_1', 'your_table_name_2']) 
+
+# update the mysql schema in our database
+defog.update_mysql_schema(gsheets_url)
+
+question = "question asked by a user"
+results = defog.run_query(
+  question=question
+)
+
+print(results)
+```
+
+
 ## BigQuery
 ```
 from defog import Defog
