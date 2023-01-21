@@ -111,7 +111,7 @@ class Defog:
 
         print("Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes...")
         # send the schemas dict to the defog servers
-        r = requests.post("https://api.defog.ai/get_mysql_schema_gsheets",
+        r = requests.post("https://api.defog.ai/get_postgres_schema_gsheets",
             json={
                 "api_key": self.api_key,
                 "schemas": schemas
@@ -326,6 +326,58 @@ class Defog:
                     )
                     query = r.json()
                     conn = psycopg2.connect(**self.db_creds)
+                    cur = conn.cursor()
+                    try:
+                        cur.execute(query["new_query"])
+                        colnames = [desc[0] for desc in cur.description]
+                        result = cur.fetchall()
+                        cur.close()
+                        conn.close()
+                        print("Query ran succesfully!")
+                        return {
+                            "columns": colnames,
+                            "data": result,
+                            "query_generated": query["new_query"],
+                            "ran_successfully": True
+                        }
+                    except Exception as e:
+                        return {"error_message": str(e), "ran_successfully": False}
+            elif query['query_db'] == "mysql":
+                try:
+                    import mysql.connector
+                except:
+                    raise Exception("mysql.connector not installed.")
+                conn = mysql.connector.connect(**self.db_creds)
+                cur = conn.cursor()
+                try:
+                    cur.execute(query["query_generated"])
+                    colnames = [desc[0] for desc in cur.description]
+                    result = cur.fetchall()
+                    cur.close()
+                    conn.close()
+                    print("Query ran succesfully!")
+                    return {
+                        "columns": colnames,
+                        "data": result,
+                        "query_generated": query["query_generated"],
+                        "ran_successfully": True
+                    }
+                except Exception as e:
+                    print(f"Query generated was: {query['query_generated']}")
+                    print(f"There was an error {str(e)} when running the previous query. Retrying with adaptive learning...")
+                    # retry the query with the exception
+                    r = requests.post("https://api.defog.ai/retry_query_after_error",
+                        json={
+                            "api_key": self.api_key,
+                            "previous_query": query["query_generated"],
+                            "error": str(e),
+                            "db_type": self.db_type,
+                            "hard_filters": hard_filters,
+                            "question": question
+                        }
+                    )
+                    query = r.json()
+                    conn = mysql.connector.connect(**self.db_creds)
                     cur = conn.cursor()
                     try:
                         cur.execute(query["new_query"])
