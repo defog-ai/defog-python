@@ -13,43 +13,6 @@ class Defog:
         self.api_key = api_key
         self.db_type = db_type
         self.db_creds = db_creds
-        if db_creds is None:
-            self.update_db_creds()
-    
-    def update_db_creds(self):
-        """
-        Updates the database type.
-        """
-        print("Fetching database credentials...")
-        r = requests.post("https://api.defog.ai/get_db_creds",
-            json={
-                "api_key": self.api_key,
-            }
-        )
-        resp = r.json()
-        db_type = resp['db_type']
-        self.db_type = db_type
-        if db_type == "postgres":
-            creds = resp['postgres_creds']
-            self.db_creds = {
-                "host": creds["postgres_host"],
-                "port": creds["postgres_port"],
-                "database": creds["postgres_db"],
-                "user": creds["postgres_username"],
-                "password": creds["postgres_password"]
-            }
-            return True
-        elif db_type == "mongo":
-            creds = resp['mongo_creds']
-            self.db_creds = {
-                "connection_string": creds["mongo_connection_string"]
-            }
-            return True
-        elif self.db_type == "bigquery":
-            print("Please enter the path to your service account json file when initializing Defog\n\ndefog = Defog(api_key=key, db_type='bigquery', db_creds='path/to/service_account.json)")
-            pass
-        else:
-            raise Exception("Database type not yet supported.")
     
     def generate_postgres_schema(self, tables: list):
         try:
@@ -88,6 +51,43 @@ class Defog:
             print(resp)
             raise resp['message']
     
+    def generate_redshift_schema(self, tables: list):
+        try:
+            import psycopg2
+        except:
+            raise Exception("psycopg2 not installed.")
+        
+        conn = psycopg2.connect(**self.db_creds)
+        cur = conn.cursor()
+        schemas = {}
+        
+        print("Getting schema for each tables in your database...")
+        # get the schema for each table
+        for table_name in tables:
+            cur.execute("SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;", (table_name,))
+            rows = cur.fetchall()
+            rows = [row for row in rows]
+            rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
+            schemas[table_name] = rows
+        
+        conn.close()
+
+        print("Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes...")
+        # send the schemas dict to the defog servers
+        r = requests.post("https://api.defog.ai/get_postgres_schema_gsheets",
+            json={
+                "api_key": self.api_key,
+                "schemas": schemas
+            }
+        )
+        resp = r.json()
+        try:
+            gsheet_url = resp['sheet_url']
+            return gsheet_url
+        except Exception as e:
+            print(resp)
+            raise resp['message']
+
     def generate_mysql_schema(self, tables: list):
         try:
             import mysql.connector
@@ -225,6 +225,21 @@ class Defog:
         resp = r.json()
         return resp
     
+    
+    def update_redshift_schema(self, gsheet_url : str):
+        """
+        Updates the redshift schema on the defog servers.
+        :param gsheet_url: The url of the google sheet containing the schema.
+        """
+        r = requests.post("https://api.defog.ai/update_postgres_schema",
+            json={
+                "api_key": self.api_key,
+                "gsheet_url": gsheet_url
+            }
+        )
+        resp = r.json()
+        return resp
+    
     def update_mongo_schema(self, gsheet_url : str):
         """
         Updates the mongo schema on the defog servers.
@@ -289,7 +304,7 @@ class Defog:
         query =  self.get_query(question, hard_filters)
         if query["ran_successfully"]:
             print("Query generated, now running it on your database...")
-            if query['query_db'] == "postgres":
+            if query['query_db'] == "postgres" or query['query_db'] == "redshift":
                 try:
                     import psycopg2
                 except:
