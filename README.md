@@ -148,10 +148,10 @@ defog = Defog(
 
 # generate a schema of your Redshift DB
 # feel free to make changes to the google sheet url generated
-gsheets_url = defog.generate_postgres_schema(tables=['your_table_name_1', 'your_table_name_2']) 
+gsheets_url = defog.generate_redshift_schema(tables=['your_table_name_1', 'your_table_name_2']) 
 
 # update the postgres schema in our database
-defog.update_postgres_schema(gsheets_url)
+defog.update_redshift_schema(gsheets_url)
 
 question = "question asked by a user"
 results = defog.run_query(
