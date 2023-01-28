@@ -128,3 +128,35 @@ results = defog.run_query(
 
 print(results)
 ```
+
+## Redshift
+```
+from defog import Defog
+
+# your credentials are never sent to our server, and always run locally
+defog = Defog(
+    api_key="YOUR_API_KEY",
+    db_type="redshift",
+    db_creds={
+        "host": YOUR_DB_HOST,
+        "port": YOUR_PORT, # usually, this is 5439 for Redshift
+        "database": YOUR_DATABASE_NAME,
+        "user": YOUR_USER_NAME, # often `defogdata`, if you have followed our setup instructions
+        "password": YOUR_PASSWORD
+    }
+)
+
+# generate a schema of your Redshift DB
+# feel free to make changes to the google sheet url generated
+gsheets_url = defog.generate_postgres_schema(tables=['your_table_name_1', 'your_table_name_2']) 
+
+# update the postgres schema in our database
+defog.update_postgres_schema(gsheets_url)
+
+question = "question asked by a user"
+results = defog.run_query(
+  question=question
+)
+
+print(results)
+```
