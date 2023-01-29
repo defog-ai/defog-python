@@ -10,6 +10,8 @@ class Defog:
         Initializes the Defog class.
         :param api_key: The API key for the defog account.
         """
+        if db_type not in ["postgres", "redshift", "mysql", "bigquery", "mongo"]:
+            raise Exception(f"Database `{db_type}` is not supported right now. db_type must be one of 'postgres', 'redshift', 'mysql', 'bigquery', 'mongo'")
         self.api_key = api_key
         self.db_type = db_type
         self.db_creds = db_creds
@@ -24,7 +26,7 @@ class Defog:
         cur = conn.cursor()
         schemas = {}
         
-        print("Getting schema for each tables in your database...")
+        print("Getting schema for each table in your database...")
         # get the schema for each table
         for table_name in tables:
             cur.execute("SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;", (table_name,))
@@ -61,7 +63,7 @@ class Defog:
         cur = conn.cursor()
         schemas = {}
         
-        print("Getting schema for each tables in your database...")
+        print("Getting schema for each table in your database...")
         # get the schema for each table
         for table_name in tables:
             cur.execute("SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;", (table_name,))
@@ -98,7 +100,7 @@ class Defog:
         cur = conn.cursor()
         schemas = {}
         
-        print("Getting schema for each tables in your database...")
+        print("Getting schema for each table in your database...")
         # get the schema for each table
         for table_name in tables:
             cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s;", (table_name,))
@@ -136,7 +138,7 @@ class Defog:
         
         schemas = {}
         
-        print("Getting schema for each collections in your database...")
+        print("Getting schema for each collection in your database...")
         # get the schema for each table
         for collection_name in collections:
             collection = db[collection_name]
@@ -197,6 +199,20 @@ class Defog:
             print(resp)
             raise resp['message']
     
+    def generate_db_schema(self, tables: list):
+        if self.db_type == "postgres":
+            return self.generate_postgres_schema(tables)
+        elif self.db_type == "mysql":
+            return self.generate_mysql_schema(tables)
+        elif self.db_type == "mongo":
+            return self.generate_mongo_schema(tables)
+        elif self.db_type == "bigquery":
+            return self.generate_bigquery_schema(tables)
+        elif self.db_type == "redshift":
+            return self.generate_redshift_schema(tables)
+        else:
+            raise Exception("Invalid database type. Valid types are: postgres, mysql, mongo, bigquery, and redshift")
+
     def update_mysql_schema(self, gsheet_url : str):
         """
         Updates the postgres schema on the defog servers.
@@ -224,7 +240,6 @@ class Defog:
         )
         resp = r.json()
         return resp
-    
     
     def update_redshift_schema(self, gsheet_url : str):
         """
@@ -268,6 +283,21 @@ class Defog:
         resp = r.json()
         return resp
     
+    def update_db_schema(self, gsheet_url: str):
+        print("Updating the schema on the Defog servers. This might a couple of minutes...")
+        if self.db_type == "postgres":
+            return self.update_postgres_schema(gsheet_url)
+        elif self.db_type == "mysql":
+            return self.update_mysql_schema(gsheet_url)
+        elif self.db_type == "mongo":
+            return self.update_mongo_schema(gsheet_url)
+        elif self.db_type == "bigquery":
+            return self.update_bigquery_schema(gsheet_url)
+        elif self.db_type == "redshift":
+            return self.update_redshift_schema(gsheet_url)
+        else:
+            raise Exception("Invalid database type. Valid types are: postgres, mysql, mongo, bigquery, and redshift")
+
     def get_query(self, question: str, hard_filters: str = None):
         """
         Sends the query to the defog servers, and return the response.
