@@ -2,13 +2,13 @@ from setuptools import find_packages, setup
 setup(
     name='defog',
     packages=find_packages(),
-    version='0.9.0',
+    version='0.9.1',
     description='Defog is a Python library that helps you generate data queries from natural language questions.',
     author='Full Stack Data Pte. Ltd.',
     license='MIT',
     install_requires=[
         'requests',
-        'psycopg2',
+        'psycopg2-binary',
         'mysql-connector-python',
         'pymongo',
         'google-cloud-bigquery'
