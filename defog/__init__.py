@@ -284,7 +284,7 @@ class Defog:
         return resp
     
     def update_db_schema(self, gsheet_url: str):
-        print("Updating the schema on the Defog servers. This might a couple of minutes...")
+        print("Updating the schema on the Defog servers. This might take a couple minutes...")
         if self.db_type == "postgres":
             return self.update_postgres_schema(gsheet_url)
         elif self.db_type == "mysql":
