@@ -396,7 +396,7 @@ class Defog:
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
-        print("generating the query for your question...")
+        print(f"Generating the query for your question: {question}...")
         query =  self.get_query(question, hard_filters)
         if query["ran_successfully"]:
             print("Query generated, now running it on your database...")
