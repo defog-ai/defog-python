@@ -150,8 +150,41 @@ defog = Defog(
 # feel free to make changes to the google sheet url generated
 gsheets_url = defog.generate_redshift_schema(tables=['your_table_name_1', 'your_table_name_2']) 
 
-# update the postgres schema in our database
+# update the redshift schema in our database
 defog.update_redshift_schema(gsheets_url)
+
+question = "question asked by a user"
+results = defog.run_query(
+  question=question
+)
+
+print(results)
+```
+
+## Snowflake
+```
+from defog import Defog
+
+# your credentials are never sent to our server, and always run locally
+defog = Defog(
+    api_key="YOUR_API_KEY",
+    db_type="snowflake",
+    db_creds={
+        "user": YOUR_USER_NAME,
+        "password": YOUR_PASSWORD,
+        "account": YOUR_ACCOUNT_NAME,
+        "warehouse": YOUR_WAREHOUSE_NAME
+        
+    }
+)
+
+# generate a schema of your Redshift DB
+# feel free to make changes to the google sheet url generated
+tables_to_query = ['your_table_name_1', 'your_table_name_2']
+gsheets_url = defog.generate_snowflake_schema(tables=tables_to_query)
+
+# update the snowflake schema in our database
+defog.update_snowflake_schema(gsheets_url)
 
 question = "question asked by a user"
 results = defog.run_query(
