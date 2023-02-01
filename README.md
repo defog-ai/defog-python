@@ -28,7 +28,7 @@ defog = Defog(
     }
 )
 
-# generate a schema of your postgres DB
+# generate a schema of your selected postgres tables
 # feel free to make changes to the google sheet url generated
 gsheets_url = defog.generate_postgres_schema(tables=['your_table_name_1', 'your_table_name_2']) 
 
@@ -56,7 +56,7 @@ defog = Defog(
     }
 )
 
-# generate a schema of your mongo collection
+# generate a schema of your selected mongo collections
 # feel free to make changes to the google sheet url generated
 gsheets_url = defog.generate_mongo_schema(collections=['collection_name_1', 'collection_name_2'])
 
@@ -87,7 +87,7 @@ defog = Defog(
     }
 )
 
-# generate a schema of your postgres DB
+# generate a schema of your selected postgres tables
 # feel free to make changes to the google sheet url generated
 gsheets_url = defog.generate_mysql_schema(tables=['your_table_name_1', 'your_table_name_2']) 
 
@@ -146,7 +146,7 @@ defog = Defog(
     }
 )
 
-# generate a schema of your Redshift DB
+# generate a schema of your selected Redshift tables
 # feel free to make changes to the google sheet url generated
 gsheets_url = defog.generate_redshift_schema(tables=['your_table_name_1', 'your_table_name_2']) 
 
@@ -178,7 +178,7 @@ defog = Defog(
     }
 )
 
-# generate a schema of your Redshift DB
+# generate a schema of your selected Snowflake tables
 # feel free to make changes to the google sheet url generated
 tables_to_query = ['your_table_name_1', 'your_table_name_2']
 gsheets_url = defog.generate_snowflake_schema(tables=tables_to_query)
