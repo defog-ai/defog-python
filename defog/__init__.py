@@ -1,4 +1,5 @@
 import requests
+import json
 
 class Defog:
     """
@@ -127,6 +128,52 @@ class Defog:
             print(resp)
             raise resp['message']
     
+    def generate_snowflake_schema(self, tables: list):
+        try:
+            import snowflake.connector
+        except:
+            raise Exception("snowflake-connector not installed.")
+        
+        conn = snowflake.connector.connect(
+            user=self.db_creds['user'],
+            password=self.db_creds['password'],
+            account=self.db_creds['account'],
+        )
+        conn.cursor().execute(f"USE WAREHOUSE {self.db_creds['warehouse']}") # set the warehouse
+
+        schemas = {}
+        alt_types = {"DATE": "TIMESTAMP", "TEXT": "VARCHAR", "FIXED": "NUMERIC"}
+        print("Getting schema for each table in your database...")
+        # get the schema for each table
+        for table_name in tables:
+            rows = []
+            for row in conn.cursor().execute(f"SHOW COLUMNS IN {table_name};"):
+                rows.append(row)
+            rows = [{"column_name": i[2], "data_type": json.loads(i[3])['type'] } for i in rows]
+            for idx, row in enumerate(rows):
+                if row['data_type'] in alt_types:
+                    row['data_type'] = alt_types[row['data_type']]
+                rows[idx] = row
+            schemas[table_name] = rows
+        
+        conn.close()
+
+        print("Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes...")
+        # send the schemas dict to the defog servers
+        r = requests.post("https://api.defog.ai/get_postgres_schema_gsheets",
+            json={
+                "api_key": self.api_key,
+                "schemas": schemas
+            }
+        )
+        resp = r.json()
+        try:
+            gsheet_url = resp['sheet_url']
+            return gsheet_url
+        except Exception as e:
+            print(resp)
+            raise resp['message']
+
     def generate_mongo_schema(self, collections: list):
         try:
             from pymongo import MongoClient
@@ -210,6 +257,8 @@ class Defog:
             return self.generate_bigquery_schema(tables)
         elif self.db_type == "redshift":
             return self.generate_redshift_schema(tables)
+        elif self.db_type == "snowflake":
+            return self.generate_snowflake_schema(tables)
         else:
             raise Exception("Invalid database type. Valid types are: postgres, mysql, mongo, bigquery, and redshift")
 
@@ -283,6 +332,20 @@ class Defog:
         resp = r.json()
         return resp
     
+    def update_snowflake_schema(self, gsheet_url : str):
+        """
+        Updates the mongo schema on the defog servers.
+        :param gsheet_url: The url of the google sheet containing the schema.
+        """
+        r = requests.post("https://api.defog.ai/update_snowflake_schema",
+            json={
+                "api_key": self.api_key,
+                "gsheet_url": gsheet_url
+            }
+        )
+        resp = r.json()
+        return resp
+    
     def update_db_schema(self, gsheet_url: str):
         print("Updating the schema on the Defog servers. This might take a couple minutes...")
         if self.db_type == "postgres":
@@ -295,6 +358,8 @@ class Defog:
             return self.update_bigquery_schema(gsheet_url)
         elif self.db_type == "redshift":
             return self.update_redshift_schema(gsheet_url)
+        elif self.db_type == "snowflake":
+            return self.update_snowflake_schema(gsheet_url)
         else:
             raise Exception("Invalid database type. Valid types are: postgres, mysql, mongo, bigquery, and redshift")
 
@@ -482,6 +547,32 @@ class Defog:
                     "query_generated": query["query_generated"],
                     "ran_successfully": True
                 }
+            elif query['query_db'] == "snowflake":
+                try:
+                    import snowflake.connector
+                except:
+                    raise Exception("snowflake.connector not installed.")
+                conn = snowflake.connector.connect(
+                    user=self.db_creds["user"],
+                    password=self.db_creds["password"],
+                    account=self.db_creds["account"],
+                )
+                cur = conn.cursor()
+                try:
+                    cur.execute(query["query_generated"])
+                    colnames = [desc[0] for desc in cur.description]
+                    result = cur.fetchall()
+                    cur.close()
+                    conn.close()
+                    print("Query ran succesfully!")
+                    return {
+                        "columns": colnames,
+                        "data": result,
+                        "query_generated": query["query_generated"],
+                        "ran_successfully": True
+                    }
+                except Exception as e:
+                    return {"error_message": str(e), "ran_successfully": False}
             else:
                 raise Exception("Database type not yet supported.")
         else:
