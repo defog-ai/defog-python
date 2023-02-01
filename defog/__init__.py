@@ -11,7 +11,7 @@ class Defog:
         Initializes the Defog class.
         :param api_key: The API key for the defog account.
         """
-        if db_type not in ["postgres", "redshift", "mysql", "bigquery", "mongo"]:
+        if db_type not in ["postgres", "redshift", "mysql", "bigquery", "mongo", "snowflake"]:
             raise Exception(f"Database `{db_type}` is not supported right now. db_type must be one of 'postgres', 'redshift', 'mysql', 'bigquery', 'mongo'")
         self.api_key = api_key
         self.db_type = db_type
@@ -154,6 +154,7 @@ class Defog:
                 if row['data_type'] in alt_types:
                     row['data_type'] = alt_types[row['data_type']]
                 rows[idx] = row
+            print(rows)
             schemas[table_name] = rows
         
         conn.close()
@@ -558,6 +559,7 @@ class Defog:
                     account=self.db_creds["account"],
                 )
                 cur = conn.cursor()
+                cur.execute(f"USE WAREHOUSE {self.db_creds['warehouse']}") # set the warehouse
                 try:
                     cur.execute(query["query_generated"])
                     colnames = [desc[0] for desc in cur.description]
