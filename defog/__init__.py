@@ -141,7 +141,7 @@ class Defog:
         print("Getting schema for each table in your database...")
         # get the schema for each table
         for table_name in tables:
-            cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s;", (table_name,))
+            cur.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table_name}';")
             rows = cur.fetchall()
             rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
@@ -297,6 +297,8 @@ class Defog:
             return self.generate_redshift_schema(tables)
         elif self.db_type == "snowflake":
             return self.generate_snowflake_schema(tables)
+        elif self.db_type == "sqlserver":
+            return self.generate_sqlserver_schema(tables)
         else:
             raise Exception("Invalid database type. Valid types are: postgres, mysql, mongo, bigquery, and redshift")
 
