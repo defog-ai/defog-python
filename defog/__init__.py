@@ -11,8 +11,8 @@ class Defog:
         Initializes the Defog class.
         :param api_key: The API key for the defog account.
         """
-        if db_type not in ["postgres", "redshift", "mysql", "bigquery", "mongo", "snowflake"]:
-            raise Exception(f"Database `{db_type}` is not supported right now. db_type must be one of 'postgres', 'redshift', 'mysql', 'bigquery', 'mongo'")
+        if db_type not in ["postgres", "redshift", "mysql", "bigquery", "mongo", "snowflake", "sqlserver"]:
+            raise Exception(f"Database `{db_type}` is not supported right now. db_type must be one of 'postgres', 'redshift', 'mysql', 'bigquery', 'mongo', 'sqlserver'.")
         self.api_key = api_key
         self.db_type = db_type
         self.db_creds = db_creds
@@ -613,6 +613,28 @@ class Defog:
                 )
                 cur = conn.cursor()
                 cur.execute(f"USE WAREHOUSE {self.db_creds['warehouse']}") # set the warehouse
+                try:
+                    cur.execute(query["query_generated"])
+                    colnames = [desc[0] for desc in cur.description]
+                    result = cur.fetchall()
+                    cur.close()
+                    conn.close()
+                    print("Query ran succesfully!")
+                    return {
+                        "columns": colnames,
+                        "data": result,
+                        "query_generated": query["query_generated"],
+                        "ran_successfully": True
+                    }
+                except Exception as e:
+                    return {"error_message": str(e), "ran_successfully": False}
+            elif query['query_db'] == "sqlserver":
+                try:
+                    import pyodbc
+                except:
+                    raise Exception("pyodbc not installed.")
+                conn = pyodbc.connect(self.db_creds)
+                cur = conn.cursor()
                 try:
                     cur.execute(query["query_generated"])
                     colnames = [desc[0] for desc in cur.description]
