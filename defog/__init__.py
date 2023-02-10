@@ -418,6 +418,20 @@ class Defog:
             return self.update_sqlserver_schema(gsheet_url)
         else:
             raise Exception("Invalid database type. Valid types are: postgres, mysql, mongo, bigquery, and redshift")
+    
+    def update_glossary(self, glossary: str):
+        """
+        Updates the glossary on the defog servers.
+        :param glossary: The glossary to be used.
+        """
+        r = requests.post("https://api.defog.ai/update_glossary",
+            json={
+                "api_key": self.api_key,
+                "glossary": glossary
+            }
+        )
+        resp = r.json()
+        return resp
 
     def get_query(self, question: str, hard_filters: str = None):
         """
