@@ -439,25 +439,32 @@ class Defog:
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
-        r = requests.post("https://api.defog.ai/generate_query",
-            json={
-                "question": question,
-                "api_key": self.api_key,
-                "hard_filters": hard_filters,
-                "db_type": self.db_type
+        try:
+            r = requests.post("https://api.defog.ai/generate_query",
+                json={
+                    "question": question,
+                    "api_key": self.api_key,
+                    "hard_filters": hard_filters,
+                    "db_type": self.db_type
+                },
+                timeout=30
+            )
+            resp = r.json()
+            query_generated = resp.get("query_generated")
+            ran_successfully = resp["ran_successfully"]
+            error_message =  resp.get("error_message")
+            query_db = resp.get("query_db", 'postgres')
+            return {
+                "query_generated": query_generated,
+                "ran_successfully": ran_successfully,
+                "error_message": error_message,
+                "query_db": query_db
             }
-        )
-        resp = r.json()
-        query_generated = resp.get("query_generated")
-        ran_successfully = resp["ran_successfully"]
-        error_message =  resp.get("error_message")
-        query_db = resp.get("query_db", 'postgres')
-        return {
-            "query_generated": query_generated,
-            "ran_successfully": ran_successfully,
-            "error_message": error_message,
-            "query_db": query_db
-        }
+        except:
+            return {
+                "ran_successfully": False,
+                "error_message": "Sorry :( Our server is at capacity right now and we are unable to process your query. Please try again in a few minutes?",
+            }
     
     def run_query(self, question: str, hard_filters: str = None):
         """
@@ -669,4 +676,7 @@ class Defog:
             else:
                 raise Exception("Database type not yet supported.")
         else:
-            raise Exception(query["error_message"])
+            return {
+                "ran_successfully": False,
+                "error_message": query["error_message"]
+            }
