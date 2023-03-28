@@ -611,19 +611,48 @@ class Defog:
                 
                 json_key = self.db_creds
                 client = bigquery.Client.from_service_account_json(json_key)
-                query_job = client.query(query["query_generated"])
-                results = query_job.result()
-                columns = [i.name for i in results.schema]
-                rows = []
-                for row in results:
-                    rows.append([row[i] for i in range(len(row))])
-                
-                return {
-                    "columns": columns, # assumes that all objects have the same keys
-                    "data": rows,
-                    "query_generated": query["query_generated"],
-                    "ran_successfully": True
-                }
+                try:
+                    query_job = client.query(query["query_generated"])
+                    results = query_job.result()
+                    columns = [i.name for i in results.schema]
+                    rows = []
+                    for row in results:
+                        rows.append([row[i] for i in range(len(row))])
+                    
+                    return {
+                        "columns": columns, # assumes that all objects have the same keys
+                        "data": rows,
+                        "query_generated": query["query_generated"],
+                        "ran_successfully": True
+                    }
+                except Exception as e:
+                    print(f"Query generated was: {query['query_generated']}")
+                    print(f"There was an error {str(e)} when running the previous query. Retrying with adaptive learning...")
+                    # retry the query with the exception
+                    r = requests.post("https://api.defog.ai/retry_query_after_error",
+                        json={
+                            "api_key": self.api_key,
+                            "previous_query": query["query_generated"],
+                            "error": str(e),
+                            "db_type": self.db_type,
+                            "hard_filters": hard_filters,
+                            "question": question
+                        }
+                    )
+                    client = bigquery.Client.from_service_account_json(json_key)
+                    query_job = client.query(r.json()['new_query'])
+                    results = query_job.result()
+                    columns = [i.name for i in results.schema]
+                    rows = []
+                    for row in results:
+                        rows.append([row[i] for i in range(len(row))])
+                    
+                    return {
+                        "columns": columns, # assumes that all objects have the same keys
+                        "data": rows,
+                        "query_generated": query["query_generated"],
+                        "ran_successfully": True
+                    }
             elif query['query_db'] == "snowflake":
                 try:
                     import snowflake.connector
