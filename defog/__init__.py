@@ -67,9 +67,17 @@ class Defog:
         print("Getting schema for each table in your database...")
         # get the schema for each table
         for table_name in tables:
-            cur.execute("SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;", (table_name,))
-            rows = cur.fetchall()
-            rows = [row for row in rows]
+            try:
+                cur.execute("SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;", (table_name,))
+                rows = cur.fetchall()
+                rows = [row for row in rows]
+            except:
+                # dirty hack for redshift spectrum
+                rows = []
+            if len(rows) == 0:
+                cur.execute("SELECT CAST(column_name AS TEXT), CAST(external_type AS TEXT) FROM svv_external_columns WHERE table_name = %s;", (table_name,))
+                rows = cur.fetchall()
+                rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
             schemas[table_name] = rows
         
