@@ -75,7 +75,7 @@ class Defog:
                 # dirty hack for redshift spectrum
                 rows = []
             if len(rows) == 0:
-                cur.execute("SELECT CAST(column_name AS TEXT), CAST(external_type AS TEXT) FROM svv_external_columns WHERE table_name = %s;", (table_name,))
+                cur.execute(f"SELECT CAST(columnname AS TEXT), CAST(external_type AS TEXT) FROM svv_external_columns WHERE table_name = '{table_name}';")
                 rows = cur.fetchall()
                 rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
