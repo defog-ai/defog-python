@@ -441,32 +441,51 @@ class Defog:
         resp = r.json()
         return resp
 
-    def get_query(self, question: str, hard_filters: str = None):
+    def get_query(self, question: str, hard_filters: str = None, previous_context: list = None):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
         try:
-            r = requests.post("https://api.defog.ai/generate_query",
-                json={
-                    "question": question,
-                    "api_key": self.api_key,
-                    "hard_filters": hard_filters,
-                    "db_type": self.db_type
-                },
-                timeout=30
-            )
-            resp = r.json()
-            query_generated = resp.get("query_generated")
-            ran_successfully = resp["ran_successfully"]
-            error_message =  resp.get("error_message")
-            query_db = resp.get("query_db", 'postgres')
+            if previous_context is None:
+                r = requests.post("https://api.defog.ai/generate_query",
+                    json={
+                        "question": question,
+                        "api_key": self.api_key,
+                        "hard_filters": hard_filters,
+                        "db_type": self.db_type
+                    },
+                    timeout=30
+                )
+                resp = r.json()
+                query_generated = resp.get("query_generated")
+                ran_successfully = resp["ran_successfully"]
+                error_message =  resp.get("error_message")
+                query_db = resp.get("query_db", 'postgres')
+            else:
+                r = requests.post("https://api.defog.ai/generate_query_chat",
+                    json={
+                        "question": question,
+                        "api_key": self.api_key,
+                        "previous_context": previous_context,
+                        "db_type": self.db_type
+                    },
+                    timeout=30
+                )
+                resp = r.json()
+                query_generated = resp.get("sql")
+                ran_successfully = resp.get('ran_successfully')
+                error_message =  resp.get("error_message")
+                query_db = self.db_type
             return {
                 "query_generated": query_generated,
                 "ran_successfully": ran_successfully,
                 "error_message": error_message,
-                "query_db": query_db
+                "query_db": query_db,
+                "previous_context": resp.get("previous_context"),
+                "suggestion_for_further_questions": resp.get("suggestion_for_further_questions"),
+                "reason_for_query": resp.get("reason_for_query")
             }
         except:
             return {
@@ -474,14 +493,14 @@ class Defog:
                 "error_message": "Sorry :( Our server is at capacity right now and we are unable to process your query. Please try again in a few minutes?",
             }
     
-    def run_query(self, question: str, hard_filters: str = None):
+    def run_query(self, question: str, hard_filters: str = None, previous_context: list = None):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
         print(f"Generating the query for your question: {question}...")
-        query =  self.get_query(question, hard_filters)
+        query =  self.get_query(question, hard_filters, previous_context)
         if query["ran_successfully"]:
             print("Query generated, now running it on your database...")
             if query['query_db'] == "postgres" or query['query_db'] == "redshift":
@@ -503,7 +522,10 @@ class Defog:
                         "columns": colnames,
                         "data": result,
                         "query_generated": query["query_generated"],
-                        "ran_successfully": True
+                        "ran_successfully": True,
+                        "reason_for_query": query.get("reason_for_query"),
+                        "suggestion_for_further_questions": query.get("suggestion_for_further_questions"),
+                        "previous_context": query.get("previous_context")
                     }
                 except Exception as e:
                     print(f"Query generated was: {query['query_generated']}")
