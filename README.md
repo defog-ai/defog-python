@@ -154,8 +154,13 @@ gsheets_url = defog.generate_redshift_schema(tables=['your_table_name_1', 'your_
 defog.update_redshift_schema(gsheets_url)
 
 question = "question asked by a user"
+previous_context = []
+# previous_context is an array of previous questions asked and SQL generated
+# an example is this: previous_context = ['who are our best users?', "SELECT u.userid, u.username, count(distinct s.eventid) as num_events, sum(s.qtysold) as total_tickets_sold\nFROM users u join sales s ON u.userid = s.buyerid\nGROUP BY u.userid, u.username\nORDER BY total_tickets_sold desc limit 10;"]
+
 results = defog.run_query(
-  question=question
+  question=question,
+  previous_context=previous_context
 )
 
 print(results)
