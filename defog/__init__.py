@@ -194,12 +194,11 @@ class Defog:
             rows = []
             for row in conn.cursor().execute(f"SHOW COLUMNS IN {table_name};"):
                 rows.append(row)
-            rows = [{"column_name": i[2], "data_type": json.loads(i[3])['type'] } for i in rows]
+            rows = [{"column_name": i[2], "data_type": json.loads(i[3])['type'], "column_description": i[8] } for i in rows]
             for idx, row in enumerate(rows):
                 if row['data_type'] in alt_types:
                     row['data_type'] = alt_types[row['data_type']]
                 rows[idx] = row
-            print(rows)
             schemas[table_name] = rows
         
         conn.close()
