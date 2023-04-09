@@ -440,7 +440,7 @@ class Defog:
         resp = r.json()
         return resp
 
-    def get_query(self, question: str, hard_filters: str = None, previous_context: list = None):
+    def get_query(self, question: str, hard_filters: str = None, previous_context: list = None, schema: dict = None):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
@@ -453,7 +453,8 @@ class Defog:
                         "question": question,
                         "api_key": self.api_key,
                         "hard_filters": hard_filters,
-                        "db_type": self.db_type
+                        "db_type": self.db_type,
+                        "schema": schema
                     },
                     timeout=30
                 )
@@ -468,7 +469,8 @@ class Defog:
                         "question": question,
                         "api_key": self.api_key,
                         "previous_context": previous_context,
-                        "db_type": self.db_type
+                        "db_type": self.db_type,
+                        "schema": schema
                     },
                     timeout=30
                 )
@@ -492,7 +494,7 @@ class Defog:
                 "error_message": "Sorry :( Our server is at capacity right now and we are unable to process your query. Please try again in a few minutes?",
             }
     
-    def run_query(self, question: str, hard_filters: str = None, previous_context: list = None):
+    def run_query(self, question: str, hard_filters: str = None, previous_context: list = None, schema: dict = None):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
