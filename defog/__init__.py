@@ -1,21 +1,95 @@
-import requests
 import json
+import os
+
+import requests
+
+SUPPORTED_DB_TYPES = ["postgres", "redshift", "mysql", "bigquery", "mongo", "snowflake"]
 
 class Defog:
     """
     The main class for Defog
     """
 
-    def __init__(self, api_key: str, db_type: str = "postgres", db_creds: dict = None):
+    def __init__(self, api_key: str = None, db_type: str = "postgres", db_creds: dict = None):
         """
         Initializes the Defog class.
         :param api_key: The API key for the defog account.
         """
-        if db_type not in ["postgres", "redshift", "mysql", "bigquery", "mongo", "snowflake", "sqlserver"]:
-            raise Exception(f"Database `{db_type}` is not supported right now. db_type must be one of 'postgres', 'redshift', 'mysql', 'bigquery', 'mongo', 'sqlserver'.")
-        self.api_key = api_key
-        self.db_type = db_type
-        self.db_creds = db_creds
+        home_dir = os.path.expanduser("~")
+        filepath = os.path.join(home_dir, ".defog/connection.json")
+        if not os.path.exists(filepath) and api_key is not None and db_creds is not None:
+            # read connection details from args
+            print(f"Connection details not found in {filepath}. Saving connection details to file...")
+            self.check_db_creds(db_type, db_creds)
+            self.api_key = api_key
+            self.db_type = db_type
+            self.db_creds = db_creds
+            data = { "api_key": api_key, "db_type": db_type, "db_creds": db_creds }
+            # write to filepath and print confirmation
+            if not os.path.exists(os.path.join(home_dir, ".defog")):
+                os.mkdir(os.path.join(home_dir, ".defog"))
+            with open(filepath, 'w') as f:
+                json.dump(data, f, indent=4)
+            print(f"Connection details saved to {filepath}.")
+        elif os.path.exists(filepath):
+            # read connection details from filepath
+            print("Connection details found. Reading connection details from file...")
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+                if 'api_key' in data and 'db_type' in data and 'db_creds' in data:
+                    self.check_db_creds(data['db_type'], data['db_creds'])
+                    self.api_key = data['api_key']
+                    self.db_type = data['db_type']
+                    self.db_creds = data['db_creds']
+                    print(f"Connection details read from {filepath}.")
+                else:
+                    raise KeyError(f"Invalid file at {filepath}.\n" \
+                        "Json file should contain 'api_key', 'db_type', 'db_creds'.\n" \
+                        "Please delete the file and try again.")
+        else:
+            raise ValueError("Connection details not found. Please set up with the CLI or pass in the api_key, db_type, and db_creds parameters.")
+
+    @staticmethod
+    def check_db_creds(db_type: str, db_creds: dict):
+        if db_type == "postgres" or db_type == "redshift":
+            if 'host' not in db_creds:
+                raise KeyError("db_creds must contain a 'host' key.")
+            if 'port' not in db_creds:
+                raise KeyError("db_creds must contain a 'port' key.")
+            if 'database' not in db_creds:
+                raise KeyError("db_creds must contain a 'database' key.")
+            if 'user' not in db_creds:
+                raise KeyError("db_creds must contain a 'user' key.")
+            if 'password' not in db_creds:
+                raise KeyError("db_creds must contain a 'password' key.")
+        elif db_type == "mysql":
+            if 'host' not in db_creds:
+                raise KeyError("db_creds must contain a 'host' key.")
+            if 'database' not in db_creds:
+                raise KeyError("db_creds must contain a 'database' key.")
+            if 'user' not in db_creds:
+                raise KeyError("db_creds must contain a 'user' key.")
+            if 'password' not in db_creds:
+                raise KeyError("db_creds must contain a 'password' key.")
+        elif db_type == "snowflake":
+            if 'account' not in db_creds:
+                raise KeyError("db_creds must contain a 'account' key.")
+            if 'warehouse' not in db_creds:
+                raise KeyError("db_creds must contain a 'warehouse' key.")
+            if 'user' not in db_creds:
+                raise KeyError("db_creds must contain a 'user' key.")
+            if 'password' not in db_creds:
+                raise KeyError("db_creds must contain a 'password' key.")
+        elif db_type == "mongo" or db_type == "sqlserver":
+            if 'connection_string' not in db_creds:
+                raise KeyError("db_creds must contain a 'connection_string' key.")
+        elif db_type == "bigquery":
+            if 'json_key_path' not in db_creds:
+                raise KeyError("db_creds must contain a 'json_key_path' key.")
+        else:
+            raise ValueError(f"Database `{db_type}` is not supported right now. db_type must be one of {', '.join(SUPPORTED_DB_TYPES)}")
+
+
     
     def generate_postgres_schema(self, tables: list):
         try:
@@ -142,7 +216,7 @@ class Defog:
         except:
             raise Exception("pyodbc not installed.")
         
-        conn = pyodbc.connect(self.db_creds)
+        conn = pyodbc.connect(self.db_creds['connection_string'])
         cur = conn.cursor()
         schemas = {}
 
@@ -262,7 +336,7 @@ class Defog:
         except:
             raise Exception("google-cloud-bigquery not installed.")
         
-        client = bigquery.Client.from_service_account_json(self.db_creds)
+        client = bigquery.Client.from_service_account_json(self.db_creds['json_key_path'])
         schemas = {}
         
         print("Getting the schema for each table in your database...")
@@ -307,7 +381,7 @@ class Defog:
         elif self.db_type == "sqlserver":
             return self.generate_sqlserver_schema(tables)
         else:
-            raise Exception("Invalid database type. Valid types are: postgres, mysql, mongo, bigquery, and redshift")
+            raise ValueError("Invalid database type. Valid types are: postgres, mysql, mongo, bigquery, and redshift")
 
     def update_mysql_schema(self, gsheet_url : str):
         """

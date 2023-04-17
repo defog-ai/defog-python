@@ -60,7 +60,7 @@ defog = Defog(
 # feel free to make changes to the google sheet url generated
 gsheets_url = defog.generate_mongo_schema(collections=['collection_name_1', 'collection_name_2'])
 
-# update the postgres schema in our database
+# update the mongo schema in our database
 defog.update_mongo_schema(gsheets_url)
 
 question = "question asked by a user"
@@ -87,7 +87,7 @@ defog = Defog(
     }
 )
 
-# generate a schema of your selected postgres tables
+# generate a schema of your selected mysql tables
 # feel free to make changes to the google sheet url generated
 gsheets_url = defog.generate_mysql_schema(tables=['your_table_name_1', 'your_table_name_2']) 
 
@@ -111,7 +111,9 @@ from defog import Defog
 defog = Defog(
     api_key="YOUR_API_KEY",
     db_type="bigquery",
-    db_creds="/path/to/service/json.key",
+    db_creds={
+      "json_key_path": "/path/to/service/json.key"
+    },
 )
 
 # generate a schema of your selected Bigquery tables
@@ -198,3 +200,12 @@ results = defog.run_query(
 
 print(results)
 ```
+
+# Testing
+
+For developers who want to test or add tests for this client, you can run:
+```
+python -m unittest test_defog
+```
+
+Note that we will transfer the existing .defog/connection.json file over to /tmp (if at all), and transfer the original file back once the tests are done to avoid messing with the original config.
