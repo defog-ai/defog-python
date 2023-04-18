@@ -30,8 +30,7 @@ def main():
     elif sys.argv[1] == "update":
         update()
     elif sys.argv[1] == "query":
-        # TODO
-        raise NotImplementedError("query not implemented yet")
+        query()
     elif sys.argv[1] == "quota":
         # TODO
         raise NotImplementedError("quota not implemented yet")
@@ -198,6 +197,18 @@ def update():
         print(resp)
         print("Please try again, or contact us at founders@defog.ai")
 
+
+def query():
+    df = defog.Defog() # load config from .defog/connection.json
+    if len(sys.argv) < 3:
+        print("defog query requires a query. Please enter your query:")
+        query = input()
+    else:
+        query = sys.argv[2]
+    while query != "exit":
+        resp = df.run_query(query)
+        print(resp)
+        query = input("Enter another query, or type 'exit' to exit: ")
 
 
 if __name__ == "__main__":
