@@ -559,8 +559,11 @@ class Defog:
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
+        if schema == {}:
+            schema = None
+        
         try:
-            if previous_context is None:
+            if previous_context is None or previous_context == []:
                 r = requests.post(
                     "https://api.defog.ai/generate_query",
                     json={
