@@ -39,6 +39,18 @@ If you spot some mistakes, and have updated the schema generated in the gsheet, 
 defog update <url>
 ```
 
+### Querying
+
+You can now run queries directly:
+```
+defog query "<your query>"
+```
+Happy querying!
+
+## Python API's
+
+If you prefer to use the python API's to integrate the calls directly within your application, you may do so with the following examples provided.
+
 ## Postgres
 ```
 from defog import Defog

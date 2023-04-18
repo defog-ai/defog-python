@@ -8,5 +8,3 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: psf/black@stable
-        with:
-          targets: defog test_defog.py

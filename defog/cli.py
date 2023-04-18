@@ -45,9 +45,7 @@ def main():
 
 def init():
     # print welcome message
-    print(
-        "Welcome to \033[94mdefog.ai\033[0m!\n"
-    )
+    print("Welcome to \033[94mdefog.ai\033[0m!\n")
     # check if .defog/connection.json exists
     # if it does, ask if user wants to overwrite
     # if it doesn't, create it
@@ -67,19 +65,29 @@ def init():
         print("We'll create a new config file at ~/.defog/connection.json")
         if not os.path.exists(os.path.join(home_dir, ".defog")):
             os.mkdir(os.path.join(home_dir, ".defog"))
-    
+
     # prompt user for defog api key if not in environment variable
     if os.environ.get("DEFOG_API_KEY"):
-        print("We found your DEFOG_API_KEY in your environment variables. We'll use that.")
+        print(
+            "We found your DEFOG_API_KEY in your environment variables. We'll use that."
+        )
         api_key = os.environ.get("DEFOG_API_KEY")
     else:
-        print("Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/account and creating an account:")
+        print(
+            "Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/account and creating an account:"
+        )
         api_key = input()
     # prompt user for db_type
-    print("What database are you using? Available options are: " + ", ".join(defog.SUPPORTED_DB_TYPES))
+    print(
+        "What database are you using? Available options are: "
+        + ", ".join(defog.SUPPORTED_DB_TYPES)
+    )
     db_type = input().lower()
     while db_type not in defog.SUPPORTED_DB_TYPES:
-        print("Sorry, we don't support that database yet. Available options are: " + ", ".join(defog.SUPPORTED_DB_TYPES))
+        print(
+            "Sorry, we don't support that database yet. Available options are: "
+            + ", ".join(defog.SUPPORTED_DB_TYPES)
+        )
         db_type = input().lower()
     # depending on db_type, prompt user for appropriate db_creds
     if db_type == "postgres" or db_type == "redshift":
@@ -152,11 +160,13 @@ def init():
 
     # prompt user for tables that they would like to register
     print("We're going to register your tables' schema with defog.")
-    print("Please enter the names of the tables you would like to register, separated by a space:")
+    print(
+        "Please enter the names of the tables you would like to register, separated by a space:"
+    )
     table_names = input()
     table_name_list = re.split(r"\s+", table_names.strip())
     # if input is empty, exit
-    if table_name_list == ['']:
+    if table_name_list == [""]:
         print("No tables were registered. Exiting.")
         sys.exit(0)
     else:
@@ -164,12 +174,17 @@ def init():
         gsheets_url = df.generate_db_schema(table_name_list)
         print("Your schema has been generated and is available at:\n")
         print(f"\033[1m{gsheets_url}\033[0m.\n")
-        print("If you do modify the schema in the link provided, please run `defog update <url>` to update the updated schema.")
+        print(
+            "If you do modify the schema in the link provided, please run `defog update <url>` to update the updated schema."
+        )
+
 
 def gen():
-    df = defog.Defog() # load config from .defog/connection.json
+    df = defog.Defog()  # load config from .defog/connection.json
     if len(sys.argv) < 3:
-        print("defog gen requires a list of tables to generate. Please enter the names of the tables whose schema you would like to generate, separated by a space:")
+        print(
+            "defog gen requires a list of tables to generate. Please enter the names of the tables whose schema you would like to generate, separated by a space:"
+        )
         table_names = input()
         table_name_list = re.split(r"\s+", table_names.strip())
     else:
@@ -177,18 +192,23 @@ def gen():
     gsheets_url = df.generate_db_schema(table_name_list)
     print("Your schema has been generated and is available at:\n")
     print(f"\033[1m{gsheets_url}\033[0m.\n")
-    print("If you do modify the schema in the link provided, please run `defog update <url>` to update the updated schema.")
+    print(
+        "If you do modify the schema in the link provided, please run `defog update <url>` to update the updated schema."
+    )
+
 
 def update():
     # check for 3rd arg (url)
     # if not there, prompt user for url
     # upload schema to defog
     if len(sys.argv) < 3:
-        print("defog update requires a google sheets url. Please enter the url of the google sheets document you would like to update:")
+        print(
+            "defog update requires a google sheets url. Please enter the url of the google sheets document you would like to update:"
+        )
         gsheets_url = input()
     else:
         gsheets_url = sys.argv[2]
-    df = defog.Defog() # load config from .defog/connection.json
+    df = defog.Defog()  # load config from .defog/connection.json
     resp = df.update_db_schema(gsheets_url)
     if resp["status"] == "success":
         print("Your schema has been updated. You're ready to start querying!")
@@ -199,7 +219,7 @@ def update():
 
 
 def query():
-    df = defog.Defog() # load config from .defog/connection.json
+    df = defog.Defog()  # load config from .defog/connection.json
     if len(sys.argv) < 3:
         print("defog query requires a query. Please enter your query:")
         query = input()
