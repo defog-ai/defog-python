@@ -10,6 +10,11 @@ setup(
         'requests>=2.28.2',
         'psycopg2-binary>=2.9.5',
     ],
+    entry_points={
+        'console_scripts': [
+            'defog=defog.cli:main',
+        ],
+    },
     author_email="founders@defog.ai",
     url="https://github.com/defog-ai/defog-python",
     long_description='Defog is a Python library that helps you generate data queries from natural language questions.',
