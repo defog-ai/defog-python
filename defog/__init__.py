@@ -20,7 +20,7 @@ class Defog:
     """
 
     def __init__(
-        self, api_key: str = None, db_type: str = "postgres", db_creds: dict = None
+        self, api_key: str = "", db_type: str = "postgres", db_creds: dict = {}
     ):
         """
         Initializes the Defog class.
@@ -30,8 +30,8 @@ class Defog:
         filepath = os.path.join(home_dir, ".defog", "connection.json")
         if (
             not os.path.exists(filepath)
-            and api_key is not None
-            and db_creds is not None
+            and api_key != ""
+            and db_creds != {}
         ):
             # read connection details from args
             print(
@@ -112,7 +112,7 @@ class Defog:
                 f"Database `{db_type}` is not supported right now. db_type must be one of {', '.join(SUPPORTED_DB_TYPES)}"
             )
 
-    def generate_postgres_schema(self, tables: list):
+    def generate_postgres_schema(self, tables: list) -> str:
         try:
             import psycopg2
         except:
@@ -152,7 +152,7 @@ class Defog:
             print(resp)
             raise resp["message"]
 
-    def generate_redshift_schema(self, tables: list):
+    def generate_redshift_schema(self, tables: list) -> str:
         try:
             import psycopg2
         except:
@@ -202,7 +202,7 @@ class Defog:
             print(resp)
             raise resp["message"]
 
-    def generate_mysql_schema(self, tables: list):
+    def generate_mysql_schema(self, tables: list) -> str:
         try:
             import mysql.connector
         except:
@@ -242,7 +242,7 @@ class Defog:
             print(resp)
             raise resp["message"]
 
-    def generate_sqlserver_schema(self, tables: list):
+    def generate_sqlserver_schema(self, tables: list) -> str:
         try:
             import pyodbc
         except:
@@ -281,7 +281,7 @@ class Defog:
             print(resp)
             raise resp["message"]
 
-    def generate_snowflake_schema(self, tables: list):
+    def generate_snowflake_schema(self, tables: list) -> str:
         try:
             import snowflake.connector
         except:
@@ -336,7 +336,7 @@ class Defog:
             print(resp)
             raise resp["message"]
 
-    def generate_mongo_schema(self, collections: list):
+    def generate_mongo_schema(self, collections: list) -> str:
         try:
             from pymongo import MongoClient
         except:
@@ -375,7 +375,7 @@ class Defog:
             print(resp)
             raise resp["message"]
 
-    def generate_bigquery_schema(self, tables: list):
+    def generate_bigquery_schema(self, tables: list) -> str:
         try:
             from google.cloud import bigquery
         except:
@@ -412,7 +412,7 @@ class Defog:
             print(resp)
             raise resp["message"]
 
-    def generate_db_schema(self, tables: list):
+    def generate_db_schema(self, tables: list) -> str:
         if self.db_type == "postgres":
             return self.generate_postgres_schema(tables)
         elif self.db_type == "mysql":
@@ -554,9 +554,9 @@ class Defog:
     def get_query(
         self,
         question: str,
-        hard_filters: str = None,
-        previous_context: list = None,
-        schema: dict = None,
+        hard_filters: str = "",
+        previous_context: list = [],
+        schema: dict = {},
     ):
         """
         Sends the query to the defog servers, and return the response.
@@ -618,9 +618,9 @@ class Defog:
     def run_query(
         self,
         question: str,
-        hard_filters: str = None,
-        previous_context: list = None,
-        schema: dict = None,
+        hard_filters: str = "",
+        previous_context: list = [],
+        schema: dict = {},
     ):
         """
         Sends the query to the defog servers, and return the response.

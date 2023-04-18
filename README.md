@@ -11,6 +11,34 @@ You can get your API key by going to [https://defog.ai/account](https://defog.ai
 
 # Usage
 
+You can either use our cli, which will take you through the setup step-by-step, or pass it in explicitly in python to the `Defog` class. The CLI uses the python api's behind the hood, and is just an interactive wrapper over it that does some extra validation on your behalf.
+
+## CLI
+
+### Connection Setup
+To get started, you can run the following cli command, which will prompt you for your defog api key, database type, and the corresponding database credentials required.
+```
+defog init
+```
+If this is your first time running, we will write these information into a json config file, which will be stored in `~/.defog/connection.json`. If we detect a file present already, we will ask you if you intend to re-initialize the file. You can always delete the file and `defog init` all over again. Note that your credentials are _never_ sent to defog's servers.
+
+Once you have setup the connection settings, we will ask you for the names of the tables that you would like to register (space separated), generate the schema for each of them, upload the schema to defog, and print out the generate gsheets url in your console. 
+
+### Regenerating Schema
+
+If you would like to include new tables to be indexed, you can run the following to regenerate the schema for your tables:
+```
+defog gen <table1> <table2> ...
+```
+This will generate a gsheets url as before.
+
+### Updating Schema
+
+If you spot some mistakes, and have updated the schema generated in the gsheet, you can run the following to update the schema with defog:
+```
+defog update <url>
+```
+
 ## Postgres
 ```
 from defog import Defog

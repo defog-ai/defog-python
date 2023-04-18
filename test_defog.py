@@ -31,7 +31,7 @@ class TestMyFunction(unittest.TestCase):
     def test_defog_bad_init(self):
         with self.assertRaises(ValueError):
             # no connection file, no params
-            df = Defog(None)
+            df = Defog("")
         with self.assertRaises(ValueError):
             # no connection file, no db_creds
             df = Defog("test_api_key")
