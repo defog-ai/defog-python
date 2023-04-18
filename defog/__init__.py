@@ -27,7 +27,7 @@ class Defog:
         :param api_key: The API key for the defog account.
         """
         home_dir = os.path.expanduser("~")
-        filepath = os.path.join(home_dir, ".defog/connection.json")
+        filepath = os.path.join(home_dir, ".defog", "connection.json")
         if (
             not os.path.exists(filepath)
             and api_key is not None
@@ -35,7 +35,7 @@ class Defog:
         ):
             # read connection details from args
             print(
-                f"Connection details not found in {filepath}. Saving connection details to file..."
+                f"Connection details not found in {filepath}.\nSaving connection details to file..."
             )
             self.check_db_creds(db_type, db_creds)
             self.api_key = api_key
