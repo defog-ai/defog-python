@@ -28,7 +28,7 @@ class Defog:
         """
         home_dir = os.path.expanduser("~")
         filepath = os.path.join(home_dir, ".defog", "connection.json")
-        if not os.path.exists(filepath) and api_key != "" and db_creds != {}:
+        if not os.path.exists(filepath) or api_key != "" or db_creds != {}:
             # read connection details from args
             print(
                 f"Connection details not found in {filepath}.\nSaving connection details to file..."
