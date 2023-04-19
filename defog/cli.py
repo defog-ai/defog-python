@@ -258,6 +258,7 @@ def query():
                 print_table(resp["columns"], resp["data"])
         query = input("Enter another query, or type 'e' to exit: ")
 
+
 # helper function to format different field types into strings
 def to_str(field) -> str:
     if isinstance(field, str):
@@ -286,6 +287,7 @@ def to_str(field) -> str:
         return "NULL"
     else:
         raise ValueError(f"Unknown type: {type(field)}")
+
 
 # helper function to print results in tabular format
 def print_table(columns, data):
