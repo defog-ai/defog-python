@@ -111,8 +111,10 @@ class Defog:
     def generate_postgres_schema(self, tables: list) -> str:
         try:
             import psycopg2
-        except:
-            raise Exception("psycopg2 not installed.")
+        except ImportError:
+            raise ImportError(
+                "psycopg2 not installed. Please install it with `pip install psycopg2-binary`."
+            )
 
         conn = psycopg2.connect(**self.db_creds)
         cur = conn.cursor()
@@ -151,8 +153,10 @@ class Defog:
     def generate_redshift_schema(self, tables: list) -> str:
         try:
             import psycopg2
-        except:
-            raise Exception("psycopg2 not installed.")
+        except ImportError:
+            raise ImportError(
+                "psycopg2 not installed. Please install it with `pip install psycopg2-binary`."
+            )
 
         conn = psycopg2.connect(**self.db_creds)
         cur = conn.cursor()

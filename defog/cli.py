@@ -244,18 +244,11 @@ def query():
         if not resp["ran_successfully"]:
             print(f"Your query did not run successfully. Please try again.")
         else:
-            # if -o flag is present, write to file
-            if "-o" in sys.argv:
-                output_file = sys.argv[sys.argv.index("-o") + 1]
-                with open(output_file, "w") as f:
-                    json.dump(resp, f, indent=4)
-                print(f"Your results have been saved to {output_file}.")
-            else:
-                print("Your query generated the following SQL query:\n")
-                print(f"\033[1m{resp['query_generated']}\033[0m\n")
-                print("Results:\n")
-                # print results in tabular format using 'columns' and 'data' keys
-                print_table(resp["columns"], resp["data"])
+            print("Your query generated the following SQL query:\n")
+            print(f"\033[1m{resp['query_generated']}\033[0m\n")
+            print("Results:\n")
+            # print results in tabular format using 'columns' and 'data' keys
+            print_table(resp["columns"], resp["data"])
         query = input("Enter another query, or type 'e' to exit: ")
 
 
