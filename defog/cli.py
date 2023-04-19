@@ -1,3 +1,5 @@
+import datetime
+import decimal
 import json
 import os
 import re
@@ -44,6 +46,9 @@ def main():
 
 
 def init():
+    """
+    Initialize defog by creating a config file at ~/.defog/connection.json
+    """
     # print welcome message
     print("Welcome to \033[94mdefog.ai\033[0m!\n")
     # check if .defog/connection.json exists
@@ -180,6 +185,9 @@ def init():
 
 
 def gen():
+    """
+    Generate a schema for a list of tables and print the link to the schema.
+    """
     df = defog.Defog()  # load config from .defog/connection.json
     if len(sys.argv) < 3:
         print(
@@ -198,9 +206,10 @@ def gen():
 
 
 def update():
-    # check for 3rd arg (url)
-    # if not there, prompt user for url
-    # upload schema to defog
+    """
+    Update the schema in defog with a new schema using the url provided.
+    """
+    # check for 3rd arg (url), if not there, prompt user for url
     if len(sys.argv) < 3:
         print(
             "defog update requires a google sheets url. Please enter the url of the google sheets document you would like to update:"
@@ -208,7 +217,9 @@ def update():
         gsheets_url = input()
     else:
         gsheets_url = sys.argv[2]
-    df = defog.Defog()  # load config from .defog/connection.json
+    # load config from .defog/connection.json
+    df = defog.Defog()
+    # upload schema to defog
     resp = df.update_db_schema(gsheets_url)
     if resp["status"] == "success":
         print("Your schema has been updated. You're ready to start querying!")
@@ -219,16 +230,84 @@ def update():
 
 
 def query():
+    """
+    Run a query and print the results alongside the generated SQL query.
+    """
     df = defog.Defog()  # load config from .defog/connection.json
     if len(sys.argv) < 3:
         print("defog query requires a query. Please enter your query:")
         query = input()
     else:
         query = sys.argv[2]
-    while query != "exit":
+    while query != "e":
         resp = df.run_query(query)
-        print(resp)
-        query = input("Enter another query, or type 'exit' to exit: ")
+        if not resp["ran_successfully"]:
+            print(f"Your query did not run successfully. Please try again.")
+        else:
+            # if -o flag is present, write to file
+            if "-o" in sys.argv:
+                output_file = sys.argv[sys.argv.index("-o") + 1]
+                with open(output_file, "w") as f:
+                    json.dump(resp, f, indent=4)
+                print(f"Your results have been saved to {output_file}.")
+            else:
+                print("Your query generated the following SQL query:\n")
+                print(f"\033[1m{resp['query_generated']}\033[0m\n")
+                print("Results:\n")
+                # print results in tabular format using 'columns' and 'data' keys
+                print_table(resp["columns"], resp["data"])
+        query = input("Enter another query, or type 'e' to exit: ")
+
+# helper function to format different field types into strings
+def to_str(field) -> str:
+    if isinstance(field, str):
+        return field
+    elif isinstance(field, int):
+        return str(field)
+    elif isinstance(field, float):
+        return str(field)
+    elif isinstance(field, datetime.datetime):
+        return field.strftime("%Y-%m-%d")
+    elif isinstance(field, datetime.date):
+        return field.strftime("%Y-%m-%d")
+    elif isinstance(field, datetime.timedelta):
+        return str(field)
+    elif isinstance(field, datetime.time):
+        return field.strftime("%H:%M:%S")
+    elif isinstance(field, list):
+        return str(field)
+    elif isinstance(field, dict):
+        return str(field)
+    elif isinstance(field, bool):
+        return str(field)
+    elif isinstance(field, decimal.Decimal):
+        return str(field)
+    elif field is None:
+        return "NULL"
+    else:
+        raise ValueError(f"Unknown type: {type(field)}")
+
+# helper function to print results in tabular format
+def print_table(columns, data):
+    # Calculate the maximum width of each column
+    column_widths = [
+        max(len(to_str(row[i])) for row in data) for i in range(len(columns))
+    ]
+
+    # Print the table headers
+    for i, column in enumerate(columns):
+        print(column.ljust(column_widths[i]), end=" | ")
+    print()
+
+    # Print the table divider
+    for i, column_width in enumerate(column_widths):
+        print("-" * column_width, end="-+-" if i < len(column_widths) - 1 else "-|\n")
+
+    # Print the table data
+    for row in data:
+        for i, value in enumerate(row):
+            print(to_str(value).ljust(column_widths[i]), end=" | ")
+        print()
 
 
 if __name__ == "__main__":

@@ -561,7 +561,7 @@ class Defog:
         """
         if schema == {}:
             schema = None
-        
+
         try:
             if previous_context is None or previous_context == []:
                 r = requests.post(
