@@ -291,9 +291,10 @@ def to_str(field) -> str:
 
 # helper function to print results in tabular format
 def print_table(columns, data):
-    # Calculate the maximum width of each column
+    # Calculate the maximum width of each column, including headers
+    data_header = data + [tuple(columns)]
     column_widths = [
-        max(len(to_str(row[i])) for row in data) for i in range(len(columns))
+        max(len(to_str(row[i])) for row in data_header) for i in range(len(columns))
     ]
 
     # Print the table headers
