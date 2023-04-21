@@ -19,16 +19,16 @@ class Defog:
     The main class for Defog
     """
 
-    def __init__(
-        self, api_key: str = "", db_type: str = "postgres", db_creds: dict = {}
-    ):
+    def __init__(self, api_key: str = "", db_type: str = "", db_creds: dict = {}):
         """
         Initializes the Defog class.
         :param api_key: The API key for the defog account.
         """
         home_dir = os.path.expanduser("~")
         filepath = os.path.join(home_dir, ".defog", "connection.json")
-        if not os.path.exists(filepath) or api_key != "" or db_creds != {}:
+        if not os.path.exists(filepath) or (
+            api_key != "" and db_type != "" and db_creds != {}
+        ):
             # read connection details from args
             print(
                 f"Connection details not found in {filepath}.\nSaving connection details to file..."
@@ -111,8 +111,10 @@ class Defog:
     def generate_postgres_schema(self, tables: list) -> str:
         try:
             import psycopg2
-        except:
-            raise Exception("psycopg2 not installed.")
+        except ImportError:
+            raise ImportError(
+                "psycopg2 not installed. Please install it with `pip install psycopg2-binary`."
+            )
 
         conn = psycopg2.connect(**self.db_creds)
         cur = conn.cursor()
@@ -151,8 +153,10 @@ class Defog:
     def generate_redshift_schema(self, tables: list) -> str:
         try:
             import psycopg2
-        except:
-            raise Exception("psycopg2 not installed.")
+        except ImportError:
+            raise ImportError(
+                "psycopg2 not installed. Please install it with `pip install psycopg2-binary`."
+            )
 
         conn = psycopg2.connect(**self.db_creds)
         cur = conn.cursor()
@@ -562,7 +566,7 @@ class Defog:
         """
         if schema == {}:
             schema = None
-        
+
         try:
             if mode == "default" or previous_context != []:
                 r = requests.post(

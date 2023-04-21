@@ -31,13 +31,13 @@ class TestMyFunction(unittest.TestCase):
     def test_defog_bad_init(self):
         with self.assertRaises(ValueError):
             # no connection file, no params
-            df = Defog("")
+            df = Defog()
         with self.assertRaises(ValueError):
             # no connection file, no db_creds
             df = Defog("test_api_key")
         with self.assertRaises(ValueError):
             # no connection file, wrong db_type
-            df = Defog("test_api_key", "mysql")
+            df = Defog("test_api_key", "redis")
         with self.assertRaises(KeyError):
             # no connection file, incomplete db_creds
             df = Defog("test_api_key", "postgres", {"host": "some_host"})

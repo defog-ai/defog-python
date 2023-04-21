@@ -1,5 +1,8 @@
 from setuptools import find_packages, setup
 
+with open("requirements.txt", "r") as f:
+    requirements = f.read().splitlines()
+
 setup(
     name="defog",
     packages=find_packages(),
@@ -7,10 +10,7 @@ setup(
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
     license="MIT",
-    install_requires=[
-        "requests>=2.28.2",
-        "psycopg2-binary>=2.9.5",
-    ],
+    install_requires=requirements,
     entry_points={
         "console_scripts": [
             "defog=defog.cli:main",
