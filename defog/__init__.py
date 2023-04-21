@@ -568,7 +568,7 @@ class Defog:
             schema = None
 
         try:
-            if mode == "default" or previous_context != []:
+            if mode == "default":
                 r = requests.post(
                     "https://api.defog.ai/generate_query",
                     json={
