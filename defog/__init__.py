@@ -553,6 +553,7 @@ class Defog:
         hard_filters: str = "",
         previous_context: list = [],
         schema: dict = {},
+        mode: str = "default",
     ):
         """
         Sends the query to the defog servers, and return the response.
@@ -563,7 +564,7 @@ class Defog:
             schema = None
         
         try:
-            if previous_context is None or previous_context == []:
+            if mode == "default" or previous_context != []:
                 r = requests.post(
                     "https://api.defog.ai/generate_query",
                     json={
@@ -847,6 +848,11 @@ class Defog:
                         "data": result,
                         "query_generated": query["query_generated"],
                         "ran_successfully": True,
+                        "reason_for_query": query.get("reason_for_query"),
+                        "suggestion_for_further_questions": query.get(
+                            "suggestion_for_further_questions"
+                        ),
+                        "previous_context": query.get("previous_context"),
                     }
                 except Exception as e:
                     return {"error_message": str(e), "ran_successfully": False}
