@@ -625,6 +625,7 @@ class Defog:
         hard_filters: str = "",
         previous_context: list = [],
         schema: dict = {},
+        mode: str = "default",
     ):
         """
         Sends the query to the defog servers, and return the response.
@@ -632,7 +633,7 @@ class Defog:
         :return: The response from the defog server.
         """
         print(f"Generating the query for your question: {question}...")
-        query = self.get_query(question, hard_filters, previous_context)
+        query = self.get_query(question, hard_filters, previous_context, mode=mode)
         if query["ran_successfully"]:
             print("Query generated, now running it on your database...")
             if query["query_db"] == "postgres" or query["query_db"] == "redshift":
