@@ -1,9 +1,12 @@
+import base64
 import datetime
 import decimal
 import json
 import os
 import re
+import subprocess
 import sys
+import yaml
 
 import defog
 from defog import Defog
@@ -16,9 +19,12 @@ Available commands:
     gen <table1> <table2>\tSpecify tables to generate schema for
     update <url>\t\tupdate schema (google sheets url) to defog
     query\t\t\tRun a query
+    deploy <gcp|aws>\t\tDeploy a defog server as a cloud function
     quota\t\t\tCheck your API quota limits
     docs\t\t\tPrint documentation
 """
+
+home_dir = os.path.expanduser("~")
 
 
 def main():
@@ -33,6 +39,8 @@ def main():
         update()
     elif sys.argv[1] == "query":
         query()
+    elif sys.argv[1] == "deploy":
+        deploy()
     elif sys.argv[1] == "quota":
         # TODO
         raise NotImplementedError("quota not implemented yet")
@@ -54,7 +62,6 @@ def init():
     # check if .defog/connection.json exists
     # if it does, ask if user wants to overwrite
     # if it doesn't, create it
-    home_dir = os.path.expanduser("~")
     filepath = os.path.join(home_dir, ".defog", "connection.json")
     if os.path.exists(filepath):
         print(
@@ -250,6 +257,56 @@ def query():
             # print results in tabular format using 'columns' and 'data' keys
             print_table(resp["columns"], resp["data"])
         query = input("Enter another query, or type 'e' to exit: ")
+
+
+def deploy():
+    """
+    Deploy a cloud function that can be used to run queries.
+    """
+    # check args for gcp or aws
+    if len(sys.argv) < 3:
+        print("defog deploy requires a cloud provider. Please enter 'gcp' or 'aws':")
+        cloud_provider = input().lower()
+    else:
+        cloud_provider = sys.argv[2].lower()
+
+    # load config from .defog/connection.json
+    df = defog.Defog()
+
+    if cloud_provider == "gcp":
+        # base64 encode defog credentials for ease of passing around in cli
+        creds64_str = df.to_base64_creds()
+
+        cmd = [
+            "gcloud",
+            "functions",
+            "deploy",
+            "defog-gcp",
+            "--runtime",
+            "python310",
+            "--region",
+            "us-central1",
+            "--source",
+            "defog/gcp",
+            "--entry-point",
+            "defog_query_http",
+            "--max-instances",
+            "1",
+            "--set-env-vars",
+            f"DEFOG_CREDS_64={creds64_str}",
+            "--trigger-http",
+            "--allow-unauthenticated",
+        ]
+        try:
+            print("executing gcloud command...")
+            subprocess.check_call(cmd)
+            print("gcloud command executed successfully")
+        except subprocess.CalledProcessError as e:
+            print(f"Error deploying Cloud Function:\n{e}")
+    elif cloud_provider == "aws":
+        raise NotImplementedError("deploy aws not implemented yet")
+    else:
+        raise ValueError("Cloud provider must be 'gcp' or 'aws'.")
 
 
 # helper function to format different field types into strings

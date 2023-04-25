@@ -1,0 +1,8 @@
+functions-framework==3.*
+defog
+requests
+psycopg2
+mysql-connector-python
+pymongo
+google-cloud-bigquery
+snowflake-connector-python

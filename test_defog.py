@@ -141,6 +141,24 @@ class TestMyFunction(unittest.TestCase):
             # wrong key
             Defog.check_db_creds("bigquery", {"account": "some_account"})
 
+    def test_base64_encode_decode(self):
+        db_creds = {
+            "host": "some_host",
+            "port": "some_port",
+            "database": "some_database",
+            "user": "some_user",
+            "password": "some_password",
+        }
+        df1 = Defog("test_api_key", "postgres", db_creds)
+        df1_base64creds = df1.to_base64_creds()
+        df2 = Defog(base64creds=df1_base64creds)
+        self.assertEqual(df1.api_key, df2.api_key)
+        self.assertEqual(df1.api_key, "test_api_key")
+        self.assertEqual(df1.db_type, df2.db_type)
+        self.assertEqual(df1.db_type, "postgres")
+        self.assertEqual(df1.db_creds, df2.db_creds)
+        self.assertEqual(df1.db_creds, db_creds)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 
@@ -19,11 +20,20 @@ class Defog:
     The main class for Defog
     """
 
-    def __init__(self, api_key: str = "", db_type: str = "", db_creds: dict = {}):
+    def __init__(
+        self,
+        api_key: str = "",
+        db_type: str = "",
+        db_creds: dict = {},
+        base64creds: str = "",
+    ):
         """
         Initializes the Defog class.
         :param api_key: The API key for the defog account.
         """
+        if base64creds != "":
+            self.from_base64_creds(base64creds)
+            return
         home_dir = os.path.expanduser("~")
         filepath = os.path.join(home_dir, ".defog", "connection.json")
         if not os.path.exists(filepath) or (
@@ -887,3 +897,11 @@ class Defog:
                 raise Exception("Database type not yet supported.")
         else:
             return {"ran_successfully": False, "error_message": query["error_message"]}
+
+    def to_base64_creds(self) -> str:
+        return base64.b64encode(json.dumps(self.__dict__).encode("utf-8")).decode(
+            "utf-8"
+        )
+
+    def from_base64_creds(self, base64_creds: str):
+        self.__dict__ = json.loads(base64.b64decode(base64_creds).decode("utf-8"))
