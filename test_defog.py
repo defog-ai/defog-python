@@ -159,6 +159,27 @@ class TestMyFunction(unittest.TestCase):
         self.assertEqual(df1.db_creds, df2.db_creds)
         self.assertEqual(df1.db_creds, db_creds)
 
+    def test_save_json(self):
+        db_creds = {
+            "host": "some_host",
+            "port": "some_port",
+            "database": "some_database",
+            "user": "some_user",
+            "password": "some_password",
+        }
+        df_save = Defog("test_api_key", "postgres", db_creds, save_json=True)
+        self.assertTrue(os.path.exists(self.filepath))
+
+    def test_no_save_json(self):
+        db_creds = {
+            "host": "some_host",
+            "port": "some_port",
+            "database": "some_database",
+            "user": "some_user",
+            "password": "some_password",
+        }
+        df_save = Defog("test_api_key", "postgres", db_creds, save_json=False)
+        self.assertTrue(not os.path.exists(self.filepath))
 
 if __name__ == "__main__":
     unittest.main()

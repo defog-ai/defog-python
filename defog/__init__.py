@@ -26,6 +26,7 @@ class Defog:
         db_type: str = "",
         db_creds: dict = {},
         base64creds: str = "",
+        save_json: bool = True,
     ):
         """
         Initializes the Defog class.
@@ -49,11 +50,12 @@ class Defog:
             self.db_creds = db_creds
             data = {"api_key": api_key, "db_type": db_type, "db_creds": db_creds}
             # write to filepath and print confirmation
-            if not os.path.exists(os.path.join(home_dir, ".defog")):
-                os.mkdir(os.path.join(home_dir, ".defog"))
-            with open(filepath, "w") as f:
-                json.dump(data, f, indent=4)
-            print(f"Connection details saved to {filepath}.")
+            if save_json:
+                if not os.path.exists(os.path.join(home_dir, ".defog")):
+                    os.mkdir(os.path.join(home_dir, ".defog"))
+                with open(filepath, "w") as f:
+                    json.dump(data, f, indent=4)
+                print(f"Connection details saved to {filepath}.")
         elif os.path.exists(filepath):
             # read connection details from filepath
             print("Connection details found. Reading connection details from file...")

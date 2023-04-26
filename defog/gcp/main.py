@@ -8,7 +8,7 @@ from defog import Defog
 # DEFOG_CREDS_64 will be set via --set-env-vars by the CLI when deploying to GCP
 defog_creds64_str = os.environ.get("DEFOG_CREDS_64")
 print(f"defog_creds64_str: {defog_creds64_str}")
-defog = Defog(base64creds=defog_creds64_str)
+defog = Defog(base64creds=defog_creds64_str, save_json=False)
 print(defog)
 
 
