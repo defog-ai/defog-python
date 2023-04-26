@@ -181,5 +181,6 @@ class TestMyFunction(unittest.TestCase):
         df_save = Defog("test_api_key", "postgres", db_creds, save_json=False)
         self.assertTrue(not os.path.exists(self.filepath))
 
+
 if __name__ == "__main__":
     unittest.main()

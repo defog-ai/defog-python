@@ -304,7 +304,26 @@ def deploy():
         except subprocess.CalledProcessError as e:
             print(f"Error deploying Cloud Function:\n{e}")
     elif cloud_provider == "aws":
-        raise NotImplementedError("deploy aws not implemented yet")
+        # base64 encode defog credentials for ease of passing around in cli
+        creds64_str = df.to_base64_creds()
+        # get base config, add env vars and save to config.json
+        base_config_path = os.path.join("defog", "aws", ".chalice", "base_config.json")
+        with open(base_config_path, "r") as f:
+            chalice_config = json.load(f)
+        chalice_config["environment_variables"] = {"DEFOG_CREDS_64": creds64_str}
+        config_path = os.path.join("defog", "aws", ".chalice", "config.json")
+        with open(config_path, "w") as f:
+            json.dump(chalice_config, f)
+        # deploy with chalice
+        try:
+            print("deploying with Chalice...")
+            os.chdir("defog/aws")
+            subprocess.check_call("pwd")
+            subprocess.check_call(["chalice", "deploy"])
+            os.chdir("../..")
+            print("deployed successfully with Chalice")
+        except subprocess.CalledProcessError as e:
+            print(f"Error deploying with Chalice:\n{e}")
     else:
         raise ValueError("Cloud provider must be 'gcp' or 'aws'.")
 
