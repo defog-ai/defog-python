@@ -160,9 +160,7 @@ class Defog:
         print(query)
         cur.execute(query)
         foreign_keys = list(cur.fetchall())
-        foreign_keys = [
-            fk[0] + " " + fk[1] for fk in foreign_keys
-        ]
+        foreign_keys = [fk[0] + " " + fk[1] for fk in foreign_keys]
         print(foreign_keys)
         conn.close()
 
@@ -172,7 +170,11 @@ class Defog:
         # send the schemas dict to the defog servers
         r = requests.post(
             "https://api.defog.ai/get_postgres_schema_gsheets",
-            json={"api_key": self.api_key, "schemas": schemas, "foreign_keys": foreign_keys},
+            json={
+                "api_key": self.api_key,
+                "schemas": schemas,
+                "foreign_keys": foreign_keys,
+            },
         )
         resp = r.json()
         try:
@@ -231,9 +233,7 @@ class Defog:
                 """
         cur.execute(query)
         foreign_keys = list(cur.fetchall())
-        foreign_keys = [
-            fk[0] + " " + fk[1] for fk in foreign_keys
-        ]
+        foreign_keys = [fk[0] + " " + fk[1] for fk in foreign_keys]
         conn.close()
 
         print(
@@ -242,7 +242,11 @@ class Defog:
         # send the schemas dict to the defog servers
         r = requests.post(
             "https://api.defog.ai/get_postgres_schema_gsheets",
-            json={"api_key": self.api_key, "schemas": schemas, "foreign_keys": foreign_keys},
+            json={
+                "api_key": self.api_key,
+                "schemas": schemas,
+                "foreign_keys": foreign_keys,
+            },
         )
         resp = r.json()
         try:
