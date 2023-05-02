@@ -41,9 +41,6 @@ class Defog:
             api_key != "" and db_type != "" and db_creds != {}
         ):
             # read connection details from args
-            print(
-                f"Connection details not found in {filepath}.\nSaving connection details to file..."
-            )
             self.check_db_creds(db_type, db_creds)
             self.api_key = api_key
             self.db_type = db_type
@@ -51,6 +48,9 @@ class Defog:
             data = {"api_key": api_key, "db_type": db_type, "db_creds": db_creds}
             # write to filepath and print confirmation
             if save_json:
+                print(
+                    f"Connection details not found in {filepath}.\nSaving connection details to file..."
+                )
                 if not os.path.exists(os.path.join(home_dir, ".defog")):
                     os.mkdir(os.path.join(home_dir, ".defog"))
                 with open(filepath, "w") as f:
@@ -144,6 +144,26 @@ class Defog:
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
             schemas[table_name] = rows
 
+        # get foreign key relationships
+        print("Getting foreign keys for each table in your database...")
+        tables_regclass_str = ", ".join(
+            [f"'{table_name}'::regclass" for table_name in tables]
+        )
+        query = f"""SELECT
+                conrelid::regclass AS table_from,
+                pg_get_constraintdef(oid) AS foreign_key_definition
+                FROM pg_constraint
+                WHERE contype = 'f'
+                AND conrelid::regclass IN ({tables_regclass_str})
+                AND confrelid::regclass IN ({tables_regclass_str});
+                """
+        print(query)
+        cur.execute(query)
+        foreign_keys = list(cur.fetchall())
+        foreign_keys = [
+            fk[0] + " " + fk[1] for fk in foreign_keys
+        ]
+        print(foreign_keys)
         conn.close()
 
         print(
@@ -152,7 +172,7 @@ class Defog:
         # send the schemas dict to the defog servers
         r = requests.post(
             "https://api.defog.ai/get_postgres_schema_gsheets",
-            json={"api_key": self.api_key, "schemas": schemas},
+            json={"api_key": self.api_key, "schemas": schemas, "foreign_keys": foreign_keys},
         )
         resp = r.json()
         try:
@@ -196,6 +216,24 @@ class Defog:
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
             schemas[table_name] = rows
 
+        # get foreign key relationships
+        print("Getting foreign keys for each table in your database...")
+        tables_regclass_str = ", ".join(
+            [f"'{table_name}'::regclass" for table_name in tables]
+        )
+        query = f"""SELECT
+                conrelid::regclass AS table_from,
+                pg_get_constraintdef(oid) AS foreign_key_definition
+                FROM pg_constraint
+                WHERE contype = 'f'
+                AND conrelid::regclass IN ({tables_regclass_str})
+                AND confrelid::regclass IN ({tables_regclass_str});
+                """
+        cur.execute(query)
+        foreign_keys = list(cur.fetchall())
+        foreign_keys = [
+            fk[0] + " " + fk[1] for fk in foreign_keys
+        ]
         conn.close()
 
         print(
@@ -204,7 +242,7 @@ class Defog:
         # send the schemas dict to the defog servers
         r = requests.post(
             "https://api.defog.ai/get_postgres_schema_gsheets",
-            json={"api_key": self.api_key, "schemas": schemas},
+            json={"api_key": self.api_key, "schemas": schemas, "foreign_keys": foreign_keys},
         )
         resp = r.json()
         try:
