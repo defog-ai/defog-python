@@ -157,11 +157,9 @@ class Defog:
                 AND conrelid::regclass IN ({tables_regclass_str})
                 AND confrelid::regclass IN ({tables_regclass_str});
                 """
-        print(query)
         cur.execute(query)
         foreign_keys = list(cur.fetchall())
         foreign_keys = [fk[0] + " " + fk[1] for fk in foreign_keys]
-        print(foreign_keys)
 
         # get indexes for each table
         print("Getting indexes for each table in your database...")
@@ -169,8 +167,11 @@ class Defog:
         query = f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
         cur.execute(query)
         indexes = list(cur.fetchall())
-        indexes = [index[0] for index in indexes]
-        print(indexes)
+        if len(indexes) > 0:
+            indexes = [index[0] for index in indexes]
+        else:
+            indexes = []
+            print("No indexes found.")
         conn.close()
 
         print(
@@ -251,8 +252,11 @@ class Defog:
         query = f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
         cur.execute(query)
         indexes = list(cur.fetchall())
-        indexes = [index[0] for index in indexes]
-        print(indexes)
+        if len(indexes) > 0:
+            indexes = [index[0] for index in indexes]
+        else:
+            indexes = []
+            print("No indexes found.")
         conn.close()
 
         print(
