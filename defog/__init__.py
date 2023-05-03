@@ -162,6 +162,15 @@ class Defog:
         foreign_keys = list(cur.fetchall())
         foreign_keys = [fk[0] + " " + fk[1] for fk in foreign_keys]
         print(foreign_keys)
+
+        # get indexes for each table
+        print("Getting indexes for each table in your database...")
+        tables_str = ", ".join([f"'{table_name}'" for table_name in tables])
+        query = f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
+        cur.execute(query)
+        indexes = list(cur.fetchall())
+        indexes = [index[0] for index in indexes]
+        print(indexes)
         conn.close()
 
         print(
@@ -174,6 +183,7 @@ class Defog:
                 "api_key": self.api_key,
                 "schemas": schemas,
                 "foreign_keys": foreign_keys,
+                "indexes": indexes,
             },
         )
         resp = r.json()
@@ -234,6 +244,15 @@ class Defog:
         cur.execute(query)
         foreign_keys = list(cur.fetchall())
         foreign_keys = [fk[0] + " " + fk[1] for fk in foreign_keys]
+
+        # get indexes for each table
+        print("Getting indexes for each table in your database...")
+        tables_str = ", ".join([f"'{table_name}'" for table_name in tables])
+        query = f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
+        cur.execute(query)
+        indexes = list(cur.fetchall())
+        indexes = [index[0] for index in indexes]
+        print(indexes)
         conn.close()
 
         print(
@@ -246,6 +265,7 @@ class Defog:
                 "api_key": self.api_key,
                 "schemas": schemas,
                 "foreign_keys": foreign_keys,
+                "indexes": indexes,
             },
         )
         resp = r.json()
