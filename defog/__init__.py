@@ -164,7 +164,9 @@ class Defog:
         # get indexes for each table
         print("Getting indexes for each table in your database...")
         tables_str = ", ".join([f"'{table_name}'" for table_name in tables])
-        query = f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
+        query = (
+            f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
+        )
         cur.execute(query)
         indexes = list(cur.fetchall())
         if len(indexes) > 0:
@@ -249,7 +251,9 @@ class Defog:
         # get indexes for each table
         print("Getting indexes for each table in your database...")
         tables_str = ", ".join([f"'{table_name}'" for table_name in tables])
-        query = f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
+        query = (
+            f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
+        )
         cur.execute(query)
         indexes = list(cur.fetchall())
         if len(indexes) > 0:
