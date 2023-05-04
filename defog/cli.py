@@ -4,6 +4,7 @@ import decimal
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import yaml
@@ -306,22 +307,35 @@ def deploy():
     elif cloud_provider == "aws":
         # base64 encode defog credentials for ease of passing around in cli
         creds64_str = df.to_base64_creds()
-        # get base config, add env vars and save to config.json
-        base_config_path = os.path.join("defog", "aws", ".chalice", "base_config.json")
+        # get base config from defog package, add env vars
+        base_config_path = os.path.join(defog.__path__[0], "aws", "base_config.json")
         with open(base_config_path, "r") as f:
             chalice_config = json.load(f)
         chalice_config["environment_variables"] = {"DEFOG_CREDS_64": creds64_str}
-        config_path = os.path.join("defog", "aws", ".chalice", "config.json")
-        with open(config_path, "w") as f:
+        aws_path = os.path.join(home_dir, ".defog", "aws")
+        chalice_path = os.path.join(aws_path, ".chalice")
+        if not os.path.exists(chalice_path):
+            print(f"creating {chalice_path}")
+            os.makedirs(chalice_path)
+        chalice_config_path = os.path.join(chalice_path, "config.json")
+        # save to .defog/aws/.chalice/config.json
+        with open(chalice_config_path, "w") as f:
             json.dump(chalice_config, f)
+        # copy over app.py and requirements.txt to .defog/aws
+        app_path = os.path.join(defog.__path__[0], "aws", "app.py")
+        req_path = os.path.join(defog.__path__[0], "aws", "requirements.txt")
+        shutil.copy(app_path, aws_path)
+        shutil.copy(req_path, aws_path)
+
         # deploy with chalice
         try:
             print("deploying with Chalice...")
-            os.chdir("defog/aws")
-            subprocess.check_call("pwd")
+            os.chdir(aws_path)
+            subprocess.check_call("pwd")  # debug
             subprocess.check_call(["chalice", "deploy"])
             os.chdir("../..")
-            print("deployed successfully with Chalice")
+            print("deployed aws lambda successfully with Chalice.")
+            print(f"You can find the chalice deployment artifacts in {aws_path}")
         except subprocess.CalledProcessError as e:
             print(f"Error deploying with Chalice:\n{e}")
     else:
