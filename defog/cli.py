@@ -1,3 +1,4 @@
+import argparse
 import base64
 import datetime
 import decimal
@@ -11,6 +12,7 @@ import yaml
 
 import defog
 from defog import Defog
+from defog.util import parse_update
 
 USAGE_STRING = """
 Usage: defog <command>
@@ -305,6 +307,7 @@ def deploy():
         except subprocess.CalledProcessError as e:
             print(f"Error deploying Cloud Function:\n{e}")
     elif cloud_provider == "aws":
+
         # base64 encode defog credentials for ease of passing around in cli
         creds64_str = df.to_base64_creds()
         # get base config from defog package, add env vars
@@ -312,6 +315,9 @@ def deploy():
         with open(base_config_path, "r") as f:
             chalice_config = json.load(f)
         chalice_config["environment_variables"] = {"DEFOG_CREDS_64": creds64_str}
+        chalice_config = parse_update(
+            sys.argv[3:], ["app_name", "version"], chalice_config
+        )
         aws_path = os.path.join(home_dir, ".defog", "aws")
         chalice_path = os.path.join(aws_path, ".chalice")
         if not os.path.exists(chalice_path):
@@ -331,7 +337,6 @@ def deploy():
         try:
             print("deploying with Chalice...")
             os.chdir(aws_path)
-            subprocess.check_call("pwd")  # debug
             subprocess.check_call(["chalice", "deploy"])
             os.chdir("../..")
             print("deployed aws lambda successfully with Chalice.")
