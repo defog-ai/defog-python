@@ -307,7 +307,6 @@ def deploy():
         except subprocess.CalledProcessError as e:
             print(f"Error deploying Cloud Function:\n{e}")
     elif cloud_provider == "aws":
-
         # base64 encode defog credentials for ease of passing around in cli
         creds64_str = df.to_base64_creds()
         # get base config from defog package, add env vars
