@@ -279,7 +279,7 @@ def deploy():
     if cloud_provider == "gcp":
         # base64 encode defog credentials for ease of passing around in cli
         creds64_str = df.to_base64_creds()
-
+        source_path = os.path.join(defog.__path__[0], "gcp")
         cmd = [
             "gcloud",
             "functions",
@@ -290,7 +290,7 @@ def deploy():
             "--region",
             "us-central1",
             "--source",
-            "defog/gcp",
+            source_path,
             "--entry-point",
             "defog_query_http",
             "--max-instances",
