@@ -298,6 +298,7 @@ def deploy():
             "--set-env-vars",
             f"DEFOG_CREDS_64={creds64_str}",
             "--trigger-http",
+            "--gen2",
             "--allow-unauthenticated",
         ]
         try:
