@@ -137,6 +137,12 @@ class Defog:
                 schemas = self.generate_postgres_schema(tables, upload=False)
             elif self.db_type == "redshift":
                 schemas = self.generate_redshift_schema(tables, upload=False)
+            elif self.db_type == "mysql":
+                schemas = self.generate_mysql_schema(tables, upload=False)
+            elif self.db_type == "snowflake":
+                schemas = self.generate_snowflake_schema(tables, upload=False)
+            elif self.db_type == "bigquery":
+                schemas = self.generate_bigquery_schema(tables, upload=False)
             else:
                 raise NotImplemented(
                     f"Database `{self.db_type}` is not supported right now for schema checks. Please contact us at founders@defog.ai to request support."
@@ -155,14 +161,14 @@ class Defog:
                 json_columns = 0
                 for table in schemas:
                     for item in schemas[table]:
-                        if "json" in item["data_type"]:
+                        if "json" in item["data_type"].lower():
                             json_columns += 1
                 if json_columns > 2:
                     message = "There are 2 or more columns with the json type. If you do not need to make joins between JSON columns and others, we can definitely support your use case. If you do need to make such joins, please contact us at founders@defog.ai."
                 else:
                     message = "We should be able to support your use-case! Feel free to upgrade to a paid plan to get started, or contact as at founders@defog.ai if you have any questions."
             
-            print("message")
+            print(message)
             return True
 
     def generate_postgres_schema(self, tables: list, upload: bool =True) -> str:
@@ -339,7 +345,7 @@ class Defog:
         else:
             return schemas
 
-    def generate_mysql_schema(self, tables: list) -> str:
+    def generate_mysql_schema(self, tables: list, upload: bool = True) -> str:
         try:
             import mysql.connector
         except:
@@ -363,23 +369,26 @@ class Defog:
 
         conn.close()
 
-        print(
-            "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
-        )
-        # send the schemas dict to the defog servers
-        r = requests.post(
-            "https://api.defog.ai/get_postgres_schema_gsheets",
-            json={"api_key": self.api_key, "schemas": schemas},
-        )
-        resp = r.json()
-        try:
-            gsheet_url = resp["sheet_url"]
-            return gsheet_url
-        except Exception as e:
-            print(resp)
-            raise resp["message"]
+        if upload:
+            print(
+                "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
+            )
+            # send the schemas dict to the defog servers
+            r = requests.post(
+                "https://api.defog.ai/get_postgres_schema_gsheets",
+                json={"api_key": self.api_key, "schemas": schemas},
+            )
+            resp = r.json()
+            try:
+                gsheet_url = resp["sheet_url"]
+                return gsheet_url
+            except Exception as e:
+                print(resp)
+                raise resp["message"]
+        else:
+            return schemas
 
-    def generate_sqlserver_schema(self, tables: list) -> str:
+    def generate_sqlserver_schema(self, tables: list, upload: bool = True) -> str:
         try:
             import pyodbc
         except:
@@ -401,24 +410,26 @@ class Defog:
             schemas[table_name] = rows
 
         conn.close()
+        if upload:
+            print(
+                "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
+            )
+            # send the schemas dict to the defog servers
+            r = requests.post(
+                "https://api.defog.ai/get_postgres_schema_gsheets",
+                json={"api_key": self.api_key, "schemas": schemas},
+            )
+            resp = r.json()
+            try:
+                gsheet_url = resp["sheet_url"]
+                return gsheet_url
+            except Exception as e:
+                print(resp)
+                raise resp["message"]
+        else:
+            return schemas
 
-        print(
-            "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
-        )
-        # send the schemas dict to the defog servers
-        r = requests.post(
-            "https://api.defog.ai/get_postgres_schema_gsheets",
-            json={"api_key": self.api_key, "schemas": schemas},
-        )
-        resp = r.json()
-        try:
-            gsheet_url = resp["sheet_url"]
-            return gsheet_url
-        except Exception as e:
-            print(resp)
-            raise resp["message"]
-
-    def generate_snowflake_schema(self, tables: list) -> str:
+    def generate_snowflake_schema(self, tables: list, upload: bool = True) -> str:
         try:
             import snowflake.connector
         except:
@@ -457,21 +468,24 @@ class Defog:
 
         conn.close()
 
-        print(
-            "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
-        )
-        # send the schemas dict to the defog servers
-        r = requests.post(
-            "https://api.defog.ai/get_postgres_schema_gsheets",
-            json={"api_key": self.api_key, "schemas": schemas},
-        )
-        resp = r.json()
-        try:
-            gsheet_url = resp["sheet_url"]
-            return gsheet_url
-        except Exception as e:
-            print(resp)
-            raise resp["message"]
+        if upload:
+            print(
+                "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
+            )
+            # send the schemas dict to the defog servers
+            r = requests.post(
+                "https://api.defog.ai/get_postgres_schema_gsheets",
+                json={"api_key": self.api_key, "schemas": schemas},
+            )
+            resp = r.json()
+            try:
+                gsheet_url = resp["sheet_url"]
+                return gsheet_url
+            except Exception as e:
+                print(resp)
+                raise resp["message"]
+        else:
+            return schemas
 
     def generate_mongo_schema(self, collections: list) -> str:
         try:
@@ -512,7 +526,7 @@ class Defog:
             print(resp)
             raise resp["message"]
 
-    def generate_bigquery_schema(self, tables: list) -> str:
+    def generate_bigquery_schema(self, tables: list, upload: bool = True) -> str:
         try:
             from google.cloud import bigquery
         except:
@@ -533,21 +547,24 @@ class Defog:
 
         client.close()
 
-        print(
-            "Sending the schema to Defog servers and generating a Google Sheet. This might take up to 2 minutes..."
-        )
-        # send the schemas dict to the defog servers
-        r = requests.post(
-            "https://api.defog.ai/get_bigquery_schema_gsheets",
-            json={"api_key": self.api_key, "schemas": schemas},
-        )
-        resp = r.json()
-        try:
-            gsheet_url = resp["sheet_url"]
-            return gsheet_url
-        except Exception as e:
-            print(resp)
-            raise resp["message"]
+        if upload:
+            print(
+                "Sending the schema to Defog servers and generating a Google Sheet. This might take up to 2 minutes..."
+            )
+            # send the schemas dict to the defog servers
+            r = requests.post(
+                "https://api.defog.ai/get_bigquery_schema_gsheets",
+                json={"api_key": self.api_key, "schemas": schemas},
+            )
+            resp = r.json()
+            try:
+                gsheet_url = resp["sheet_url"]
+                return gsheet_url
+            except Exception as e:
+                print(resp)
+                raise resp["message"]
+        else:
+            return schemas
 
     def generate_db_schema(self, tables: list) -> str:
         if self.db_type == "postgres":
