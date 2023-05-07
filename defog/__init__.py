@@ -119,8 +119,55 @@ class Defog:
             raise ValueError(
                 f"Database `{db_type}` is not supported right now. db_type must be one of {', '.join(SUPPORTED_DB_TYPES)}"
             )
+    
+    def check_db_suitability(self, gsheets_url=None, tables=None):
+        # either send a request to the defog api or do it locally
+        if gsheets_url is not None:
+            # send a request to the defog api
+            raise NotImplemented("Checking suitability from a Google Sheets URL is not supported right now.")
+        elif tables:
+            # run heuristic locally
+            # see how many table + column combinations the user has passed
+            # then, see if the column names are semantically meaningful
+            # if there are more than 15 tables and more than 200 columns, we should say that they should contact us to check suitability
+            # else, we should say that we can support this use case
 
-    def generate_postgres_schema(self, tables: list) -> str:
+            # get the schema for each table
+            if self.db_type == "postgres":
+                schemas = self.generate_postgres_schema(tables, upload=False)
+            elif self.db_type == "redshift":
+                schemas = self.generate_redshift_schema(tables, upload=False)
+            else:
+                raise NotImplemented(
+                    f"Database `{self.db_type}` is not supported right now for schema checks. Please contact us at founders@defog.ai to request support."
+                )
+            
+            tot_columns = 0
+            for table in schemas:
+                tot_columns += len(schemas[table])
+
+            if len(schemas) > 15:
+                message = "You want to query more than than 15 tables in total. We should be able to support your use-case, but yuo should contact us at founders@defog.ai to confirm."
+            elif tot_columns > 200:
+                message = "You want to query more than 200 columns in total. We should be able to support your use-case, but you should contact us at at founders@defog.ai to confirm."
+            else:
+                # check if there are a lot of columns with the json type
+                json_columns = 0
+                for table in schemas:
+                    for item in schemas[table]:
+                        if "json" in item["data_type"]:
+                            json_columns += 1
+                if json_columns > 2:
+                    message = "There are 2 or more columns with the json type. If you do not need to make joins between JSON columns and others, we can definitely support your use case. If you do need to make such joins, please contact us at founders@defog.ai."
+                else:
+                    message = "We should be able to support your use-case! Feel free to upgrade to a paid plan to get started, or contact as at founders@defog.ai if you have any questions."
+            
+            print("message")
+            return True
+
+    def generate_postgres_schema(self, tables: list, upload: bool =True) -> str:
+        # when upload is True, we send the schema to the defog servers and generate a Google Sheet
+        # when its false, we return the schema as a dict
         try:
             import psycopg2
         except ImportError:
@@ -179,25 +226,30 @@ class Defog:
         print(
             "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
         )
-        # send the schemas dict to the defog servers
-        r = requests.post(
-            "https://api.defog.ai/get_postgres_schema_gsheets",
-            json={
-                "api_key": self.api_key,
-                "schemas": schemas,
-                "foreign_keys": foreign_keys,
-                "indexes": indexes,
-            },
-        )
-        resp = r.json()
-        try:
-            gsheet_url = resp["sheet_url"]
-            return gsheet_url
-        except Exception as e:
-            print(resp)
-            raise resp["message"]
+        if upload:
+            # send the schemas dict to the defog servers
+            r = requests.post(
+                "https://api.defog.ai/get_postgres_schema_gsheets",
+                json={
+                    "api_key": self.api_key,
+                    "schemas": schemas,
+                    "foreign_keys": foreign_keys,
+                    "indexes": indexes,
+                },
+            )
+            resp = r.json()
+            try:
+                gsheet_url = resp["sheet_url"]
+                return gsheet_url
+            except Exception as e:
+                print(resp)
+                raise resp["message"]
+        else:
+            return schemas
 
-    def generate_redshift_schema(self, tables: list) -> str:
+    def generate_redshift_schema(self, tables: list, upload: bool = True) -> str:
+        # when upload is True, we send the schema to the defog servers and generate a Google Sheet
+        # when its false, we return the schema as a dict
         try:
             import psycopg2
         except ImportError:
@@ -263,26 +315,29 @@ class Defog:
             print("No indexes found.")
         conn.close()
 
-        print(
-            "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
-        )
-        # send the schemas dict to the defog servers
-        r = requests.post(
-            "https://api.defog.ai/get_postgres_schema_gsheets",
-            json={
-                "api_key": self.api_key,
-                "schemas": schemas,
-                "foreign_keys": foreign_keys,
-                "indexes": indexes,
-            },
-        )
-        resp = r.json()
-        try:
-            gsheet_url = resp["sheet_url"]
-            return gsheet_url
-        except Exception as e:
-            print(resp)
-            raise resp["message"]
+        if upload:
+            print(
+                "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
+            )
+            # send the schemas dict to the defog servers
+            r = requests.post(
+                "https://api.defog.ai/get_postgres_schema_gsheets",
+                json={
+                    "api_key": self.api_key,
+                    "schemas": schemas,
+                    "foreign_keys": foreign_keys,
+                    "indexes": indexes,
+                },
+            )
+            resp = r.json()
+            try:
+                gsheet_url = resp["sheet_url"]
+                return gsheet_url
+            except Exception as e:
+                print(resp)
+                raise resp["message"]
+        else:
+            return schemas
 
     def generate_mysql_schema(self, tables: list) -> str:
         try:
