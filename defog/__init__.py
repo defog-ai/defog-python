@@ -119,12 +119,14 @@ class Defog:
             raise ValueError(
                 f"Database `{db_type}` is not supported right now. db_type must be one of {', '.join(SUPPORTED_DB_TYPES)}"
             )
-    
+
     def check_db_suitability(self, gsheets_url=None, tables=None):
         # either send a request to the defog api or do it locally
         if gsheets_url is not None:
             # send a request to the defog api
-            raise NotImplemented("Checking suitability from a Google Sheets URL is not supported right now.")
+            raise NotImplemented(
+                "Checking suitability from a Google Sheets URL is not supported right now."
+            )
         elif tables:
             # run heuristic locally
             # see how many table + column combinations the user has passed
@@ -147,7 +149,7 @@ class Defog:
                 raise NotImplemented(
                     f"Database `{self.db_type}` is not supported right now for schema checks. Please contact us at founders@defog.ai to request support."
                 )
-            
+
             tot_columns = 0
             for table in schemas:
                 tot_columns += len(schemas[table])
@@ -167,11 +169,11 @@ class Defog:
                     message = "There are 2 or more columns with the json type. If you do not need to make joins between JSON columns and others, we can definitely support your use case. If you do need to make such joins, please contact us at founders@defog.ai."
                 else:
                     message = "We should be able to support your use-case! Feel free to upgrade to a paid plan to get started, or contact as at founders@defog.ai if you have any questions."
-            
+
             print(message)
             return True
 
-    def generate_postgres_schema(self, tables: list, upload: bool =True) -> str:
+    def generate_postgres_schema(self, tables: list, upload: bool = True) -> str:
         # when upload is True, we send the schema to the defog servers and generate a Google Sheet
         # when its false, we return the schema as a dict
         try:
