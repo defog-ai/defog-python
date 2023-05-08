@@ -1,7 +1,7 @@
 # Defog Python
 Defog converts your natural language text queries into SQL and other machine readable code. This library allows you to easily integrate Defog into your python application, and has a CLI to help you get started.
 
-!()[https://i.imgur.com/MsIzumR.mp4]
+https://i.imgur.com/MsIzumR.mp4
 
 # Installation
 `pip install --upgrade defog`
