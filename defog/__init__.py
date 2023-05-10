@@ -712,6 +712,7 @@ class Defog:
         previous_context: list = [],
         schema: dict = {},
         mode: str = "default",
+        language : str = None
     ):
         """
         Sends the query to the defog servers, and return the response.
@@ -732,7 +733,7 @@ class Defog:
                         "db_type": self.db_type,
                         "schema": schema,
                     },
-                    timeout=30,
+                    timeout=90,
                 )
                 resp = r.json()
                 query_generated = resp.get("query_generated")
@@ -748,8 +749,9 @@ class Defog:
                         "previous_context": previous_context,
                         "db_type": self.db_type,
                         "schema": schema,
+                        "language": language
                     },
-                    timeout=30,
+                    timeout=90,
                 )
                 resp = r.json()
                 query_generated = resp.get("sql")
@@ -780,6 +782,7 @@ class Defog:
         previous_context: list = [],
         schema: dict = {},
         mode: str = "default",
+        language: str = None,
     ):
         """
         Sends the query to the defog servers, and return the response.
@@ -787,7 +790,7 @@ class Defog:
         :return: The response from the defog server.
         """
         print(f"Generating the query for your question: {question}...")
-        query = self.get_query(question, hard_filters, previous_context, mode=mode)
+        query = self.get_query(question, hard_filters, previous_context, mode=mode, language=language)
         if query["ran_successfully"]:
             print("Query generated, now running it on your database...")
             if query["query_db"] == "postgres" or query["query_db"] == "redshift":
@@ -822,16 +825,18 @@ class Defog:
                         f"There was an error {str(e)} when running the previous query. Retrying with adaptive learning..."
                     )
                     # retry the query with the exception
+                    payload = {
+                        "api_key": self.api_key,
+                        "previous_query": query["query_generated"],
+                        "error": str(e),
+                        "db_type": self.db_type,
+                        "hard_filters": hard_filters,
+                        "question": question,
+                    }
+                    print(json.dumps(payload))
                     r = requests.post(
                         "https://api.defog.ai/retry_query_after_error",
-                        json={
-                            "api_key": self.api_key,
-                            "previous_query": query["query_generated"],
-                            "error": str(e),
-                            "db_type": self.db_type,
-                            "hard_filters": hard_filters,
-                            "question": question,
-                        },
+                        json=payload,
                     )
                     query = r.json()
                     conn = psycopg2.connect(**self.db_creds)
