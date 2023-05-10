@@ -7,11 +7,9 @@ from defog import Defog
 import json
 
 creds64_str = os.environ["DEFOG_CREDS_64"]
-print(f"creds64_str = {creds64_str}")
 defog = Defog(
     base64creds=creds64_str, save_json=False
 )  # don't save the json file as no file system in lambda
-print(f"Defog object created = {defog.__dict__}")
 
 
 @app.route("/", methods=["POST"])

@@ -2,6 +2,7 @@ import argparse
 import base64
 import datetime
 import decimal
+import getpass
 import json
 import os
 import re
@@ -88,10 +89,9 @@ def init():
         )
         api_key = os.environ.get("DEFOG_API_KEY")
     else:
-        print(
-            "Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/account and creating an account:"
+        api_key = getpass.getpass(
+            prompt="Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/account and creating an account:"
         )
-        api_key = input()
     # prompt user for db_type
     print(
         "What database are you using? Available options are: "
@@ -114,8 +114,7 @@ def init():
         database = input()
         print("Please enter your database user:")
         user = input()
-        print("Please enter your database password:")
-        password = input()
+        password = getpass.getpass(prompt="Please enter your database password:")
         db_creds = {
             "host": host,
             "port": port,
