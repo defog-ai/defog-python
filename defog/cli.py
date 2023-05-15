@@ -21,6 +21,7 @@ Available commands:
     update <url>\t\tupdate schema (google sheets url) to defog
     query\t\t\tRun a query
     deploy <gcp|aws>\t\tDeploy a defog server as a cloud function
+    check\t\t\tCheck if your database is suitable for defog (for prospective customers)
     quota\t\t\tCheck your API quota limits
     docs\t\t\tPrint documentation
 """

@@ -6,7 +6,8 @@ import os
 
 
 class TestDefog(unittest.TestCase):
-    def setUp(self) -> None:
+    @classmethod
+    def setUpClass(self):
         # if connection.json exists, copy it to /tmp since we'll be overwriting it
         home_dir = os.path.expanduser("~")
         self.filepath = os.path.join(home_dir, ".defog", "connection.json")
@@ -14,19 +15,24 @@ class TestDefog(unittest.TestCase):
         self.moved = False
         if os.path.exists(self.filepath):
             print("Moving connection.json to /tmp")
+            if os.path.exists(os.path.join(self.tmp_dir, "connection.json")):
+                os.remove(os.path.join(self.tmp_dir, "connection.json"))
             shutil.move(self.filepath, self.tmp_dir)
             self.moved = True
-        return super().setUp()
 
-    def tearDown(self) -> None:
-        # clean up connection.json used for testing and copy back the original
-        if os.path.exists(self.filepath):
-            print("Removing connection.json used for testing")
-            os.remove(self.filepath)
+    @classmethod
+    def tearDownClass(self):
+        print("teardown class") # debug
+        # copy back the original after all tests have completed
         if self.moved:
             print("Moving connection.json back to ~/.defog")
             shutil.move(os.path.join(self.tmp_dir, "connection.json"), self.filepath)
-        return super().tearDown()
+
+    def tearDown(self):
+        # clean up connection.json used for testing after each test case
+        if os.path.exists(self.filepath):
+            print("Removing connection.json used for testing")
+            os.remove(self.filepath)
 
     # test that Defog raises errors when initialized with bad parameters
     def test_defog_bad_init(self):
