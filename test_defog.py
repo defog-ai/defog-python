@@ -22,7 +22,6 @@ class TestDefog(unittest.TestCase):
 
     @classmethod
     def tearDownClass(self):
-        print("teardown class") # debug
         # copy back the original after all tests have completed
         if self.moved:
             print("Moving connection.json back to ~/.defog")
