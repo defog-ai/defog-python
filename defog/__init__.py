@@ -146,7 +146,7 @@ class Defog:
             elif self.db_type == "bigquery":
                 schemas = self.generate_bigquery_schema(tables, upload=False)
             else:
-                raise NotImplemented(
+                raise ValueError(
                     f"Database `{self.db_type}` is not supported right now for schema checks. Please contact us at founders@defog.ai to request support."
                 )
 
@@ -714,7 +714,7 @@ class Defog:
         previous_context: list = [],
         schema: dict = {},
         mode: str = "default",
-        language : str = None
+        language: str = None,
     ):
         """
         Sends the query to the defog servers, and return the response.
@@ -751,7 +751,7 @@ class Defog:
                         "previous_context": previous_context,
                         "db_type": self.db_type,
                         "schema": schema,
-                        "language": language
+                        "language": language,
                     },
                     timeout=90,
                 )
@@ -792,7 +792,9 @@ class Defog:
         :return: The response from the defog server.
         """
         print(f"Generating the query for your question: {question}...")
-        query = self.get_query(question, hard_filters, previous_context, mode=mode, language=language)
+        query = self.get_query(
+            question, hard_filters, previous_context, mode=mode, language=language
+        )
         if query["ran_successfully"]:
             print("Query generated, now running it on your database...")
             if query["query_db"] == "postgres" or query["query_db"] == "redshift":

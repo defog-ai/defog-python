@@ -1,5 +1,3 @@
-import argparse
-import base64
 import datetime
 import decimal
 import getpass
@@ -9,7 +7,6 @@ import re
 import shutil
 import subprocess
 import sys
-import yaml
 
 import defog
 from defog import Defog
@@ -45,6 +42,8 @@ def main():
         query()
     elif sys.argv[1] == "deploy":
         deploy()
+    elif sys.argv[1] == "check":
+        check_suitability()
     elif sys.argv[1] == "quota":
         # TODO
         raise NotImplementedError("quota not implemented yet")
@@ -344,6 +343,23 @@ def deploy():
             print(f"Error deploying with Chalice:\n{e}")
     else:
         raise ValueError("Cloud provider must be 'gcp' or 'aws'.")
+
+
+def check_suitability():
+    """
+    Check if tables in customer's schema are supported by our product.
+    """
+    df = defog.Defog()  # Note that api key can be invalid here for presales purposes
+    # parse list of tables from args
+    if len(sys.argv) < 3:
+        print(
+            "defog check-suitability requires a list of tables. Please enter your table names, separated by a space:"
+        )
+        table_names = input()
+        table_name_list = re.split(r"\s+", table_names.strip())
+    else:
+        table_name_list = sys.argv[2:]
+    df.check_db_suitability(tables=table_name_list)  # prints out messages to stdout
 
 
 # helper function to format different field types into strings
