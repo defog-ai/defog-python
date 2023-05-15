@@ -30,53 +30,91 @@ class Defog:
     ):
         """
         Initializes the Defog class.
-        :param api_key: The API key for the defog account.
+        We have the possible scenarios detailed below:
+        1) no config file, no/incomplete params -> error
+        2) no config file, wrong params -> error
+        3) no config file, all right params -> save params to config file
+        4) config file present, no params -> read params from config file
+        5) config file present, some/all params -> read params from config file,
+           overwrite with provided params upon user confirmation
         """
         if base64creds != "":
             self.from_base64_creds(base64creds)
             return
-        home_dir = os.path.expanduser("~")
-        filepath = os.path.join(home_dir, ".defog", "connection.json")
-        if not os.path.exists(filepath) or (
+        self.home_dir = os.path.expanduser("~")
+        self.filepath = os.path.join(self.home_dir, ".defog", "connection.json")
+
+        if not os.path.exists(self.filepath) and (
             api_key != "" and db_type != "" and db_creds != {}
         ):
-            # read connection details from args
-            self.check_db_creds(db_type, db_creds)
+            self.check_db_creds(db_type, db_creds)  # throws error for case 2
+            # case 3
             self.api_key = api_key
             self.db_type = db_type
             self.db_creds = db_creds
             data = {"api_key": api_key, "db_type": db_type, "db_creds": db_creds}
             # write to filepath and print confirmation
             if save_json:
-                print(
-                    f"Connection details not found in {filepath}.\nSaving connection details to file..."
-                )
-                if not os.path.exists(os.path.join(home_dir, ".defog")):
-                    os.mkdir(os.path.join(home_dir, ".defog"))
-                with open(filepath, "w") as f:
-                    json.dump(data, f, indent=4)
-                print(f"Connection details saved to {filepath}.")
-        elif os.path.exists(filepath):
+                self.save_connection_json()
+        elif os.path.exists(self.filepath):  # case 4 and 5
             # read connection details from filepath
             print("Connection details found. Reading connection details from file...")
-            with open(filepath, "r") as f:
+            with open(self.filepath, "r") as f:
                 data = json.load(f)
                 if "api_key" in data and "db_type" in data and "db_creds" in data:
                     self.check_db_creds(data["db_type"], data["db_creds"])
                     self.api_key = data["api_key"]
                     self.db_type = data["db_type"]
                     self.db_creds = data["db_creds"]
-                    print(f"Connection details read from {filepath}.")
+                    print(f"Connection details read from {self.filepath}.")
                 else:
                     raise KeyError(
-                        f"Invalid file at {filepath}.\n"
+                        f"Invalid file at {self.filepath}.\n"
                         "Json file should contain 'api_key', 'db_type', 'db_creds'.\n"
                         "Please delete the file and try again."
                     )
-        else:
+            # extra confirmation and processing for case 5
+            if api_key != "" or db_type != "" or db_creds != {}:
+                choice = input(
+                    """
+                    You have provided new connection details, but connection details already exist. 
+                    Press y to confirm overwriting with the provided settings:
+                    """
+                )
+                if choice.lower() != "y":
+                    print("Using existing connection details, no changes made.")
+                    return
+                else:
+                    if api_key != "":
+                        print("Overwriting api key")
+                        self.api_key = api_key
+                    if db_type != "":
+                        print("Overwriting db type")
+                        self.db_type = db_type
+                    if db_creds != {}:
+                        print("Overwriting db creds")
+                        self.db_creds = db_creds
+                    self.check_db_creds(self.db_type, self.db_creds)
+                    if save_json:
+                        self.save_connection_json()
+        else:  # case 1
             raise ValueError(
                 "Connection details not found. Please set up with the CLI or pass in the api_key, db_type, and db_creds parameters."
             )
+
+    def save_connection_json(self):
+        os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
+        with open(self.filepath, "w") as f:
+            json.dump(
+                {
+                    "api_key": self.api_key,
+                    "db_type": self.db_type,
+                    "db_creds": self.db_creds,
+                },
+                f,
+                indent=4,
+            )
+        print(f"Connection details saved to {self.filepath}.")
 
     @staticmethod
     def check_db_creds(db_type: str, db_creds: dict):
@@ -146,7 +184,7 @@ class Defog:
             elif self.db_type == "bigquery":
                 schemas = self.generate_bigquery_schema(tables, upload=False)
             else:
-                raise ValueError(
+                raise NotImplemented(
                     f"Database `{self.db_type}` is not supported right now for schema checks. Please contact us at founders@defog.ai to request support."
                 )
 
@@ -1052,9 +1090,15 @@ class Defog:
             return {"ran_successfully": False, "error_message": query["error_message"]}
 
     def to_base64_creds(self) -> str:
-        return base64.b64encode(json.dumps(self.__dict__).encode("utf-8")).decode(
-            "utf-8"
-        )
+        creds = {
+            "api_key": self.api_key,
+            "db_type": self.db_type,
+            "db_creds": self.db_creds,
+        }
+        return base64.b64encode(json.dumps(creds).encode("utf-8")).decode("utf-8")
 
     def from_base64_creds(self, base64_creds: str):
-        self.__dict__ = json.loads(base64.b64decode(base64_creds).decode("utf-8"))
+        creds = json.loads(base64.b64decode(base64_creds).decode("utf-8"))
+        self.api_key = creds["api_key"]
+        self.db_type = creds["db_type"]
+        self.db_creds = creds["db_creds"]

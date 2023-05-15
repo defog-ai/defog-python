@@ -3,6 +3,7 @@ import unittest
 from defog import Defog
 from defog.util import parse_update
 import os
+from unittest.mock import patch
 
 
 class TestDefog(unittest.TestCase):
@@ -28,28 +29,37 @@ class TestDefog(unittest.TestCase):
             shutil.move(os.path.join(self.tmp_dir, "connection.json"), self.filepath)
 
     def tearDown(self):
-        # clean up connection.json used for testing after each test case
+        # clean up connection.json created/saved after each test case
         if os.path.exists(self.filepath):
             print("Removing connection.json used for testing")
             os.remove(self.filepath)
 
-    # test that Defog raises errors when initialized with bad parameters
-    def test_defog_bad_init(self):
+    ### Case 1:
+    def test_defog_bad_init_no_params(self):
         with self.assertRaises(ValueError):
-            # no connection file, no params
+            print("Testing Defog with no params")
             df = Defog()
+
+    ### Case 2:
+    # no connection file, no params
+    def test_defog_bad_init_no_connection_file(self):
         with self.assertRaises(ValueError):
-            # no connection file, no db_creds
-            df = Defog("test_api_key")
+            print("Testing Defog with no connection file, no params")
+            df = Defog()
+
+    # no connection file, unsupported db_type
+    def test_defog_bad_init_unsupported_db_type(self):
         with self.assertRaises(ValueError):
-            # no connection file, wrong db_type
             df = Defog("test_api_key", "redis")
+
+    # no connection file, incomplete db_creds
+    def test_defog_bad_init_incomplete_creds(self):
         with self.assertRaises(KeyError):
-            # no connection file, incomplete db_creds
             df = Defog("test_api_key", "postgres", {"host": "some_host"})
 
-    # test that Defog initializes correctly when given good parameters
+    ### Case 3:
     def test_defog_good_init(self):
+        print("testing Defog with good params")
         db_creds = {
             "host": "some_host",
             "port": "some_port",
@@ -59,6 +69,66 @@ class TestDefog(unittest.TestCase):
         }
         df = Defog("test_api_key", "postgres", db_creds)
         self.assertEqual(df.api_key, "test_api_key")
+        self.assertEqual(df.db_type, "postgres")
+        self.assertEqual(df.db_creds, db_creds)
+
+    ### Case 4:
+    def test_defog_no_overwrite(self):
+        # create connection.json
+        db_creds = {
+            "host": "host",
+            "port": "port",
+            "database": "database",
+            "user": "user",
+            "password": "password",
+        }
+        df1 = Defog("old_api_key", "postgres", db_creds)
+        self.assertEqual(df1.api_key, "old_api_key")
+        self.assertEqual(df1.db_type, "postgres")
+        self.assertEqual(df1.db_creds, db_creds)
+        self.assertTrue(os.path.exists(self.filepath))
+        del df1
+        df2 = Defog()  # should read connection.json
+        self.assertEqual(df2.api_key, "old_api_key")
+        self.assertEqual(df2.db_type, "postgres")
+        self.assertEqual(df2.db_creds, db_creds)
+
+    ### Case 5:
+    @patch("builtins.input", lambda *args: "y")
+    def test_defog_overwrite(self):
+        db_creds = {
+            "host": "host",
+            "port": "port",
+            "database": "database",
+            "user": "user",
+            "password": "password",
+        }
+        df = Defog("old_api_key", "postgres", db_creds)
+        self.assertEqual(df.api_key, "old_api_key")
+        self.assertEqual(df.db_type, "postgres")
+        self.assertEqual(df.db_creds, db_creds)
+        self.assertTrue(os.path.exists(self.filepath))
+        df = Defog("new_api_key", "redshift")
+        self.assertEqual(df.api_key, "new_api_key")
+        self.assertEqual(df.db_type, "redshift")
+        self.assertEqual(df.db_creds, db_creds)
+
+    @patch("builtins.input", lambda *args: "n")
+    def test_defog_no_overwrite(self):
+        db_creds = {
+            "host": "host",
+            "port": "port",
+            "database": "database",
+            "user": "user",
+            "password": "password",
+        }
+        df = Defog("old_api_key", "postgres", db_creds)
+        self.assertEqual(df.api_key, "old_api_key")
+        self.assertEqual(df.db_type, "postgres")
+        self.assertEqual(df.db_creds, db_creds)
+        self.assertTrue(os.path.exists(self.filepath))
+        df = Defog("new_api_key", "redshift")
+        self.assertEqual(df.api_key, "old_api_key")
         self.assertEqual(df.db_type, "postgres")
         self.assertEqual(df.db_creds, db_creds)
 
@@ -173,7 +243,7 @@ class TestDefog(unittest.TestCase):
             "user": "some_user",
             "password": "some_password",
         }
-        df_save = Defog("test_api_key", "postgres", db_creds, save_json=True)
+        _ = Defog("test_api_key", "postgres", db_creds, save_json=True)
         self.assertTrue(os.path.exists(self.filepath))
 
     def test_no_save_json(self):
