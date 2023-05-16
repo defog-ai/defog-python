@@ -821,7 +821,7 @@ class Defog:
         hard_filters: str = "",
         previous_context: list = [],
         schema: dict = {},
-        mode: str = "default",
+        mode: str = "chat",
         language: str = None,
     ):
         """
