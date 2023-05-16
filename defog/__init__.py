@@ -917,6 +917,11 @@ class Defog:
                         "data": result,
                         "query_generated": query["query_generated"],
                         "ran_successfully": True,
+                        "reason_for_query": query.get("reason_for_query"),
+                        "suggestion_for_further_questions": query.get(
+                            "suggestion_for_further_questions"
+                        ),
+                        "previous_context": query.get("previous_context"),
                     }
                 except Exception as e:
                     print(f"Query generated was: {query['query_generated']}")
