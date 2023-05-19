@@ -773,7 +773,7 @@ class Defog:
                         "db_type": self.db_type,
                         "schema": schema,
                     },
-                    timeout=90,
+                    timeout=300,
                 )
                 resp = r.json()
                 query_generated = resp.get("query_generated")
@@ -791,7 +791,7 @@ class Defog:
                         "schema": schema,
                         "language": language,
                     },
-                    timeout=90,
+                    timeout=300,
                 )
                 resp = r.json()
                 query_generated = resp.get("sql")
