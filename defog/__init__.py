@@ -751,7 +751,7 @@ class Defog:
         hard_filters: str = "",
         previous_context: list = [],
         schema: dict = {},
-        mode: str = "default",
+        mode: str = "chat",
         language: str = None,
     ):
         """
@@ -790,6 +790,7 @@ class Defog:
                         "db_type": self.db_type,
                         "schema": schema,
                         "language": language,
+                        "hard_filters": hard_filters,
                     },
                     timeout=300,
                 )
