@@ -27,6 +27,7 @@ class Defog:
         db_creds: dict = {},
         base64creds: str = "",
         save_json: bool = True,
+        generate_query_url: str = "https://api.defog.ai/generate_query_chat"
     ):
         """
         Initializes the Defog class.
@@ -43,6 +44,7 @@ class Defog:
             return
         self.home_dir = os.path.expanduser("~")
         self.filepath = os.path.join(self.home_dir, ".defog", "connection.json")
+        self.generate_query_url = generate_query_url
 
         if not os.path.exists(self.filepath) and (
             api_key != "" and db_type != "" and db_creds != {}
@@ -782,7 +784,7 @@ class Defog:
                 query_db = resp.get("query_db", "postgres")
             else:
                 r = requests.post(
-                    "https://api.defog.ai/generate_query_chat",
+                    self.generate_query_url,
                     json={
                         "question": question,
                         "api_key": self.api_key,
@@ -810,7 +812,7 @@ class Defog:
                 ),
                 "reason_for_query": resp.get("reason_for_query"),
             }
-        except:
+        except Exception:
             return {
                 "ran_successfully": False,
                 "error_message": "Sorry :( Our server is at capacity right now and we are unable to process your query. Please try again in a few minutes?",
