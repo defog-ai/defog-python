@@ -6,7 +6,7 @@ from setuptools import find_packages, setup
 setup(
     name="defog",
     packages=find_packages(),
-    version="0.31.0",
+    version="0.32.0",
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
     license="MIT",
