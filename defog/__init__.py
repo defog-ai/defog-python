@@ -826,16 +826,18 @@ class Defog:
         schema: dict = {},
         mode: str = "chat",
         language: str = None,
+        query: dict = None,
     ):
         """
         Sends the query to the defog servers, and return the response.
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
-        print(f"Generating the query for your question: {question}...")
-        query = self.get_query(
-            question, hard_filters, previous_context, mode=mode, language=language
-        )
+        if query is None:
+            print(f"Generating the query for your question: {question}...")
+            query = self.get_query(
+                question, hard_filters, previous_context, mode=mode, language=language
+            )
         if query["ran_successfully"]:
             print("Query generated, now running it on your database...")
             if query["query_db"] == "postgres" or query["query_db"] == "redshift":
