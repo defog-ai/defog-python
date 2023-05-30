@@ -27,7 +27,7 @@ class Defog:
         db_creds: dict = {},
         base64creds: str = "",
         save_json: bool = True,
-        generate_query_url: str = "https://api-staging.defog.ai/generate_query_chat"
+        generate_query_url: str = "https://api-staging.defog.ai/generate_query_chat",
     ):
         """
         Initializes the Defog class.
@@ -1098,13 +1098,13 @@ class Defog:
                 raise Exception("Database type not yet supported.")
         else:
             return {"ran_successfully": False, "error_message": query["error_message"]}
-        
+
     def get_quota(self) -> str:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
         }
         response = requests.get(
-            "http://localhost:8080/quota",
+            "https://api.defog.ai/quota",
             headers=headers,
         )
         return response.json()

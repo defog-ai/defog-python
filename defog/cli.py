@@ -361,21 +361,25 @@ def check_suitability():
         table_name_list = sys.argv[2:]
     df.check_db_suitability(tables=table_name_list)  # prints out messages to stdout
 
+
 def quota():
     """
     Check your current usage and quota.
     """
     df = defog.Defog()
     resp = df.get_quota()
-    if resp['ran_successfully']:
-        if resp['premium']:
+    if resp["ran_successfully"]:
+        if resp["premium"]:
             print(f"You are currently on the premium plan with unrestricted usage.")
             print(f"Your current usage is {resp['queries_made']} queries.")
         else:
-            print(f"You are currently on the free plan with {100-resp['queries_made']} queries remaining for the month.")
+            print(
+                f"You are currently on the free plan with {100-resp['queries_made']} queries remaining for the month."
+            )
             print(f"Your current usage is {resp['queries_made']} queries.")
     else:
         print(f"Failed to get quota")
+
 
 # helper function to format different field types into strings
 def to_str(field) -> str:
