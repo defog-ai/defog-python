@@ -58,6 +58,14 @@ defog query "<your query>"
 ```
 Happy querying!
 
+## Quota
+
+You can check your quota usage by running:
+```
+defog quota
+```
+Free-tier users have 100 queries per month, while premium users have unlimited queries.
+
 # Usage
 
 You can use the API from within Python
