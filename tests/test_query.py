@@ -88,17 +88,19 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
         question = "your_question"
         hard_filters = "your_hard_filters"
         retries = 3
-        colnames = ["col1", "col2"],
+        colnames = (["col1", "col2"],)
         results = [("data1", "data2"), ("data3", "data4")]
 
         # Mock the execute_query_once function to raise an exception the first
         # time it is called and return the results the second time it is called
         err_msg = "Test exception"
+
         def side_effect(db_type, db_creds, query):
             if query == query1:
                 raise Exception(err_msg)
             else:
                 return colnames, results
+
         mock_execute_query_once.side_effect = side_effect
         # mock the response to return {"new_query": query2} when .json() is called
         mock_response = mock.Mock()
