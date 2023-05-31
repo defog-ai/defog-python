@@ -59,10 +59,10 @@ def execute_query_once(db_type: str, db_creds, query: str):
         query_job = client.query(query)
         results = query_job.result()
         colnames = [i.name for i in results.schema]
-        results = []
+        rows = []
         for row in results:
-            results.append([row[i] for i in range(len(row))])
-        return colnames, results
+            rows.append([row[i] for i in range(len(row))])
+        return colnames, rows
     elif db_type == "snowflake":
         try:
             import snowflake.connector
