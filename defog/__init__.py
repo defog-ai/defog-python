@@ -4,6 +4,8 @@ import os
 
 import requests
 
+from defog.query import execute_query
+
 SUPPORTED_DB_TYPES = [
     "postgres",
     "redshift",
@@ -827,9 +829,11 @@ class Defog:
         mode: str = "chat",
         language: str = None,
         query: dict = None,
+        retries: int = 0,
     ):
         """
-        Sends the query to the defog servers, and return the response.
+        Sends the question to the defog servers, executes the generated SQL,
+        and returns the response.
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
@@ -839,263 +843,30 @@ class Defog:
                 question, hard_filters, previous_context, mode=mode, language=language
             )
         if query["ran_successfully"]:
-            print("Query generated, now running it on your database...")
-            if query["query_db"] == "postgres" or query["query_db"] == "redshift":
-                try:
-                    import psycopg2
-                except:
-                    raise Exception("psycopg2 not installed.")
-
-                conn = psycopg2.connect(**self.db_creds)
-                cur = conn.cursor()
-                try:
-                    cur.execute(query["query_generated"])
-                    colnames = [desc[0] for desc in cur.description]
-                    result = cur.fetchall()
-                    cur.close()
-                    conn.close()
-                    print("Query ran succesfully!")
-                    return {
-                        "columns": colnames,
-                        "data": result,
-                        "query_generated": query["query_generated"],
-                        "ran_successfully": True,
-                        "reason_for_query": query.get("reason_for_query"),
-                        "suggestion_for_further_questions": query.get(
-                            "suggestion_for_further_questions"
-                        ),
-                        "previous_context": query.get("previous_context"),
-                    }
-                except Exception as e:
-                    print(f"Query generated was: {query['query_generated']}")
-                    print(
-                        f"There was an error {str(e)} when running the previous query. Retrying with adaptive learning..."
-                    )
-                    # retry the query with the exception
-                    payload = {
-                        "api_key": self.api_key,
-                        "previous_query": query["query_generated"],
-                        "error": str(e),
-                        "db_type": self.db_type,
-                        "hard_filters": hard_filters,
-                        "question": question,
-                    }
-                    print(json.dumps(payload))
-                    r = requests.post(
-                        "https://api.defog.ai/retry_query_after_error",
-                        json=payload,
-                    )
-                    query = r.json()
-                    conn = psycopg2.connect(**self.db_creds)
-                    cur = conn.cursor()
-                    try:
-                        cur.execute(query["new_query"])
-                        colnames = [desc[0] for desc in cur.description]
-                        result = cur.fetchall()
-                        cur.close()
-                        conn.close()
-                        print("Query ran succesfully!")
-                        return {
-                            "columns": colnames,
-                            "data": result,
-                            "query_generated": query["new_query"],
-                            "ran_successfully": True,
-                        }
-                    except Exception as e:
-                        return {"error_message": str(e), "ran_successfully": False}
-            elif query["query_db"] == "mysql":
-                try:
-                    import mysql.connector
-                except:
-                    raise Exception("mysql.connector not installed.")
-                conn = mysql.connector.connect(**self.db_creds)
-                cur = conn.cursor()
-                try:
-                    cur.execute(query["query_generated"])
-                    colnames = [desc[0] for desc in cur.description]
-                    result = cur.fetchall()
-                    cur.close()
-                    conn.close()
-                    print("Query ran succesfully!")
-                    return {
-                        "columns": colnames,
-                        "data": result,
-                        "query_generated": query["query_generated"],
-                        "ran_successfully": True,
-                        "reason_for_query": query.get("reason_for_query"),
-                        "suggestion_for_further_questions": query.get(
-                            "suggestion_for_further_questions"
-                        ),
-                        "previous_context": query.get("previous_context"),
-                    }
-                except Exception as e:
-                    print(f"Query generated was: {query['query_generated']}")
-                    print(
-                        f"There was an error {str(e)} when running the previous query. Retrying with adaptive learning..."
-                    )
-                    # retry the query with the exception
-                    r = requests.post(
-                        "https://api.defog.ai/retry_query_after_error",
-                        json={
-                            "api_key": self.api_key,
-                            "previous_query": query["query_generated"],
-                            "error": str(e),
-                            "db_type": self.db_type,
-                            "hard_filters": hard_filters,
-                            "question": question,
-                        },
-                    )
-                    query = r.json()
-                    conn = mysql.connector.connect(**self.db_creds)
-                    cur = conn.cursor()
-                    try:
-                        cur.execute(query["new_query"])
-                        colnames = [desc[0] for desc in cur.description]
-                        result = cur.fetchall()
-                        cur.close()
-                        conn.close()
-                        print("Query ran succesfully!")
-                        return {
-                            "columns": colnames,
-                            "data": result,
-                            "query_generated": query["new_query"],
-                            "ran_successfully": True,
-                        }
-                    except Exception as e:
-                        return {"error_message": str(e), "ran_successfully": False}
-            elif query["query_db"] == "mongo":
-                try:
-                    from pymongo import MongoClient
-                except:
-                    raise Exception("pymongo not installed.")
-                client = MongoClient(self.db_creds["connection_string"])
-                db = client.get_database()
-                try:
-                    results = eval(f"{query['query_generated']}")
-                    results = [i for i in results]
-                    if len(results) > 0:
-                        columns = results[0].keys()
-                    else:
-                        columns = []
-                    return {
-                        "columns": columns,  # assumes that all objects have the same keys
-                        "data": results,
-                        "query_generated": query["query_generated"],
-                        "ran_successfully": True,
-                    }
-                except Exception as e:
-                    return {"error_message": str(e), "ran_successfully": False}
-            elif query["query_db"] == "bigquery":
-                try:
-                    from google.cloud import bigquery
-                except:
-                    raise Exception("google.cloud.bigquery not installed.")
-
-                json_key = self.db_creds
-                client = bigquery.Client.from_service_account_json(json_key)
-                try:
-                    query_job = client.query(query["query_generated"])
-                    results = query_job.result()
-                    columns = [i.name for i in results.schema]
-                    rows = []
-                    for row in results:
-                        rows.append([row[i] for i in range(len(row))])
-
-                    return {
-                        "columns": columns,  # assumes that all objects have the same keys
-                        "data": rows,
-                        "query_generated": query["query_generated"],
-                        "ran_successfully": True,
-                    }
-                except Exception as e:
-                    print(f"Query generated was: {query['query_generated']}")
-                    print(
-                        f"There was an error {str(e)} when running the previous query. Retrying with adaptive learning..."
-                    )
-                    # retry the query with the exception
-                    r = requests.post(
-                        "https://api.defog.ai/retry_query_after_error",
-                        json={
-                            "api_key": self.api_key,
-                            "previous_query": query["query_generated"],
-                            "error": str(e),
-                            "db_type": self.db_type,
-                            "hard_filters": hard_filters,
-                            "question": question,
-                        },
-                    )
-                    client = bigquery.Client.from_service_account_json(json_key)
-                    query_job = client.query(r.json()["new_query"])
-                    results = query_job.result()
-                    columns = [i.name for i in results.schema]
-                    rows = []
-                    for row in results:
-                        rows.append([row[i] for i in range(len(row))])
-
-                    return {
-                        "columns": columns,  # assumes that all objects have the same keys
-                        "data": rows,
-                        "query_generated": query["query_generated"],
-                        "ran_successfully": True,
-                    }
-            elif query["query_db"] == "snowflake":
-                try:
-                    import snowflake.connector
-                except:
-                    raise Exception("snowflake.connector not installed.")
-                conn = snowflake.connector.connect(
-                    user=self.db_creds["user"],
-                    password=self.db_creds["password"],
-                    account=self.db_creds["account"],
+            try:
+                print("Query generated, now running it on your database...")
+                colnames, result, executed_query = execute_query(
+                    query["query_generated"],
+                    self.api_key,
+                    self.db_type,
+                    self.db_creds,
+                    question,
+                    hard_filters,
+                    retries,
                 )
-                cur = conn.cursor()
-                cur.execute(
-                    f"USE WAREHOUSE {self.db_creds['warehouse']}"
-                )  # set the warehouse
-                try:
-                    cur.execute(query["query_generated"])
-                    colnames = [desc[0] for desc in cur.description]
-                    result = cur.fetchall()
-                    cur.close()
-                    conn.close()
-                    print("Query ran succesfully!")
-                    return {
-                        "columns": colnames,
-                        "data": result,
-                        "query_generated": query["query_generated"],
-                        "ran_successfully": True,
-                        "reason_for_query": query.get("reason_for_query"),
-                        "suggestion_for_further_questions": query.get(
-                            "suggestion_for_further_questions"
-                        ),
-                        "previous_context": query.get("previous_context"),
-                    }
-                except Exception as e:
-                    return {"error_message": str(e), "ran_successfully": False}
-            elif query["query_db"] == "sqlserver":
-                try:
-                    import pyodbc
-                except:
-                    raise Exception("pyodbc not installed.")
-                conn = pyodbc.connect(self.db_creds)
-                cur = conn.cursor()
-                try:
-                    cur.execute(query["query_generated"])
-                    colnames = [desc[0] for desc in cur.description]
-                    result = cur.fetchall()
-                    cur.close()
-                    conn.close()
-                    print("Query ran succesfully!")
-                    return {
-                        "columns": colnames,
-                        "data": result,
-                        "query_generated": query["query_generated"],
-                        "ran_successfully": True,
-                    }
-                except Exception as e:
-                    return {"error_message": str(e), "ran_successfully": False}
-            else:
-                raise Exception("Database type not yet supported.")
+                return {
+                    "columns": colnames,
+                    "data": result,
+                    "query_generated": executed_query,
+                    "ran_successfully": True,
+                    "reason_for_query": query.get("reason_for_query"),
+                    "suggestion_for_further_questions": query.get(
+                        "suggestion_for_further_questions"
+                    ),
+                    "previous_context": query.get("previous_context"),
+                }
+            except Exception as e:
+                return {"ran_successfully": False, "error_message": str(e)}
         else:
             return {"ran_successfully": False, "error_message": query["error_message"]}
 

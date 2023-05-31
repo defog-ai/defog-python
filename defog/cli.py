@@ -248,7 +248,7 @@ def query():
     else:
         query = sys.argv[2]
     while query != "e":
-        resp = df.run_query(query)
+        resp = df.run_query(query, retries=3)
         if not resp["ran_successfully"]:
             print(f"Your query did not run successfully. Please try again.")
         else:

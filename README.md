@@ -92,7 +92,7 @@ print(results)
 
 For developers who want to test or add tests for this client, you can run:
 ```
-python -m unittest test_defog
+python -m unittest discover -s tests -p "test_*.py"
 ```
 
 Note that we will transfer the existing .defog/connection.json file over to /tmp (if at all), and transfer the original file back once the tests are done to avoid messing with the original config.
