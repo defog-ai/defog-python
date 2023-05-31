@@ -801,7 +801,7 @@ class Defog:
                     timeout=300,
                 )
                 resp = r.json()
-                query_generated = resp.get("sql")
+                query_generated = resp.get("sql", resp.get("pymongo_code"))
                 ran_successfully = resp.get("ran_successfully")
                 error_message = resp.get("error_message")
                 query_db = self.db_type

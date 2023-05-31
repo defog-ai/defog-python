@@ -252,11 +252,14 @@ def query():
         if not resp["ran_successfully"]:
             print(f"Your query did not run successfully. Please try again.")
         else:
-            print("Your query generated the following SQL query:\n")
+            print("Your question generated the following query:\n")
             print(f"\033[1m{resp['query_generated']}\033[0m\n")
             print("Results:\n")
             # print results in tabular format using 'columns' and 'data' keys
-            print_table(resp["columns"], resp["data"])
+            try:
+                print_table(resp["columns"], resp["data"])
+            except:
+                print(resp)
         query = input("Enter another query, or type 'e' to exit: ")
 
 
