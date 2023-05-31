@@ -29,7 +29,7 @@ class Defog:
         db_creds: dict = {},
         base64creds: str = "",
         save_json: bool = True,
-        generate_query_url: str = "https://api-staging.defog.ai/generate_query_chat",
+        generate_query_url: str = "https://api.defog.ai/generate_query_chat",
     ):
         """
         Initializes the Defog class.
@@ -785,6 +785,8 @@ class Defog:
                 error_message = resp.get("error_message")
                 query_db = resp.get("query_db", "postgres")
             else:
+                print(self.generate_query_url)
+
                 r = requests.post(
                     self.generate_query_url,
                     json={
