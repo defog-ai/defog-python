@@ -54,7 +54,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
         except:
             raise Exception("google.cloud.bigquery not installed.")
 
-        json_key = db_creds
+        json_key = db_creds['json_key_path']
         client = bigquery.Client.from_service_account_json(json_key)
         query_job = client.query(query)
         results = query_job.result()
