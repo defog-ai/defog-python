@@ -1,3 +1,6 @@
+import json
+import os
+import shutil
 import unittest
 from unittest import mock
 
@@ -5,8 +8,30 @@ from defog.query import execute_query_once, execute_query
 
 
 class ExecuteQueryOnceTestCase(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(self):
+        # if connection.json exists, copy it to /tmp since we'll be overwriting it
+        home_dir = os.path.expanduser("~")
+        self.logs_path = os.path.join(home_dir, ".defog", "logs")
+        self.tmp_dir = os.path.join("/tmp")
+        self.moved = False
+        if os.path.exists(self.logs_path):
+            print("Moving logs to /tmp")
+            if os.path.exists(os.path.join(self.tmp_dir, "logs")):
+                os.remove(os.path.join(self.tmp_dir, "logs"))
+            shutil.move(self.logs_path, self.tmp_dir)
+            self.moved = True
+
+    @classmethod
+    def tearDownClass(self):
+        # copy back the original after all tests have completed
+        if self.moved:
+            print("Moving logs back to ~/.defog")
+            shutil.move(os.path.join(self.tmp_dir, "logs"), self.logs_path)
+
     @mock.patch("psycopg2.connect")
-    def test_postgres_query_execution(self, mock_connect):
+    def test_execute_query_once_success(self, mock_connect):
         # Mock the psycopg2.connect function
         mock_cursor = mock_connect.return_value.cursor.return_value
         mock_cursor.description = [("col1",), ("col2",)]
@@ -71,7 +96,7 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
 
     @mock.patch("requests.post")
     @mock.patch("defog.query.execute_query_once")
-    def test_execute_query_retry_limit_exceeded(
+    def test_execute_query_success_with_retry(
         self, mock_execute_query_once, mock_requests_post
     ):
         db_type = "postgres"
@@ -107,6 +132,10 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
         mock_response.json.return_value = {"new_query": query2}
         mock_requests_post.return_value = mock_response
 
+        # remove logs if it exists
+        if os.path.exists(os.path.join(self.logs_path)):
+            os.remove(os.path.join(self.logs_path))
+
         # Call the function being tested
         ret = execute_query(
             query1, api_key, db_type, db_creds, question, hard_filters, retries
@@ -116,17 +145,27 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
 
         # Assert the mock function calls
         mock_execute_query_once.assert_called_with(db_type, db_creds, query2)
-        mock_requests_post.assert_called_with(
-            "https://api.defog.ai/retry_query_after_error",
-            json={
+        json_req = {
                 "api_key": api_key,
                 "previous_query": query1,
                 "error": err_msg,
                 "db_type": db_type,
                 "hard_filters": hard_filters,
                 "question": question,
-            },
+            }
+        mock_requests_post.assert_called_with(
+            "https://api.defog.ai/retry_query_after_error",
+            json=json_req,
         )
+
+        # check that err logs are populated
+        with open(self.logs_path, "r") as f:
+            lines = f.readlines()
+            self.assertEqual(len(lines), 3)
+            self.assertIn(err_msg, lines[0])
+            self.assertIn(f"Retries left: {retries}", lines[1])
+            self.assertIn(json.dumps(json_req), lines[2])
+
 
 
 if __name__ == "__main__":

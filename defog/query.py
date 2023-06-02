@@ -2,6 +2,8 @@ import json
 
 import requests
 
+from defog.util import write_err
+
 
 # execute query for given db_type and return column names and data
 def execute_query_once(db_type: str, db_creds, query: str):
@@ -112,13 +114,10 @@ def execute_query(
         return execute_query_once(db_type, db_creds, query) + (query,)
     except Exception as e:
         err_msg = str(e)
-        print(
-            f"""There was an error {err_msg} when running the previous query:
-{query}
-Retrying with adaptive learning..."""
-        )
+        print("There was an error when running the previous query. Retrying with adaptive learning...")
+        write_err(str(e))
         while retries > 0:
-            print("Retries left: ", retries)
+            write_err(f"Retries left: {retries}")
             try:
                 retry = {
                     "api_key": api_key,
@@ -128,7 +127,7 @@ Retrying with adaptive learning..."""
                     "hard_filters": hard_filters,
                     "question": question,
                 }
-                print(json.dumps(retry))
+                write_err(json.dumps(retry))
                 r = requests.post(
                     "https://api.defog.ai/retry_query_after_error",
                     json=retry,
@@ -138,10 +137,7 @@ Retrying with adaptive learning..."""
                 return execute_query_once(db_type, db_creds, new_query) + (new_query,)
             except Exception as e:
                 err_msg = str(e)
-                print(
-                    f"""There was an error {err_msg} when retrying the previous query:
-{query}
-Retrying with adaptive learning..."""
-                )
+                print("There was an error when running the previous query. Retrying with adaptive learning...")
+                write_err(str(e))
                 retries -= 1
         raise Exception("Maximum retries exceeded.")
