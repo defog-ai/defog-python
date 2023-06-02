@@ -5,6 +5,7 @@ import os
 import requests
 
 from defog.query import execute_query
+from defog.util import write_logs
 
 SUPPORTED_DB_TYPES = [
     "postgres",
@@ -785,7 +786,7 @@ class Defog:
                 error_message = resp.get("error_message")
                 query_db = resp.get("query_db", "postgres")
             else:
-                print(self.generate_query_url)
+                write_logs(self.generate_query_url)
 
                 r = requests.post(
                     self.generate_query_url,

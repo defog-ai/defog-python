@@ -30,18 +30,18 @@ def parse_update(
         args_list = args_list[2:]
     return config_dict
 
-# writes out error message to ~/.defog/logs to avoid bloating cli output
-# while still preserving more verbose error messages when debugging
-def write_err(err_msg: str) -> None:
+
+def write_logs(msg: str) -> None:
     """
-    Write the error message to the error log.
+    Write out log messages to ~/.defog/logs to avoid bloating cli output,
+    while still preserving more verbose error messages when debugging.
 
     Args:
-        err_msg (str): The error message to write.
+        msg (str): The message to write.
     """
     log_file_path = os.path.expanduser("~/.defog/logs")
     if not os.path.exists(log_file_path):
         os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
 
     with open(log_file_path, "a") as file:
-        file.write(err_msg + "\n")
+        file.write(msg + "\n")

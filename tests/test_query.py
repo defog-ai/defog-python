@@ -8,7 +8,6 @@ from defog.query import execute_query_once, execute_query
 
 
 class ExecuteQueryOnceTestCase(unittest.TestCase):
-
     @classmethod
     def setUpClass(self):
         # if connection.json exists, copy it to /tmp since we'll be overwriting it
@@ -146,13 +145,13 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
         # Assert the mock function calls
         mock_execute_query_once.assert_called_with(db_type, db_creds, query2)
         json_req = {
-                "api_key": api_key,
-                "previous_query": query1,
-                "error": err_msg,
-                "db_type": db_type,
-                "hard_filters": hard_filters,
-                "question": question,
-            }
+            "api_key": api_key,
+            "previous_query": query1,
+            "error": err_msg,
+            "db_type": db_type,
+            "hard_filters": hard_filters,
+            "question": question,
+        }
         mock_requests_post.assert_called_with(
             "https://api.defog.ai/retry_query_after_error",
             json=json_req,
@@ -165,7 +164,6 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
             self.assertIn(err_msg, lines[0])
             self.assertIn(f"Retries left: {retries}", lines[1])
             self.assertIn(json.dumps(json_req), lines[2])
-
 
 
 if __name__ == "__main__":
