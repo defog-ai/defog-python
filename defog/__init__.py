@@ -50,7 +50,7 @@ class Defog:
         self.generate_query_url = generate_query_url
 
         if not os.path.exists(self.filepath) and (
-            api_key != "" and db_type != "" and db_creds != {}
+            api_key != "" and db_type != ""
         ):
             self.check_db_creds(db_type, db_creds)  # throws error for case 2
             # case 3
