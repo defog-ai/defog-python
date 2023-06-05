@@ -79,28 +79,28 @@ class Defog:
                     )
             # extra confirmation and processing for case 5
             if api_key != "" or db_type != "" or db_creds != {}:
-                choice = input(
-                    """
-                    You have provided new connection details, but connection details already exist. 
-                    Press y to confirm overwriting with the provided settings:
-                    """
-                )
-                if choice.lower() != "y":
-                    print("Using existing connection details, no changes made.")
-                    return
-                else:
-                    if api_key != "":
-                        print("Overwriting api key")
-                        self.api_key = api_key
-                    if db_type != "":
-                        print("Overwriting db type")
-                        self.db_type = db_type
-                    if db_creds != {}:
-                        print("Overwriting db creds")
-                        self.db_creds = db_creds
-                    self.check_db_creds(self.db_type, self.db_creds)
-                    if save_json:
-                        self.save_connection_json()
+                # choice = input(
+                #     """
+                #     You have provided new connection details, but connection details already exist. 
+                #     Press y to confirm overwriting with the provided settings:
+                #     """
+                # )
+                # if choice.lower() != "y":
+                #     print("Using existing connection details, no changes made.")
+                #     return
+                # else:
+                if api_key != "":
+                    print("Overwriting api key")
+                    self.api_key = api_key
+                if db_type != "":
+                    print("Overwriting db type")
+                    self.db_type = db_type
+                # if db_creds != {}:
+                #     print("Overwriting db creds")
+                #     self.db_creds = db_creds
+                self.check_db_creds(self.db_type, self.db_creds)
+                if save_json:
+                    self.save_connection_json()
         else:  # case 1
             raise ValueError(
                 "Connection details not found. Please set up with the CLI or pass in the api_key, db_type, and db_creds parameters."
@@ -122,6 +122,9 @@ class Defog:
 
     @staticmethod
     def check_db_creds(db_type: str, db_creds: dict):
+        if db_creds == {}:
+            # special case for empty db_creds. Some customers just want these to be empty so they can just get the query and run it without giving the defog library any credentials
+            return
         if db_type == "postgres" or db_type == "redshift":
             if "host" not in db_creds:
                 raise KeyError("db_creds must contain a 'host' key.")
