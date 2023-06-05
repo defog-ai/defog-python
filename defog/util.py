@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 
@@ -28,3 +29,19 @@ def parse_update(
             print(f"Valid arguments are: {attributes_list}")
         args_list = args_list[2:]
     return config_dict
+
+
+def write_logs(msg: str) -> None:
+    """
+    Write out log messages to ~/.defog/logs to avoid bloating cli output,
+    while still preserving more verbose error messages when debugging.
+
+    Args:
+        msg (str): The message to write.
+    """
+    log_file_path = os.path.expanduser("~/.defog/logs")
+    if not os.path.exists(log_file_path):
+        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+
+    with open(log_file_path, "a") as file:
+        file.write(msg + "\n")
