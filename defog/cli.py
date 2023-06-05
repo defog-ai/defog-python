@@ -172,7 +172,7 @@ def init():
     print(f"Your configuration has been saved to {filepath}.")
 
     # prompt user for tables that they would like to register
-    print("We're going to register your tables' schema with defog.")
+    print("We're going to register your tables' schema with defog. Just hit enter to skip if you would like to do this later. You can use `defog gen` to generate a schema for your tables later.")
     print(
         "Please enter the names of the tables you would like to register, separated by a space:"
     )
@@ -188,7 +188,7 @@ def init():
         print("Your schema has been generated and is available at:\n")
         print(f"\033[1m{gsheets_url}\033[0m.\n")
         print(
-            "If you do modify the schema in the link provided, please run `defog update <url>` to update the updated schema."
+            "Next, please run `defog update <url>` to update the updated schema."
         )
 
 

@@ -39,8 +39,7 @@ class Defog:
         2) no config file, wrong params -> error
         3) no config file, all right params -> save params to config file
         4) config file present, no params -> read params from config file
-        5) config file present, some/all params -> read params from config file,
-           overwrite with provided params upon user confirmation
+        5) config file present, some/all params -> ignore existing config file, save new params to config file
         """
         if base64creds != "":
             self.from_base64_creds(base64creds)
@@ -64,41 +63,27 @@ class Defog:
         elif os.path.exists(self.filepath):  # case 4 and 5
             # read connection details from filepath
             print("Connection details found. Reading connection details from file...")
-            with open(self.filepath, "r") as f:
-                data = json.load(f)
-                if "api_key" in data and "db_type" in data and "db_creds" in data:
-                    self.check_db_creds(data["db_type"], data["db_creds"])
-                    self.api_key = data["api_key"]
-                    self.db_type = data["db_type"]
-                    self.db_creds = data["db_creds"]
-                    print(f"Connection details read from {self.filepath}.")
-                else:
-                    raise KeyError(
-                        f"Invalid file at {self.filepath}.\n"
-                        "Json file should contain 'api_key', 'db_type', 'db_creds'.\n"
-                        "Please delete the file and try again."
-                    )
-            # extra confirmation and processing for case 5
-            if api_key != "" or db_type != "" or db_creds != {}:
-                # choice = input(
-                #     """
-                #     You have provided new connection details, but connection details already exist. 
-                #     Press y to confirm overwriting with the provided settings:
-                #     """
-                # )
-                # if choice.lower() != "y":
-                #     print("Using existing connection details, no changes made.")
-                #     return
-                # else:
+            if api_key == "":
+                with open(self.filepath, "r") as f:
+                    data = json.load(f)
+                    if "api_key" in data and "db_type" in data and "db_creds" in data:
+                        self.check_db_creds(data["db_type"], data["db_creds"])
+                        self.api_key = data["api_key"]
+                        self.db_type = data["db_type"]
+                        self.db_creds = data["db_creds"]
+                        print(f"Connection details read from {self.filepath}.")
+                    else:
+                        raise KeyError(
+                            f"Invalid file at {self.filepath}.\n"
+                            "Json file should contain 'api_key', 'db_type', 'db_creds'.\n"
+                            "Please delete the file and try again."
+                        )
+            else:  # case 5
                 if api_key != "":
-                    print("Overwriting api key")
                     self.api_key = api_key
                 if db_type != "":
-                    print("Overwriting db type")
                     self.db_type = db_type
-                # if db_creds != {}:
-                #     print("Overwriting db creds")
-                #     self.db_creds = db_creds
+                self.db_creds = db_creds
                 self.check_db_creds(self.db_type, self.db_creds)
                 if save_json:
                     self.save_connection_json()
@@ -123,6 +108,7 @@ class Defog:
 
     @staticmethod
     def check_db_creds(db_type: str, db_creds: dict):
+        print(db_creds)
         if db_creds == {}:
             # special case for empty db_creds. Some customers just want these to be empty so they can just get the query and run it without giving the defog library any credentials
             return
