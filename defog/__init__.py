@@ -821,7 +821,7 @@ class Defog:
         mode: str = "chat",
         language: str = None,
         query: dict = None,
-        retries: int = 0,
+        retries: int = 3,
     ):
         """
         Sends the question to the defog servers, executes the generated SQL,
