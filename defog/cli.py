@@ -303,7 +303,8 @@ def deploy():
             "--allow-unauthenticated",
         ]
         try:
-            print("executing gcloud command...")
+            cmd_str = " ".join(cmd)
+            print(f"executing gcloud command:\n{cmd_str}")
             subprocess.check_call(cmd)
             print("gcloud command executed successfully")
         except subprocess.CalledProcessError as e:
