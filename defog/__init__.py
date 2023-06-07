@@ -775,8 +775,6 @@ class Defog:
                 error_message = resp.get("error_message")
                 query_db = resp.get("query_db", "postgres")
             else:
-                write_logs(self.generate_query_url)
-
                 r = requests.post(
                     self.generate_query_url,
                     json={
