@@ -745,6 +745,7 @@ class Defog:
         schema: dict = {},
         mode: str = "chat",
         language: str = None,
+        debug: bool = False,
     ):
         """
         Sends the query to the defog servers, and return the response.
@@ -802,7 +803,9 @@ class Defog:
                 ),
                 "reason_for_query": resp.get("reason_for_query"),
             }
-        except Exception:
+        except Exception as e:
+            if debug:
+                print(e)
             return {
                 "ran_successfully": False,
                 "error_message": "Sorry :( Our server is at capacity right now and we are unable to process your query. Please try again in a few minutes?",
