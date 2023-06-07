@@ -41,13 +41,14 @@ class Defog:
         4) config file present, no params -> read params from config file
         5) config file present, some/all params -> ignore existing config file, save new params to config file
         """
+        self.generate_query_url = generate_query_url
+        
         if base64creds != "":
             self.from_base64_creds(base64creds)
             return
         self.home_dir = os.path.expanduser("~")
         self.filepath = os.path.join(self.home_dir, ".defog", "connection.json")
-        self.generate_query_url = generate_query_url
-
+        
         if not os.path.exists(self.filepath) and (api_key != "" and db_type != ""):
             self.check_db_creds(db_type, db_creds)  # throws error for case 2
             # case 3
