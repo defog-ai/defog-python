@@ -172,7 +172,9 @@ def init():
     print(f"Your configuration has been saved to {filepath}.")
 
     # prompt user for tables that they would like to register
-    print("We're going to register your tables' schema with defog. Just hit enter to skip if you would like to do this later. You can use `defog gen` to generate a schema for your tables later.")
+    print(
+        "We're going to register your tables' schema with defog. Just hit enter to skip if you would like to do this later. You can use `defog gen` to generate a schema for your tables later."
+    )
     print(
         "Please enter the names of the tables you would like to register, separated by a space:"
     )
@@ -187,9 +189,7 @@ def init():
         gsheets_url = df.generate_db_schema(table_name_list)
         print("Your schema has been generated and is available at:\n")
         print(f"\033[1m{gsheets_url}\033[0m.\n")
-        print(
-            "Next, please run `defog update <url>` to update the updated schema."
-        )
+        print("Next, please run `defog update <url>` to update the updated schema.")
 
 
 def gen():
