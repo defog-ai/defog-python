@@ -107,7 +107,7 @@ class Defog:
 
     @staticmethod
     def check_db_creds(db_type: str, db_creds: dict):
-        print(db_creds)
+        # print(db_creds)
         if db_creds == {}:
             # special case for empty db_creds. Some customers just want these to be empty so they can just get the query and run it without giving the defog library any credentials
             return
