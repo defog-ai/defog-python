@@ -117,6 +117,17 @@ def execute_query(
         print(
             "There was an error when running the previous query. Retrying with adaptive learning..."
         )
+
+        # log this error to our feedback system
+        r = requests.post("https://api.defog.ai/feedback", json={
+            "api_key": api_key,
+            "feedback": "bad",
+            "text": err_msg,
+            "db_type": db_type,
+            "question": question,
+            "query": query,
+        }, timeout=1)
+
         write_logs(str(e))
         while retries > 0:
             write_logs(f"Retries left: {retries}")
