@@ -1,11 +1,9 @@
 import base64
 import json
 import os
-
 import requests
 
 from defog.query import execute_query
-from defog.util import write_logs
 
 SUPPORTED_DB_TYPES = [
     "postgres",
@@ -17,12 +15,10 @@ SUPPORTED_DB_TYPES = [
     "sqlserver",
 ]
 
-
 class Defog:
     """
     The main class for Defog
     """
-
     def __init__(
         self,
         api_key: str = "",
@@ -799,9 +795,6 @@ class Defog:
                 "error_message": error_message,
                 "query_db": query_db,
                 "previous_context": resp.get("previous_context"),
-                "suggestion_for_further_questions": resp.get(
-                    "suggestion_for_further_questions"
-                ),
                 "reason_for_query": resp.get("reason_for_query"),
             }
         except Exception as e:
@@ -852,9 +845,6 @@ class Defog:
                     "query_generated": executed_query,
                     "ran_successfully": True,
                     "reason_for_query": query.get("reason_for_query"),
-                    "suggestion_for_further_questions": query.get(
-                        "suggestion_for_further_questions"
-                    ),
                     "previous_context": query.get("previous_context"),
                 }
             except Exception as e:
@@ -885,3 +875,51 @@ class Defog:
         self.api_key = creds["api_key"]
         self.db_type = creds["db_type"]
         self.db_creds = creds["db_creds"]
+    
+    def update_predefined_queries(self, predefined_queries: list):
+        """
+        Updates the predefined queries on the defog servers.
+        :param predefined_queries: The predefined queries to be used.
+        """
+        # [{'question': 'What is the total number of employees?', 'query': 'SELECT COUNT(*) FROM employees'}}]
+        for item in predefined_queries:
+            if "question" not in item or "query" not in item:
+                raise Exception("Each predefined query should have a question and a SQL query. It should be in the format {{'question': 'YOUR QUESTION', 'query': 'SELECT ...'}}")
+        
+        r = requests.post(
+            "https://api.defog.ai/update_predefined_queries",
+            json={
+                "api_key": self.api_key,
+                "predefined_queries": predefined_queries
+            },
+        )
+        resp = r.json()
+        return resp
+    
+    def get_predefined_queries(self):
+        """
+        Gets the predefined queries on the defog servers.
+        """
+        r = requests.post(
+            "https://api.defog.ai/get_predefined_queries",
+            json={
+                "api_key": self.api_key,
+            },
+        )
+        resp = r.json()
+        if resp["status"] == "success":
+            return resp["predefined_queries"]
+        else:
+            return []
+    
+    def execute_predefined_query(self, query):
+        """
+        Executes a predefined query
+        """
+        resp = execute_query(
+            query["query"],
+            self.api_key,
+            self.db_type,
+            self.db_creds,
+        )
+        return resp

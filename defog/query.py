@@ -1,9 +1,6 @@
 import json
-
 import requests
-
 from defog.util import write_logs
-
 
 # execute query for given db_type and return column names and data
 def execute_query_once(db_type: str, db_creds, query: str):
@@ -105,9 +102,9 @@ def execute_query(
     api_key: str,
     db_type: str,
     db_creds,
-    question: str,
-    hard_filters: str,
-    retries: int,
+    question: str = "",
+    hard_filters: str = "",
+    retries: int = 3,
 ):
     err_msg = None
     try:
