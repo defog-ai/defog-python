@@ -188,7 +188,7 @@ def init():
         df = defog.Defog(api_key=api_key, db_type=db_type, db_creds=db_creds)
         gsheets_url = df.generate_db_schema(table_name_list)
         print("Your schema has been generated and is available at:\n")
-        print(f"\033[1m{gsheets_url}\033[0m.\n")
+        print(f"\033[1m{gsheets_url}\033[0m\n")
         print("Next, please run `defog update <url>` to update the updated schema.")
 
 
