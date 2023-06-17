@@ -315,7 +315,7 @@ def query():
             
             elif feedback == "n":
                 # send data to /feedback endpoint
-                feedback_text = input("Could you tell us why this was a bad query? This will help us improve the model for you. Just hit enter if you want to leave this blank.")
+                feedback_text = input("Could you tell us why this was a bad query? This will help us improve the model for you. Just hit enter if you want to leave this blank.\n")
                 try:
                     requests.post("https://api.defog.ai/feedback", json={
                         "api_key": df.api_key,
@@ -336,20 +336,26 @@ def query():
             if not resp["ran_successfully"]:
                 print("Defog generated the following query to answer your question:\n")
                 print(f"\033[1m{resp['query_generated']}\033[0m\n")
-                
+
                 print(f"However, your query did not run successfully. The error message generated while running the query on your database was\n\n\033[1m{resp['error_message']}\033[0m\n.")
             else:
                 sql_generated = resp.get("query_generated")
                 print("Defog generated the following query to answer your question:\n")
                 print(f"\033[1m{resp['query_generated']}\033[0m\n")
+                
+                print("This was its reasoning for generating this query:\n")
+                print(f"\033[1m{resp['reason_for_query']}\033[0m\n")
+                
                 print("Results:\n")
                 # print results in tabular format using 'columns' and 'data' keys
                 try:
                     print_table(resp["columns"], resp["data"])
                 except:
                     print(resp)
+                
+                print()
                 feedback_mode = True
-                feedback = input("Did Defog answer your question well? Just hit enter to skip (y/n):")
+                feedback = input("Did Defog answer your question well? Just hit enter to skip (y/n):\n")
 
 def deploy():
     """
