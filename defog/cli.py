@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import sys
+import requests
 
 import defog
 from defog import Defog
@@ -284,21 +285,71 @@ def query():
         query = input()
     else:
         query = sys.argv[2]
-    while query != "e":
-        resp = df.run_query(query, retries=3)
-        if not resp["ran_successfully"]:
-            print(f"Your query did not run successfully. Please try again.")
+    
+    feedback_mode = False
+    feedback = ""
+    user_question = ""
+    sql_generated = ""
+    while True:
+        if query == "e":
+            print("Exiting.")
+            sys.exit(0)
+        
+        if feedback_mode:
+            if feedback not in ['y', 'n']:
+                pass
+            elif feedback == "y":
+                # send data to /feedback endpoint
+                try:
+                    requests.post("https://api.defog.ai/feedback", json={
+                        "api_key": df.api_key,
+                        "feedback": "good",
+                        "db_type": df.db_type,
+                        "question": user_question,
+                        "query": sql_generated,
+                    }, timeout=1)
+                    print("Thank you for the feedback!")
+                    feedback_mode = False
+                except:
+                    pass
+            
+            elif feedback == "n":
+                # send data to /feedback endpoint
+                feedback_text = input("Could you tell us why this was a bad query? This will help us improve the model for you. Just hit enter if you want to leave this blank.")
+                try:
+                    requests.post("https://api.defog.ai/feedback", json={
+                        "api_key": df.api_key,
+                        "feedback": "bad",
+                        "text": feedback_text,
+                        "db_type": df.db_type,
+                        "question": user_question,
+                        "query": sql_generated,
+                    }, timeout=1)
+                except:
+                    pass
+                print("Thank you for the feedback! We retrain our models every week, and you should see much better performance on these kinds of queries in another week.")
+            feedback_mode = False
+            query = input("Enter another query, or type 'e' to exit: ")
         else:
-            print("Your question generated the following query:\n")
-            print(f"\033[1m{resp['query_generated']}\033[0m\n")
-            print("Results:\n")
-            # print results in tabular format using 'columns' and 'data' keys
-            try:
-                print_table(resp["columns"], resp["data"])
-            except:
-                print(resp)
-        query = input("Enter another query, or type 'e' to exit: ")
-
+            user_question = query
+            resp = df.run_query(query, retries=3)
+            if not resp["ran_successfully"]:
+                print("Defog generated the following query to answer your question:\n")
+                print(f"\033[1m{resp['query_generated']}\033[0m\n")
+                
+                print(f"However, your query did not run successfully. The error message generated while running the query on your database was\n\n\033[1m{resp['error_message']}\033[0m\n.")
+            else:
+                sql_generated = resp.get("query_generated")
+                print("Defog generated the following query to answer your question:\n")
+                print(f"\033[1m{resp['query_generated']}\033[0m\n")
+                print("Results:\n")
+                # print results in tabular format using 'columns' and 'data' keys
+                try:
+                    print_table(resp["columns"], resp["data"])
+                except:
+                    print(resp)
+                feedback_mode = True
+                feedback = input("Did Defog answer your question well? Just hit enter to skip (y/n):")
 
 def deploy():
     """
