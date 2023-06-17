@@ -89,7 +89,7 @@ def init():
         api_key = os.environ.get("DEFOG_API_KEY")
     else:
         api_key = getpass.getpass(
-            prompt="Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/account and creating an account:"
+            prompt="Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/accounts/dashboard/ and creating an account:"
         )
     # prompt user for db_type
     print(
@@ -189,7 +189,44 @@ def init():
         gsheets_url = df.generate_db_schema(table_name_list)
         print("Your schema has been generated and is available at:\n")
         print(f"\033[1m{gsheets_url}\033[0m\n")
-        print("Next, please run `defog update <url>` to update the updated schema.")
+    
+    print("You can give us more context about your schema at the above link. Once you're done, you can just hit enter to upload the data in this URL to Defog. If you would like to exit instead, just enter `exit`.")
+    upload_option = input()
+    if upload_option == "exit":
+        print("Exiting.")
+        sys.exit(0)
+    else:
+        resp = df.update_db_schema(gsheets_url)
+        if resp["status"] == "success":
+            print("Your schema has been updated. You're ready to start querying!")
+        else:
+            print("There was an error updating your schema:")
+            print(resp)
+            print("Please try again, or contact us at founders@defog.ai")
+            sys.exit(1)
+    
+    print("You're all set! You can now start querying your database using `defog query`.")
+
+    print(f"You get started, try entering a sample question here, like how many rows are in the table {table_name_list[0]}?")
+
+    query = input()
+    while query != "e":
+        resp = df.run_query(query, retries=3)
+        if not resp["ran_successfully"]:
+            print(f"Your query did not run successfully. Please try again.")
+        else:
+            print("Your question generated the following query:\n")
+            print(f"\033[1m{resp['query_generated']}\033[0m\n")
+            print("Results:\n")
+            # print results in tabular format using 'columns' and 'data' keys
+            try:
+                print_table(resp["columns"], resp["data"])
+            except:
+                print(resp)
+        query = input("Enter another query, or type 'e' to exit: ")
+    
+    print("Exiting.")
+    sys.exit(0)
 
 
 def gen():
