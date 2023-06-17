@@ -848,7 +848,7 @@ class Defog:
                     "previous_context": query.get("previous_context"),
                 }
             except Exception as e:
-                return {"ran_successfully": False, "error_message": str(e)}
+                return {"ran_successfully": False, "error_message": str(e), "query_generated": query['query_generated']}
         else:
             return {"ran_successfully": False, "error_message": query["error_message"]}
 
