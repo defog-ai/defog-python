@@ -255,7 +255,7 @@ class Defog:
             indexes = [index[0] for index in indexes]
         else:
             indexes = []
-            print("No indexes found.")
+            # print("No indexes found.")
         conn.close()
 
         print(
@@ -347,7 +347,7 @@ class Defog:
             indexes = [index[0] for index in indexes]
         else:
             indexes = []
-            print("No indexes found.")
+            # print("No indexes found.")
         conn.close()
 
         if upload:
