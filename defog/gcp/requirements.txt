@@ -1,5 +1,5 @@
 functions-framework==3.*
-defog>=0.42.0
+defog
 requests
 psycopg2
 mysql-connector-python
