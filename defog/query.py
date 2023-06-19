@@ -168,4 +168,4 @@ def execute_query(
                 )
                 write_logs(str(e))
                 retries -= 1
-        raise Exception("Maximum retries exceeded.")
+        raise Exception(err_msg)
