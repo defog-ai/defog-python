@@ -327,7 +327,8 @@ def query():
                     }, timeout=1)
                 except:
                     pass
-                print("Thank you for the feedback! We retrain our models every week, and you should see much better performance on these kinds of queries in another week.")
+                print("Thank you for the feedback! We retrain our models every week, and you should see much better performance on these kinds of queries in another week.\n")
+                print(f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n")
             feedback_mode = False
             query = input("Enter another query, or type 'e' to exit: ")
         else:
@@ -338,6 +339,8 @@ def query():
                 print(f"\033[1m{resp['query_generated']}\033[0m\n")
 
                 print(f"However, your query did not run successfully. The error message generated while running the query on your database was\n\n\033[1m{resp['error_message']}\033[0m\n.")
+
+                print(f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n")
             else:
                 sql_generated = resp.get("query_generated")
                 print("Defog generated the following query to answer your question:\n")
