@@ -13,6 +13,7 @@ SUPPORTED_DB_TYPES = [
     "mongo",
     "snowflake",
     "sqlserver",
+    "elastic"
 ]
 
 class Defog:
@@ -142,6 +143,11 @@ class Defog:
         elif db_type == "bigquery":
             if "json_key_path" not in db_creds:
                 raise KeyError("db_creds must contain a 'json_key_path' key.")
+        elif db_type == "elastic":
+            if "host" not in db_creds:
+                raise KeyError("db_creds must contain a 'host' key.")
+            if "api_key" not in db_creds:
+                raise KeyError("db_creds must contain a 'api_key' key.")
         else:
             raise ValueError(
                 f"Database `{db_type}` is not supported right now. db_type must be one of {', '.join(SUPPORTED_DB_TYPES)}"
@@ -612,7 +618,7 @@ class Defog:
             return self.generate_sqlserver_schema(tables)
         else:
             raise ValueError(
-                "Invalid database type. Valid types are: postgres, mysql, mongo, bigquery, and redshift"
+                f"Creation of a DB schema for {self.db_type} is not yet supported via the library. If you are a premium user, please contact us at founder@defog.ai so we can manually add it."
             )
 
     def update_mysql_schema(self, gsheet_url: str):
@@ -719,7 +725,7 @@ class Defog:
             return self.update_sqlserver_schema(gsheet_url)
         else:
             raise Exception(
-                "Invalid database type. Valid types are: postgres, mysql, mongo, bigquery, and redshift"
+                "Updating the schema for this database type via the library is not yet supported. If you are a premium user, please contact us and we will manually add it."
             )
 
     def update_glossary(self, glossary: str):
@@ -740,7 +746,6 @@ class Defog:
         hard_filters: str = "",
         previous_context: list = [],
         schema: dict = {},
-        mode: str = "chat",
         language: str = None,
         debug: bool = False,
     ):
@@ -753,42 +758,24 @@ class Defog:
             schema = None
 
         try:
-            if mode == "default":
-                r = requests.post(
-                    "https://api.defog.ai/generate_query",
-                    json={
-                        "question": question,
-                        "api_key": self.api_key,
-                        "hard_filters": hard_filters,
-                        "db_type": self.db_type,
-                        "schema": schema,
-                    },
-                    timeout=300,
-                )
-                resp = r.json()
-                query_generated = resp.get("query_generated")
-                ran_successfully = resp["ran_successfully"]
-                error_message = resp.get("error_message")
-                query_db = resp.get("query_db", "postgres")
-            else:
-                r = requests.post(
-                    self.generate_query_url,
-                    json={
-                        "question": question,
-                        "api_key": self.api_key,
-                        "previous_context": previous_context,
-                        "db_type": self.db_type,
-                        "schema": schema,
-                        "language": language,
-                        "hard_filters": hard_filters,
-                    },
-                    timeout=300,
-                )
-                resp = r.json()
-                query_generated = resp.get("sql", resp.get("pymongo_code"))
-                ran_successfully = resp.get("ran_successfully")
-                error_message = resp.get("error_message")
-                query_db = self.db_type
+            r = requests.post(
+                self.generate_query_url,
+                json={
+                    "question": question,
+                    "api_key": self.api_key,
+                    "previous_context": previous_context,
+                    "db_type": self.db_type,
+                    "schema": schema,
+                    "language": language,
+                    "hard_filters": hard_filters,
+                },
+                timeout=300,
+            )
+            resp = r.json()
+            query_generated = resp.get("sql", resp.get("pymongo_code"))
+            ran_successfully = resp.get("ran_successfully")
+            error_message = resp.get("error_message")
+            query_db = self.db_type
             return {
                 "query_generated": query_generated,
                 "ran_successfully": ran_successfully,
@@ -825,7 +812,7 @@ class Defog:
         if query is None:
             print(f"Generating the query for your question: {question}...")
             query = self.get_query(
-                question, hard_filters, previous_context, mode=mode, language=language
+                question, hard_filters, previous_context, language=language
             )
         if query["ran_successfully"]:
             try:

@@ -93,6 +93,19 @@ def execute_query_once(db_type: str, db_creds, query: str):
         cur.close()
         conn.close()
         return colnames, results
+    elif db_type == "elastic":
+        host = db_creds["host"]
+        if host.endswith("/"):
+            host = host[:-1]
+        url = host + "/_sql"
+        headers = {"Content-Type": "application/json", "Authorization": f"ApiKey {db_creds['api_key']}"}
+        r = requests.post(url, headers=headers, data=json.dumps({"query": query}).replace(";", ""))
+        if r.status_code != 200:
+            raise Exception(f"Error executing query: {r.json()['error']}")
+        else:
+            results = r.json()["rows"]
+            colnames = [i['name'] for i in  r.json()["columns"]]
+            return colnames, results
     else:
         raise Exception(f"Database type {db_type} not yet supported.")
 
