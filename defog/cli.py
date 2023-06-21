@@ -282,7 +282,7 @@ def query():
     df = defog.Defog()  # load config from .defog/connection.json
     if len(sys.argv) < 3:
         print("defog query requires a query. Please enter your query:")
-        query = input()
+        query = input()    
     else:
         query = sys.argv[2]
     
@@ -294,7 +294,9 @@ def query():
         if query == "e":
             print("Exiting.")
             sys.exit(0)
-        
+        elif query == "":
+            print("Your query cannot be empty.")
+            query = input("Enter a query, or type 'e' to exit: ")
         if feedback_mode:
             if feedback not in ['y', 'n']:
                 pass
