@@ -769,7 +769,7 @@ class Defog:
                     "language": language,
                     "hard_filters": hard_filters,
                 },
-                timeout=300,
+                timeout=5000,
             )
             resp = r.json()
             query_generated = resp.get("sql", resp.get("pymongo_code"))
@@ -812,7 +812,7 @@ class Defog:
         if query is None:
             print(f"Generating the query for your question: {question}...")
             query = self.get_query(
-                question, hard_filters, previous_context, language=language
+                question, hard_filters, previous_context, schema=schema, language=language
             )
         if query["ran_successfully"]:
             try:
