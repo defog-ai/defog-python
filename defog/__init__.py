@@ -769,7 +769,7 @@ class Defog:
                     "language": language,
                     "hard_filters": hard_filters,
                 },
-                timeout=5000,
+                timeout=300,
             )
             resp = r.json()
             query_generated = resp.get("sql", resp.get("pymongo_code"))
