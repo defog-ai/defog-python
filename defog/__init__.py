@@ -812,7 +812,7 @@ class Defog:
         if query is None:
             print(f"Generating the query for your question: {question}...")
             query = self.get_query(
-                question, hard_filters, previous_context, language=language
+                question, hard_filters, previous_context, schema=schema, language=language
             )
         if query["ran_successfully"]:
             try:
