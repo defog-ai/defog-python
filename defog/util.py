@@ -40,7 +40,7 @@ def write_logs(msg: str) -> None:
         msg (str): The message to write.
     """
     log_file_path = os.path.expanduser("~/.defog/logs")
-    
+
     try:
         if not os.path.exists(log_file_path):
             os.makedirs(os.path.dirname(log_file_path), exist_ok=True)

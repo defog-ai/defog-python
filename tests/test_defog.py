@@ -40,17 +40,19 @@ class TestDefog(unittest.TestCase):
             print("Testing Defog with no params")
             df = Defog()
 
+    # test initialization with partial params
+    def test_defog_good_init_no_db_creds(self):
+        df = Defog("test_api_key", "redis")
+        self.assertEqual(df.api_key, "test_api_key")
+        self.assertEqual(df.db_type, "redis")
+        self.assertEqual(df.db_creds, {})
+
     ### Case 2:
     # no connection file, no params
     def test_defog_bad_init_no_connection_file(self):
         with self.assertRaises(ValueError):
             print("Testing Defog with no connection file, no params")
             df = Defog()
-
-    # no connection file, unsupported db_type
-    def test_defog_bad_init_unsupported_db_type(self):
-        with self.assertRaises(ValueError):
-            df = Defog("test_api_key", "redis")
 
     # no connection file, incomplete db_creds
     def test_defog_bad_init_incomplete_creds(self):
@@ -108,10 +110,11 @@ class TestDefog(unittest.TestCase):
         self.assertEqual(df.db_type, "postgres")
         self.assertEqual(df.db_creds, db_creds)
         self.assertTrue(os.path.exists(self.filepath))
+        # ignore input and use new params provided
         df = Defog("new_api_key", "redshift")
         self.assertEqual(df.api_key, "new_api_key")
         self.assertEqual(df.db_type, "redshift")
-        self.assertEqual(df.db_creds, db_creds)
+        self.assertEqual(df.db_creds, {})
 
     @patch("builtins.input", lambda *args: "n")
     def test_defog_no_overwrite(self):
@@ -127,10 +130,11 @@ class TestDefog(unittest.TestCase):
         self.assertEqual(df.db_type, "postgres")
         self.assertEqual(df.db_creds, db_creds)
         self.assertTrue(os.path.exists(self.filepath))
+        # ignore input and use new params provided
         df = Defog("new_api_key", "redshift")
-        self.assertEqual(df.api_key, "old_api_key")
-        self.assertEqual(df.db_type, "postgres")
-        self.assertEqual(df.db_creds, db_creds)
+        self.assertEqual(df.api_key, "new_api_key")
+        self.assertEqual(df.db_type, "redshift")
+        self.assertEqual(df.db_creds, {})
 
     # test check_db_creds with all the different supported db types
     def test_check_db_creds_postgres(self):
@@ -142,8 +146,7 @@ class TestDefog(unittest.TestCase):
             "password": "some_password",
         }
         Defog.check_db_creds("postgres", db_creds)
-        with self.assertRaises(KeyError):
-            Defog.check_db_creds("postgres", {})
+        Defog.check_db_creds("postgres", {})
         with self.assertRaises(KeyError):
             Defog.check_db_creds("postgres", {"host": "some_host"})
 
@@ -156,8 +159,7 @@ class TestDefog(unittest.TestCase):
             "password": "some_password",
         }
         Defog.check_db_creds("redshift", db_creds)
-        with self.assertRaises(KeyError):
-            Defog.check_db_creds("redshift", {})
+        Defog.check_db_creds("redshift", {})
         with self.assertRaises(KeyError):
             # incomplete keys
             Defog.check_db_creds("redshift", {"host": "some_host"})
@@ -170,8 +172,7 @@ class TestDefog(unittest.TestCase):
             "password": "some_password",
         }
         Defog.check_db_creds("mysql", db_creds)
-        with self.assertRaises(KeyError):
-            Defog.check_db_creds("mysql", {})
+        Defog.check_db_creds("mysql", {})
         with self.assertRaises(KeyError):
             # incomplete keys
             Defog.check_db_creds("mysql", {"host": "some_host"})
@@ -184,8 +185,7 @@ class TestDefog(unittest.TestCase):
             "password": "some_password",
         }
         Defog.check_db_creds("snowflake", db_creds)
-        with self.assertRaises(KeyError):
-            Defog.check_db_creds("snowflake", {})
+        Defog.check_db_creds("snowflake", {})
         with self.assertRaises(KeyError):
             # incomplete keys
             Defog.check_db_creds("snowflake", {"account": "some_account"})
@@ -193,8 +193,7 @@ class TestDefog(unittest.TestCase):
     def test_check_db_creds_mongo(self):
         db_creds = {"connection_string": "some_connection_string"}
         Defog.check_db_creds("mongo", db_creds)
-        with self.assertRaises(KeyError):
-            Defog.check_db_creds("mongo", {})
+        Defog.check_db_creds("mongo", {})
         with self.assertRaises(KeyError):
             # wrong key
             Defog.check_db_creds("mongo", {"account": "some_account"})
@@ -202,8 +201,7 @@ class TestDefog(unittest.TestCase):
     def test_check_db_creds_sqlserver(self):
         db_creds = {"connection_string": "some_connection_string"}
         Defog.check_db_creds("sqlserver", db_creds)
-        with self.assertRaises(KeyError):
-            Defog.check_db_creds("sqlserver", {})
+        Defog.check_db_creds("sqlserver", {})
         with self.assertRaises(KeyError):
             # wrong key
             Defog.check_db_creds("sqlserver", {"account": "some_account"})
@@ -211,8 +209,7 @@ class TestDefog(unittest.TestCase):
     def test_check_db_creds_bigquery(self):
         db_creds = {"json_key_path": "some_json_key_path"}
         Defog.check_db_creds("bigquery", db_creds)
-        with self.assertRaises(KeyError):
-            Defog.check_db_creds("bigquery", {})
+        Defog.check_db_creds("bigquery", {})
         with self.assertRaises(KeyError):
             # wrong key
             Defog.check_db_creds("bigquery", {"account": "some_account"})
