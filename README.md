@@ -99,3 +99,8 @@ python -m unittest discover -s tests -p "test_*.py"
 ```
 
 Note that we will transfer the existing .defog/connection.json file over to /tmp (if at all), and transfer the original file back once the tests are done to avoid messing with the original config.
+
+If submitting a PR, please use the `black` linter to lint your code. You can add it as a git hook to your repo by running the command below:
+```bash
+echo -e '#!/bin/sh\n#\n# Run linter before commit\nblack $(git rev-parse --show-toplevel)' > .git/hooks/pre-commit
+```
