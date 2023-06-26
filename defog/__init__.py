@@ -748,6 +748,7 @@ class Defog:
         hard_filters: str = "",
         previous_context: list = [],
         schema: dict = {},
+        glossary: str = "",
         language: str = None,
         debug: bool = False,
     ):
@@ -768,6 +769,7 @@ class Defog:
                     "previous_context": previous_context,
                     "db_type": self.db_type,
                     "schema": schema,
+                    "glossary": glossary,
                     "language": language,
                     "hard_filters": hard_filters,
                 },
@@ -800,6 +802,7 @@ class Defog:
         hard_filters: str = "",
         previous_context: list = [],
         schema: dict = {},
+        glossary: str = "",
         mode: str = "chat",
         language: str = None,
         query: dict = None,
@@ -818,6 +821,7 @@ class Defog:
                 hard_filters,
                 previous_context,
                 schema=schema,
+                glossary=glossary,
                 language=language,
             )
         if query["ran_successfully"]:
