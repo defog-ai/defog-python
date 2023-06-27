@@ -245,6 +245,7 @@ def gen():
         print(
             "defog gen requires a list of tables to generate. Please enter the names of the tables whose schema you would like to generate, separated by a space:"
         )
+        print("If you would like to index all of your tables, just leave this blank and hit enter (Supported for postgres + redshift only).")
         table_names = input()
         table_name_list = re.split(r"\s+", table_names.strip())
     else:

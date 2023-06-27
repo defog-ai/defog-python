@@ -222,6 +222,16 @@ class Defog:
         cur = conn.cursor()
         schemas = {}
 
+        if tables == ['']:
+            # get all tables
+            cur.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+            )
+            tables = [row[0] for row in cur.fetchall()]
+        print("Retrieved the following tables:")
+        for t in tables:
+            print(f"\t{t}")
+        
         print("Getting schema for each table in your database...")
         # get the schema for each table
         for table_name in tables:
@@ -303,6 +313,16 @@ class Defog:
         conn = psycopg2.connect(**self.db_creds)
         cur = conn.cursor()
         schemas = {}
+
+        if len(tables) == 0:
+            # get all tables
+            cur.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+            )
+            tables = [row[0] for row in cur.fetchall()]
+        print("Retrieved the following tables:")
+        for t in tables:
+            print(f"\t{t}")
 
         print("Getting schema for each table in your database...")
         # get the schema for each table
