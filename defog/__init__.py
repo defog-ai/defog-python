@@ -222,7 +222,7 @@ class Defog:
         cur = conn.cursor()
         schemas = {}
 
-        if tables == ['']:
+        if tables == [""]:
             # get all tables
             cur.execute(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
@@ -231,7 +231,7 @@ class Defog:
         print("Retrieved the following tables:")
         for t in tables:
             print(f"\t{t}")
-        
+
         print("Getting schema for each table in your database...")
         # get the schema for each table
         for table_name in tables:
