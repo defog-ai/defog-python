@@ -370,6 +370,7 @@ def query():
                 print(
                     f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
                 )
+                query = input("Enter another query, or type 'e' to exit: ")
             else:
                 sql_generated = resp.get("query_generated")
                 print("Defog generated the following query to answer your question:\n")
