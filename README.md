@@ -1,4 +1,7 @@
 # Defog Python
+
+[![black](https://github.com/defog-ai/defog-python/actions/workflows/main.yml/badge.svg)](https://github.com/defog-ai/defog-python/actions/workflows/main.yml)
+
 Defog converts your natural language text queries into SQL and other machine readable code. This library allows you to easily integrate Defog into your python application, and has a CLI to help you get started.
 
 https://user-images.githubusercontent.com/4327467/236758074-042bc5d7-4452-46ce-bb26-e2da2a0223c6.mp4
@@ -96,3 +99,9 @@ python -m unittest discover -s tests -p "test_*.py"
 ```
 
 Note that we will transfer the existing .defog/connection.json file over to /tmp (if at all), and transfer the original file back once the tests are done to avoid messing with the original config.
+
+If submitting a PR, please use the `black` linter to lint your code. You can add it as a git hook to your repo by running the command below:
+```bash
+echo -e '#!/bin/sh\n#\n# Run linter before commit\nblack $(git rev-parse --show-toplevel)' > .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```

@@ -13,13 +13,15 @@ SUPPORTED_DB_TYPES = [
     "mongo",
     "snowflake",
     "sqlserver",
-    "elastic"
+    "elastic",
 ]
+
 
 class Defog:
     """
     The main class for Defog
     """
+
     def __init__(
         self,
         api_key: str = "",
@@ -32,20 +34,20 @@ class Defog:
         """
         Initializes the Defog class.
         We have the possible scenarios detailed below:
-        1) no config file, no/incomplete params -> error
+        1) no config file, no/incomplete params -> success if only db_creds missing, error otherwise
         2) no config file, wrong params -> error
         3) no config file, all right params -> save params to config file
         4) config file present, no params -> read params from config file
         5) config file present, some/all params -> ignore existing config file, save new params to config file
         """
         self.generate_query_url = generate_query_url
-        
+
         if base64creds != "":
             self.from_base64_creds(base64creds)
             return
         self.home_dir = os.path.expanduser("~")
         self.filepath = os.path.join(self.home_dir, ".defog", "connection.json")
-        
+
         if not os.path.exists(self.filepath) and (api_key != "" and db_type != ""):
             self.check_db_creds(db_type, db_creds)  # throws error for case 2
             # case 3
@@ -220,6 +222,16 @@ class Defog:
         cur = conn.cursor()
         schemas = {}
 
+        if tables == [""]:
+            # get all tables
+            cur.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+            )
+            tables = [row[0] for row in cur.fetchall()]
+        print("Retrieved the following tables:")
+        for t in tables:
+            print(f"\t{t}")
+
         print("Getting schema for each table in your database...")
         # get the schema for each table
         for table_name in tables:
@@ -301,6 +313,16 @@ class Defog:
         conn = psycopg2.connect(**self.db_creds)
         cur = conn.cursor()
         schemas = {}
+
+        if len(tables) == 0:
+            # get all tables
+            cur.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+            )
+            tables = [row[0] for row in cur.fetchall()]
+        print("Retrieved the following tables:")
+        for t in tables:
+            print(f"\t{t}")
 
         print("Getting schema for each table in your database...")
         # get the schema for each table
@@ -746,6 +768,7 @@ class Defog:
         hard_filters: str = "",
         previous_context: list = [],
         schema: dict = {},
+        glossary: str = "",
         language: str = None,
         debug: bool = False,
     ):
@@ -766,6 +789,7 @@ class Defog:
                     "previous_context": previous_context,
                     "db_type": self.db_type,
                     "schema": schema,
+                    "glossary": glossary,
                     "language": language,
                     "hard_filters": hard_filters,
                 },
@@ -798,6 +822,7 @@ class Defog:
         hard_filters: str = "",
         previous_context: list = [],
         schema: dict = {},
+        glossary: str = "",
         mode: str = "chat",
         language: str = None,
         query: dict = None,
@@ -812,7 +837,12 @@ class Defog:
         if query is None:
             print(f"Generating the query for your question: {question}...")
             query = self.get_query(
-                question, hard_filters, previous_context, language=language
+                question,
+                hard_filters,
+                previous_context,
+                schema=schema,
+                glossary=glossary,
+                language=language,
             )
         if query["ran_successfully"]:
             try:
@@ -835,7 +865,11 @@ class Defog:
                     "previous_context": query.get("previous_context"),
                 }
             except Exception as e:
-                return {"ran_successfully": False, "error_message": str(e), "query_generated": query['query_generated']}
+                return {
+                    "ran_successfully": False,
+                    "error_message": str(e),
+                    "query_generated": query["query_generated"],
+                }
         else:
             return {"ran_successfully": False, "error_message": query["error_message"]}
 
@@ -862,7 +896,7 @@ class Defog:
         self.api_key = creds["api_key"]
         self.db_type = creds["db_type"]
         self.db_creds = creds["db_creds"]
-    
+
     def update_predefined_queries(self, predefined_queries: list):
         """
         Updates the predefined queries on the defog servers.
@@ -871,18 +905,17 @@ class Defog:
         # [{'question': 'What is the total number of employees?', 'query': 'SELECT COUNT(*) FROM employees'}}]
         for item in predefined_queries:
             if "question" not in item or "query" not in item:
-                raise Exception("Each predefined query should have a question and a SQL query. It should be in the format {{'question': 'YOUR QUESTION', 'query': 'SELECT ...'}}")
-        
+                raise Exception(
+                    "Each predefined query should have a question and a SQL query. It should be in the format {{'question': 'YOUR QUESTION', 'query': 'SELECT ...'}}"
+                )
+
         r = requests.post(
             "https://api.defog.ai/update_predefined_queries",
-            json={
-                "api_key": self.api_key,
-                "predefined_queries": predefined_queries
-            },
+            json={"api_key": self.api_key, "predefined_queries": predefined_queries},
         )
         resp = r.json()
         return resp
-    
+
     def get_predefined_queries(self):
         """
         Gets the predefined queries on the defog servers.
@@ -898,7 +931,7 @@ class Defog:
             return resp["predefined_queries"]
         else:
             return []
-    
+
     def execute_predefined_query(self, query):
         """
         Executes a predefined query

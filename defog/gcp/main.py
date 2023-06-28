@@ -37,7 +37,7 @@ def defog_query_http(request):
         previous_context = []
 
     answer = defog.run_query(
-        question, previous_context=previous_context, hard_filters=hard_filters
+        question, hard_filters=hard_filters, previous_context=previous_context
     )
     answer = json.dumps(answer, default=str)
     # this is a dictionary with the keys `columns`, `data`, `previous_context`, `generate_query`, `is_successful`, `reason_for_query`, `suggestion_for_further_questions`

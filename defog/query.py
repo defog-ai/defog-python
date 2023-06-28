@@ -2,6 +2,7 @@ import json
 import requests
 from defog.util import write_logs
 
+
 # execute query for given db_type and return column names and data
 def execute_query_once(db_type: str, db_creds, query: str):
     """
@@ -98,13 +99,18 @@ def execute_query_once(db_type: str, db_creds, query: str):
         if host.endswith("/"):
             host = host[:-1]
         url = host + "/_sql"
-        headers = {"Content-Type": "application/json", "Authorization": f"ApiKey {db_creds['api_key']}"}
-        r = requests.post(url, headers=headers, data=json.dumps({"query": query}).replace(";", ""))
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"ApiKey {db_creds['api_key']}",
+        }
+        r = requests.post(
+            url, headers=headers, data=json.dumps({"query": query}).replace(";", "")
+        )
         if r.status_code != 200:
             raise Exception(f"Error executing query: {r.json()['error']}")
         else:
             results = r.json()["rows"]
-            colnames = [i['name'] for i in  r.json()["columns"]]
+            colnames = [i["name"] for i in r.json()["columns"]]
             return colnames, results
     else:
         raise Exception(f"Database type {db_type} not yet supported.")
@@ -130,14 +136,18 @@ def execute_query(
 
         # log this error to our feedback system
         try:
-            r = requests.post("https://api.defog.ai/feedback", json={
-                "api_key": api_key,
-                "feedback": "bad",
-                "text": err_msg,
-                "db_type": db_type,
-                "question": question,
-                "query": query,
-            }, timeout=1)
+            r = requests.post(
+                "https://api.defog.ai/feedback",
+                json={
+                    "api_key": api_key,
+                    "feedback": "bad",
+                    "text": err_msg,
+                    "db_type": db_type,
+                    "question": question,
+                    "query": query,
+                },
+                timeout=1,
+            )
         except:
             pass
 

@@ -190,8 +190,10 @@ def init():
         gsheets_url = df.generate_db_schema(table_name_list)
         print("Your schema has been generated and is available at:\n")
         print(f"\033[1m{gsheets_url}\033[0m\n")
-    
-    print("You can give us more context about your schema at the above link. Once you're done, you can just hit enter to upload the data in this URL to Defog. If you would like to exit instead, just enter `exit`.")
+
+    print(
+        "You can give us more context about your schema at the above link. Once you're done, you can just hit enter to upload the data in this URL to Defog. If you would like to exit instead, just enter `exit`."
+    )
     upload_option = input()
     if upload_option == "exit":
         print("Exiting.")
@@ -205,10 +207,14 @@ def init():
             print(resp)
             print("Please try again, or contact us at founders@defog.ai")
             sys.exit(1)
-    
-    print("You're all set! You can now start querying your database using `defog query`.")
 
-    print(f"You get started, try entering a sample question here, like how many rows are in the table {table_name_list[0]}?")
+    print(
+        "You're all set! You can now start querying your database using `defog query`."
+    )
+
+    print(
+        f"You get started, try entering a sample question here, like how many rows are in the table {table_name_list[0]}?"
+    )
 
     query = input()
     while query != "e":
@@ -225,7 +231,7 @@ def init():
             except:
                 print(resp)
         query = input("Enter another query, or type 'e' to exit: ")
-    
+
     print("Exiting.")
     sys.exit(0)
 
@@ -238,6 +244,9 @@ def gen():
     if len(sys.argv) < 3:
         print(
             "defog gen requires a list of tables to generate. Please enter the names of the tables whose schema you would like to generate, separated by a space:"
+        )
+        print(
+            "If you would like to index all of your tables, just leave this blank and hit enter (Supported for postgres + redshift only)."
         )
         table_names = input()
         table_name_list = re.split(r"\s+", table_names.strip())
@@ -282,10 +291,10 @@ def query():
     df = defog.Defog()  # load config from .defog/connection.json
     if len(sys.argv) < 3:
         print("defog query requires a query. Please enter your query:")
-        query = input()    
+        query = input()
     else:
         query = sys.argv[2]
-    
+
     feedback_mode = False
     feedback = ""
     user_question = ""
@@ -298,39 +307,53 @@ def query():
             print("Your query cannot be empty.")
             query = input("Enter a query, or type 'e' to exit: ")
         if feedback_mode:
-            if feedback not in ['y', 'n']:
+            if feedback not in ["y", "n"]:
                 pass
             elif feedback == "y":
                 # send data to /feedback endpoint
                 try:
-                    requests.post("https://api.defog.ai/feedback", json={
-                        "api_key": df.api_key,
-                        "feedback": "good",
-                        "db_type": df.db_type,
-                        "question": user_question,
-                        "query": sql_generated,
-                    }, timeout=1)
+                    requests.post(
+                        "https://api.defog.ai/feedback",
+                        json={
+                            "api_key": df.api_key,
+                            "feedback": "good",
+                            "db_type": df.db_type,
+                            "question": user_question,
+                            "query": sql_generated,
+                        },
+                        timeout=1,
+                    )
                     print("Thank you for the feedback!")
                     feedback_mode = False
                 except:
                     pass
-            
+
             elif feedback == "n":
                 # send data to /feedback endpoint
-                feedback_text = input("Could you tell us why this was a bad query? This will help us improve the model for you. Just hit enter if you want to leave this blank.\n")
+                feedback_text = input(
+                    "Could you tell us why this was a bad query? This will help us improve the model for you. Just hit enter if you want to leave this blank.\n"
+                )
                 try:
-                    requests.post("https://api.defog.ai/feedback", json={
-                        "api_key": df.api_key,
-                        "feedback": "bad",
-                        "text": feedback_text,
-                        "db_type": df.db_type,
-                        "question": user_question,
-                        "query": sql_generated,
-                    }, timeout=1)
+                    requests.post(
+                        "https://api.defog.ai/feedback",
+                        json={
+                            "api_key": df.api_key,
+                            "feedback": "bad",
+                            "text": feedback_text,
+                            "db_type": df.db_type,
+                            "question": user_question,
+                            "query": sql_generated,
+                        },
+                        timeout=1,
+                    )
                 except:
                     pass
-                print("Thank you for the feedback! We retrain our models every week, and you should see much better performance on these kinds of queries in another week.\n")
-                print(f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n")
+                print(
+                    "Thank you for the feedback! We retrain our models every week, and you should see much better performance on these kinds of queries in another week.\n"
+                )
+                print(
+                    f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
+                )
             feedback_mode = False
             query = input("Enter another query, or type 'e' to exit: ")
         else:
@@ -340,27 +363,34 @@ def query():
                 print("Defog generated the following query to answer your question:\n")
                 print(f"\033[1m{resp['query_generated']}\033[0m\n")
 
-                print(f"However, your query did not run successfully. The error message generated while running the query on your database was\n\n\033[1m{resp['error_message']}\033[0m\n.")
+                print(
+                    f"However, your query did not run successfully. The error message generated while running the query on your database was\n\n\033[1m{resp['error_message']}\033[0m\n."
+                )
 
-                print(f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n")
+                print(
+                    f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
+                )
             else:
                 sql_generated = resp.get("query_generated")
                 print("Defog generated the following query to answer your question:\n")
                 print(f"\033[1m{resp['query_generated']}\033[0m\n")
-                
+
                 print("This was its reasoning for generating this query:\n")
                 print(f"\033[1m{resp['reason_for_query']}\033[0m\n")
-                
+
                 print("Results:\n")
                 # print results in tabular format using 'columns' and 'data' keys
                 try:
                     print_table(resp["columns"], resp["data"])
                 except:
                     print(resp)
-                
+
                 print()
                 feedback_mode = True
-                feedback = input("Did Defog answer your question well? Just hit enter to skip (y/n):\n")
+                feedback = input(
+                    "Did Defog answer your question well? Just hit enter to skip (y/n):\n"
+                )
+
 
 def deploy():
     """
