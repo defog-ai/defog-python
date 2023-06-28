@@ -12,6 +12,7 @@ import requests
 import defog
 from defog import Defog
 from defog.util import parse_update
+from prompt_toolkit import prompt
 
 USAGE_STRING = """
 Usage: defog <command>
@@ -71,7 +72,7 @@ def init():
         print(
             "It looks like you've already initialized defog. Do you want to overwrite your existing configuration? (y/n)"
         )
-        overwrite = input()
+        overwrite = prompt()
         if overwrite.lower() != "y":
             print("We'll keep your existing config. No changes were made.")
             sys.exit(0)
@@ -97,23 +98,25 @@ def init():
         "What database are you using? Available options are: "
         + ", ".join(defog.SUPPORTED_DB_TYPES)
     )
-    db_type = input().lower()
+    db_type = prompt()
+    db_type = db_type.lower()
     while db_type not in defog.SUPPORTED_DB_TYPES:
         print(
             "Sorry, we don't support that database yet. Available options are: "
             + ", ".join(defog.SUPPORTED_DB_TYPES)
         )
-        db_type = input().lower()
+        db_type = prompt()
+        db_type = db_type.lower()
     # depending on db_type, prompt user for appropriate db_creds
     if db_type == "postgres" or db_type == "redshift":
         print("Please enter your database host:")
-        host = input()
+        host = prompt()
         print("Please enter your database port:")
-        port = input()
+        port = prompt()
         print("Please enter your database name:")
-        database = input()
+        database = prompt()
         print("Please enter your database user:")
-        user = input()
+        user = prompt()
         password = getpass.getpass(prompt="Please enter your database password:")
         db_creds = {
             "host": host,
@@ -125,13 +128,13 @@ def init():
 
     elif db_type == "mysql":
         print("Please enter your database host:")
-        host = input()
+        host = prompt()
         print("Please enter your database name:")
-        database = input()
+        database = prompt()
         print("Please enter your database user:")
-        user = input()
+        user = prompt()
         print("Please enter your database password:")
-        password = input()
+        password = prompt()
         db_creds = {
             "host": host,
             "database": database,
@@ -140,13 +143,13 @@ def init():
         }
     elif db_type == "snowflake":
         print("Please enter your database account:")
-        account = input()
+        account = prompt()
         print("Please enter your database warehouse:")
-        warehouse = input()
+        warehouse = prompt()
         print("Please enter your database user:")
-        user = input()
+        user = prompt()
         print("Please enter your database password:")
-        password = input()
+        password = prompt()
         db_creds = {
             "account": account,
             "warehouse": warehouse,
@@ -155,13 +158,13 @@ def init():
         }
     elif db_type == "mongo" or db_type == "sqlserver":
         print("Please enter your database connection string:")
-        connection_string = input()
+        connection_string = prompt()
         db_creds = {
             "connection_string": connection_string,
         }
     elif db_type == "bigquery":
         print("Please enter your bigquery json key's path:")
-        json_key_path = input()
+        json_key_path = prompt()
         db_creds = {
             "json_key_path": json_key_path,
         }
@@ -179,7 +182,7 @@ def init():
     print(
         "Please enter the names of the tables you would like to register, separated by a space:"
     )
-    table_names = input()
+    table_names = prompt()
     table_name_list = re.split(r"\s+", table_names.strip())
     # if input is empty, exit
     if table_name_list == [""]:
@@ -194,7 +197,7 @@ def init():
     print(
         "You can give us more context about your schema at the above link. Once you're done, you can just hit enter to upload the data in this URL to Defog. If you would like to exit instead, just enter `exit`."
     )
-    upload_option = input()
+    upload_option = prompt()
     if upload_option == "exit":
         print("Exiting.")
         sys.exit(0)
@@ -216,7 +219,7 @@ def init():
         f"You get started, try entering a sample question here, like how many rows are in the table {table_name_list[0]}?"
     )
 
-    query = input()
+    query = prompt("Enter your query here: ")
     while query != "e":
         resp = df.run_query(query, retries=3)
         if not resp["ran_successfully"]:
@@ -230,7 +233,7 @@ def init():
                 print_table(resp["columns"], resp["data"])
             except:
                 print(resp)
-        query = input("Enter another query, or type 'e' to exit: ")
+        query = prompt("Enter another query, or type 'e' to exit: ")
 
     print("Exiting.")
     sys.exit(0)
@@ -248,7 +251,7 @@ def gen():
         print(
             "If you would like to index all of your tables, just leave this blank and hit enter (Supported for postgres + redshift only)."
         )
-        table_names = input()
+        table_names = prompt()
         table_name_list = re.split(r"\s+", table_names.strip())
     else:
         table_name_list = sys.argv[2:]
@@ -269,7 +272,7 @@ def update():
         print(
             "defog update requires a google sheets url. Please enter the url of the google sheets document you would like to update:"
         )
-        gsheets_url = input()
+        gsheets_url = prompt()
     else:
         gsheets_url = sys.argv[2]
     # load config from .defog/connection.json
@@ -291,7 +294,7 @@ def query():
     df = defog.Defog()  # load config from .defog/connection.json
     if len(sys.argv) < 3:
         print("defog query requires a query. Please enter your query:")
-        query = input()
+        query = prompt()
     else:
         query = sys.argv[2]
 
@@ -305,7 +308,7 @@ def query():
             sys.exit(0)
         elif query == "":
             print("Your query cannot be empty.")
-            query = input("Enter a query, or type 'e' to exit: ")
+            query = prompt("Enter a query, or type 'e' to exit: ")
         if feedback_mode:
             if feedback not in ["y", "n"]:
                 pass
@@ -330,7 +333,7 @@ def query():
 
             elif feedback == "n":
                 # send data to /feedback endpoint
-                feedback_text = input(
+                feedback_text = prompt(
                     "Could you tell us why this was a bad query? This will help us improve the model for you. Just hit enter if you want to leave this blank.\n"
                 )
                 try:
@@ -355,7 +358,7 @@ def query():
                     f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
                 )
             feedback_mode = False
-            query = input("Enter another query, or type 'e' to exit: ")
+            query = prompt("Enter another query, or type 'e' to exit: ")
         else:
             user_question = query
             resp = df.run_query(query, retries=3)
@@ -370,7 +373,7 @@ def query():
                 print(
                     f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
                 )
-                query = input("Enter another query, or type 'e' to exit: ")
+                query = prompt("Enter another query, or type 'e' to exit: ")
             else:
                 sql_generated = resp.get("query_generated")
                 print("Defog generated the following query to answer your question:\n")
@@ -390,7 +393,7 @@ def query():
 
                 print()
                 feedback_mode = True
-                feedback = input(
+                feedback = prompt(
                     "Did Defog answer your question well? Just hit enter to skip (y/n):\n"
                 )
 
@@ -402,7 +405,7 @@ def deploy():
     # check args for gcp or aws
     if len(sys.argv) < 3:
         print("defog deploy requires a cloud provider. Please enter 'gcp' or 'aws':")
-        cloud_provider = input().lower()
+        cloud_provider = prompt().lower()
     else:
         cloud_provider = sys.argv[2].lower()
 
@@ -491,7 +494,7 @@ def check_suitability():
         print(
             "defog check-suitability requires a list of tables. Please enter your table names, separated by a space:"
         )
-        table_names = input()
+        table_names = prompt()
         table_name_list = re.split(r"\s+", table_names.strip())
     else:
         table_name_list = sys.argv[2:]
