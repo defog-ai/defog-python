@@ -15,7 +15,7 @@ setup(
     install_requires=[
         "requests>=2.28.2",
         "psycopg2-binary>=2.9.5",
-        "prompt-toolkit>=3.0.38"
+        "prompt-toolkit>=3.0.38",
     ],
     entry_points={
         "console_scripts": [
