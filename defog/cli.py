@@ -408,7 +408,7 @@ def deploy():
         cloud_provider = prompt().lower()
     else:
         cloud_provider = sys.argv[2].lower()
-    
+
     if len(sys.argv) >= 4:
         function_name = sys.argv[3]
     else:
