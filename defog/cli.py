@@ -408,6 +408,11 @@ def deploy():
         cloud_provider = prompt().lower()
     else:
         cloud_provider = sys.argv[2].lower()
+    
+    if len(sys.argv) >= 4:
+        function_name = sys.argv[3]
+    else:
+        function_name = f"defog-{cloud_provider}"
 
     # load config from .defog/connection.json
     df = defog.Defog()
@@ -420,7 +425,7 @@ def deploy():
             "gcloud",
             "functions",
             "deploy",
-            "defog-gcp",
+            function_name,
             "--runtime",
             "python310",
             "--region",
