@@ -124,6 +124,7 @@ def execute_query(
     question: str = "",
     hard_filters: str = "",
     retries: int = 3,
+    schema: dict = None,
 ):
     err_msg = None
     try:
@@ -163,6 +164,8 @@ def execute_query(
                     "hard_filters": hard_filters,
                     "question": question,
                 }
+                if schema is not None:
+                    retry["schema"] = schema
                 write_logs(json.dumps(retry))
                 r = requests.post(
                     "https://api.defog.ai/retry_query_after_error",
@@ -170,6 +173,7 @@ def execute_query(
                 )
                 response = r.json()
                 new_query = response["new_query"]
+                write_logs(f"New query: \n{new_query}")
                 return execute_query_once(db_type, db_creds, new_query) + (new_query,)
             except Exception as e:
                 err_msg = str(e)
