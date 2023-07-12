@@ -160,7 +160,7 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
         # check that err logs are populated
         with open(self.logs_path, "r") as f:
             lines = f.readlines()
-            self.assertEqual(len(lines), 3)
+            self.assertEqual(len(lines), 5)
             self.assertIn(err_msg, lines[0])
             self.assertIn(f"Retries left: {retries}", lines[1])
             self.assertIn(json.dumps(json_req), lines[2])
