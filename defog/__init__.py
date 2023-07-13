@@ -782,14 +782,14 @@ class Defog:
 
         try:
             data = {
-                    "question": question,
-                    "api_key": self.api_key,
-                    "previous_context": previous_context,
-                    "db_type": self.db_type,
-                    "glossary": glossary,
-                    "language": language,
-                    "hard_filters": hard_filters,
-                }
+                "question": question,
+                "api_key": self.api_key,
+                "previous_context": previous_context,
+                "db_type": self.db_type,
+                "glossary": glossary,
+                "language": language,
+                "hard_filters": hard_filters,
+            }
             if schema != {}:
                 data["schema"] = schema
                 data["is_direct"] = True
