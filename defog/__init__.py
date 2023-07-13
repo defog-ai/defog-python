@@ -777,9 +777,6 @@ class Defog:
         :param question: The question to be asked.
         :return: The response from the defog server.
         """
-        if schema == {}:
-            schema = None
-
         try:
             data = {
                 "question": question,
