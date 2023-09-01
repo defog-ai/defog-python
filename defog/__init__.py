@@ -291,12 +291,16 @@ class Defog:
                 },
             )
             resp = r.json()
-            try:
+            if "sheet_url" in resp:
                 gsheet_url = resp["sheet_url"]
                 return gsheet_url
-            except Exception as e:
-                print(resp)
-                raise resp["message"]
+            else:
+                print(f"We got an error!")
+                if "message" in resp:
+                    print(f"Error message: {resp['message']}")
+                print(
+                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                )
         else:
             return schemas
 
@@ -393,12 +397,16 @@ class Defog:
                 },
             )
             resp = r.json()
-            try:
+            if "sheet_url" in resp:
                 gsheet_url = resp["sheet_url"]
                 return gsheet_url
-            except Exception as e:
-                print(resp)
-                raise resp["message"]
+            else:
+                print(f"We got an error!")
+                if "message" in resp:
+                    print(f"Error message: {resp['message']}")
+                print(
+                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                )
         else:
             return schemas
 
@@ -436,12 +444,16 @@ class Defog:
                 json={"api_key": self.api_key, "schemas": schemas},
             )
             resp = r.json()
-            try:
+            if "sheet_url" in resp:
                 gsheet_url = resp["sheet_url"]
                 return gsheet_url
-            except Exception as e:
-                print(resp)
-                raise resp["message"]
+            else:
+                print(f"We got an error!")
+                if "message" in resp:
+                    print(f"Error message: {resp['message']}")
+                print(
+                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                )
         else:
             return schemas
 
@@ -477,12 +489,16 @@ class Defog:
                 json={"api_key": self.api_key, "schemas": schemas},
             )
             resp = r.json()
-            try:
+            if "sheet_url" in resp:
                 gsheet_url = resp["sheet_url"]
                 return gsheet_url
-            except Exception as e:
-                print(resp)
-                raise resp["message"]
+            else:
+                print(f"We got an error!")
+                if "message" in resp:
+                    print(f"Error message: {resp['message']}")
+                print(
+                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                )
         else:
             return schemas
 
@@ -535,12 +551,16 @@ class Defog:
                 json={"api_key": self.api_key, "schemas": schemas},
             )
             resp = r.json()
-            try:
+            if "sheet_url" in resp:
                 gsheet_url = resp["sheet_url"]
                 return gsheet_url
-            except Exception as e:
-                print(resp)
-                raise resp["message"]
+            else:
+                print(f"We got an error!")
+                if "message" in resp:
+                    print(f"Error message: {resp['message']}")
+                print(
+                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                )
         else:
             return schemas
 
@@ -580,8 +600,8 @@ class Defog:
             gsheet_url = resp["sheet_url"]
             return gsheet_url
         except Exception as e:
-            print(resp)
-            raise resp["message"]
+            print(f"We got the following error: {resp['message']}")
+            print(f"Please feel free to email support@defog.ai")
 
     def generate_bigquery_schema(self, tables: list, upload: bool = True) -> str:
         try:
@@ -608,18 +628,23 @@ class Defog:
             print(
                 "Sending the schema to Defog servers and generating a Google Sheet. This might take up to 2 minutes..."
             )
+            print(schemas)
             # send the schemas dict to the defog servers
             r = requests.post(
                 "https://api.defog.ai/get_bigquery_schema_gsheets",
                 json={"api_key": self.api_key, "schemas": schemas},
             )
             resp = r.json()
-            try:
+            if "sheet_url" in resp:
                 gsheet_url = resp["sheet_url"]
                 return gsheet_url
-            except Exception as e:
-                print(resp)
-                raise resp["message"]
+            else:
+                print(f"We got an error!")
+                if "message" in resp:
+                    print(f"Error message: {resp['message']}")
+                print(
+                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                )
         else:
             return schemas
 
