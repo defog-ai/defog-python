@@ -231,7 +231,7 @@ class Defog:
         else:
             for table in tables:
                 if not table or len(table.split("."))!=2:
-                    raise ValueError(f"PostgrSQL table names should of the following format <schema>.<table>. which is violated by '{table}`")
+                    raise ValueError(f"PostgreSQL table names should be of the following format <schema>.<table> which is violated by '{table}`")
 
         print("Retrieved the following tables:")
 
