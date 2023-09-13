@@ -234,15 +234,16 @@ class Defog:
 
         print("Getting schema for each table in your database...")
         # get the schema for each table
-        for table_name in tables:
+        for table in tables:
+            schema,table_name = table.split(".")
             cur.execute(
-                "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;",
-                (table_name,),
+                "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s and table_schema::text = %s;",
+                (table_name, schema),
             )
             rows = cur.fetchall()
             rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-            schemas[table_name] = rows
+            schemas[table] = rows
 
         # get foreign key relationships
         print("Getting foreign keys for each table in your database...")
@@ -258,6 +259,7 @@ class Defog:
                 AND confrelid::regclass IN ({tables_regclass_str});
                 """
         cur.execute(query)
+
         foreign_keys = list(cur.fetchall())
         foreign_keys = [fk[0] + " " + fk[1] for fk in foreign_keys]
 
