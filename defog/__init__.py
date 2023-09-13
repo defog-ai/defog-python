@@ -227,7 +227,7 @@ class Defog:
             cur.execute(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
             )
-            tables = [row[0] for row in cur.fetchall()]
+            tables = [f"public.{row[0]}" for row in cur.fetchall()]
         else:
             for table in tables:
                 if not table or len(table.split("."))!=2:
