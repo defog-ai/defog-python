@@ -266,7 +266,6 @@ class Defog:
                 AND confrelid::regclass IN ({tables_regclass_str});
                 """
         cur.execute(query)
-
         foreign_keys = list(cur.fetchall())
         foreign_keys = [fk[0] + " " + fk[1] for fk in foreign_keys]
 
