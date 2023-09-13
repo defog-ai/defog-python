@@ -228,13 +228,20 @@ class Defog:
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
             )
             tables = [row[0] for row in cur.fetchall()]
+        else:
+            for table in tables:
+                if not table or len(table.split("."))!=2:
+                    raise ValueError(f"PostgrSQL table names should of the following format <schema>.<table>. which is violated by '{table}`")
+
         print("Retrieved the following tables:")
+
         for t in tables:
             print(f"\t{t}")
 
         print("Getting schema for each table in your database...")
         # get the schema for each table
         for table in tables:
+            
             schema,table_name = table.split(".")
             cur.execute(
                 "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s and table_schema::text = %s;",
