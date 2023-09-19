@@ -518,7 +518,7 @@ def quota():
             print(f"Your current usage is {resp['queries_made']} queries.")
         else:
             print(
-                f"You are currently on the free plan with {100-resp['queries_made']} queries remaining for the month."
+                f"You are currently on the free plan with {1000-resp['queries_made']} queries remaining for the month."
             )
             print(f"Your current usage is {resp['queries_made']} queries.")
     else:
