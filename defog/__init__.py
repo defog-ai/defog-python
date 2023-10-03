@@ -2,7 +2,7 @@ import base64
 import json
 import os
 import requests
-
+import pandas as pd
 from defog.query import execute_query
 
 SUPPORTED_DB_TYPES = [
@@ -786,6 +786,46 @@ class Defog:
         )
         resp = r.json()
         return resp
+    
+    def get_glossary(self):
+        """
+        Gets the glossary on the defog servers.
+        """
+        r = requests.post(
+            "https://api.defog.ai/get_metadata",
+            json={"api_key": self.api_key},
+        )
+        resp = r.json()
+        return resp['glossary']
+    
+    def get_metadata(self):
+        """
+        Gets the metadata on the defog servers.
+        """
+        r = requests.post(
+            "https://api.defog.ai/get_metadata",
+            json={"api_key": "13668b140a422b22b94bf14ff40ab740b0bbf631649433b3b3c3948bb534b7dd"},
+        )
+        resp = r.json()
+        items = []
+        for table in resp['table_metadata']:
+            for item in resp['table_metadata'][table]:
+                item['table_name'] = table
+                items.append(item)
+        return pd.DataFrame(items)[[
+            'table_name', 'column_name', 'data_type', 'column_description'
+        ]].to_markdown()
+    
+    def view_feedback(self):
+        """
+        Gets the feedback on the defog servers.
+        """
+        r = requests.post(
+            "https://api.defog.ai/get_feedback",
+            json={"api_key": self.api_key},
+        )
+        resp = r.json()
+        return pd.DataFrame(resp['data'], columns=resp['columns']).to_markdown()
 
     def get_query(
         self,
