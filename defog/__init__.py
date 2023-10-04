@@ -814,7 +814,7 @@ class Defog:
                 items.append(item)
         return pd.DataFrame(items)[
             ["table_name", "column_name", "data_type", "column_description"]
-        ].to_markdown(index=False, max_colwidth=20)
+        ].to_markdown(index=False)
 
     def get_feedback(self, n_rows: int = 50, start_from: int = 0):
         """
@@ -866,7 +866,7 @@ class Defog:
                 timeout=300,
             )
             resp = r.json()
-            query_generated = resp.get("sql", resp.get("pymongo_code"))
+            query_generated = resp.get("sql", resp.get("query_generated"))
             ran_successfully = resp.get("ran_successfully")
             error_message = resp.get("error_message")
             query_db = self.db_type
