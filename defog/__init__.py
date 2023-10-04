@@ -804,9 +804,7 @@ class Defog:
         """
         r = requests.post(
             "https://api.defog.ai/get_metadata",
-            json={
-                "api_key": self.api_key
-            },
+            json={"api_key": self.api_key},
         )
         resp = r.json()
         items = []
@@ -828,8 +826,8 @@ class Defog:
         )
         resp = r.json()
         df = pd.DataFrame(resp["data"], columns=resp["columns"])
-        df['created_at'] = df['created_at'].apply(lambda x: x[:10])
-        for col in ['query_generated', 'feedback_text']:
+        df["created_at"] = df["created_at"].apply(lambda x: x[:10])
+        for col in ["query_generated", "feedback_text"]:
             df[col] = df[col].fillna("")
             df[col] = df[col].apply(lambda x: x.replace("\n", "\\n"))
         return df.iloc[start_from:].head(n_rows).to_markdown(index=False)
