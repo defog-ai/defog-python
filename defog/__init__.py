@@ -805,7 +805,7 @@ class Defog:
         r = requests.post(
             "https://api.defog.ai/get_metadata",
             json={
-                "api_key": "13668b140a422b22b94bf14ff40ab740b0bbf631649433b3b3c3948bb534b7dd"
+                "api_key": self.api_key
             },
         )
         resp = r.json()
@@ -816,9 +816,9 @@ class Defog:
                 items.append(item)
         return pd.DataFrame(items)[
             ["table_name", "column_name", "data_type", "column_description"]
-        ].to_markdown()
+        ].to_markdown(index=False, max_colwidth=20)
 
-    def view_feedback(self):
+    def get_feedback(self, n_rows: int = 50, start_from: int = 0):
         """
         Gets the feedback on the defog servers.
         """
@@ -827,7 +827,12 @@ class Defog:
             json={"api_key": self.api_key},
         )
         resp = r.json()
-        return pd.DataFrame(resp["data"], columns=resp["columns"]).to_markdown()
+        df = pd.DataFrame(resp["data"], columns=resp["columns"])
+        df['created_at'] = df['created_at'].apply(lambda x: x[:10])
+        for col in ['query_generated', 'feedback_text']:
+            df[col] = df[col].fillna("")
+            df[col] = df[col].apply(lambda x: x.replace("\n", "\\n"))
+        return df.iloc[start_from:].head(n_rows).to_markdown(index=False)
 
     def get_query(
         self,
