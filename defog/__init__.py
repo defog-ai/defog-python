@@ -13,10 +13,7 @@ SUPPORTED_DB_TYPES = [
     "redshift",
     "mysql",
     "bigquery",
-    "mongo",
     "snowflake",
-    "sqlserver",
-    "elastic",
 ]
 
 
@@ -801,7 +798,7 @@ class Defog:
         resp = r.json()
         return resp["glossary"]
 
-    def get_metadata(self):
+    def get_metadata(self, format="markdown", export_path=None):
         """
         Gets the metadata on the defog servers.
         """
@@ -815,9 +812,18 @@ class Defog:
             for item in resp["table_metadata"][table]:
                 item["table_name"] = table
                 items.append(item)
-        return pd.DataFrame(items)[
-            ["table_name", "column_name", "data_type", "column_description"]
-        ].to_markdown(index=False)
+        if format == "markdown":
+            return pd.DataFrame(items)[
+                ["table_name", "column_name", "data_type", "column_description"]
+            ].to_markdown(index=False)
+        elif format == "csv":
+            if export_path is None:
+                export_path = "metadata.csv"
+            pd.DataFrame(items)[
+                ["table_name", "column_name", "data_type", "column_description"]
+            ].to_csv(export_path, index=False)
+            print(f"Metadata exported to {export_path}")
+            return True
 
     def get_feedback(self, n_rows: int = 50, start_from: int = 0):
         """
@@ -1015,4 +1021,19 @@ class Defog:
             self.db_type,
             self.db_creds,
         )
+        return resp
+
+    def update_db_schema_csv(self, path_to_csv):
+        """
+        Update the DB schema via a CSV, rather than by via a Google Sheet
+        """
+        schema_df = pd.read_csv(path_to_csv)
+        schema = {}
+        for table_name in schema_df["table_name"].unique():
+            schema[table_name] = schema_df[schema_df["table_name"] == table_name][
+                ["column_name", "data_type", "column_description"]
+            ].to_dict(orient="records")
+        
+        r = requests.post("https://api.defog.ai/update_metadata", json={"api_key": self.api_key, "table_metadata": schema})
+        resp = r.json()
         return resp
