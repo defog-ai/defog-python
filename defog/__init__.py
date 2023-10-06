@@ -1033,7 +1033,10 @@ class Defog:
             schema[table_name] = schema_df[schema_df["table_name"] == table_name][
                 ["column_name", "data_type", "column_description"]
             ].to_dict(orient="records")
-        
-        r = requests.post("https://api.defog.ai/update_metadata", json={"api_key": self.api_key, "table_metadata": schema})
+
+        r = requests.post(
+            "https://api.defog.ai/update_metadata",
+            json={"api_key": self.api_key, "table_metadata": schema},
+        )
         resp = r.json()
         return resp
