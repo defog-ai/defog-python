@@ -775,19 +775,23 @@ class Defog:
                 "Updating the schema for this database type via the library is not yet supported. If you are a premium user, please contact us and we will manually add it."
             )
 
-    def update_glossary(self, glossary: str):
+    def update_glossary(self, glossary: str = "", customized_glossary: dict = None):
         """
         Updates the glossary on the defog servers.
         :param glossary: The glossary to be used.
         """
         r = requests.post(
             "https://api.defog.ai/update_glossary",
-            json={"api_key": self.api_key, "glossary": glossary},
+            json={
+                "api_key": self.api_key,
+                "glossary": glossary,
+                "customized_glossary": customized_glossary,
+            },
         )
         resp = r.json()
         return resp
 
-    def get_glossary(self):
+    def get_glossary(self, mode="general"):
         """
         Gets the glossary on the defog servers.
         """
@@ -796,7 +800,10 @@ class Defog:
             json={"api_key": self.api_key},
         )
         resp = r.json()
-        return resp["glossary"]
+        if mode == "general":
+            return resp["glossary"]
+        elif mode == "customized":
+            return resp["customized_glossary"]
 
     def get_metadata(self, format="markdown", export_path=None):
         """
