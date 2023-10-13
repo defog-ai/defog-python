@@ -6,7 +6,10 @@ import pandas as pd
 from defog.query import execute_query
 from importlib.metadata import version
 
-__version__ = version("defog")
+try:
+    __version__ = version("defog")
+except:
+    pass
 
 SUPPORTED_DB_TYPES = [
     "postgres",
