@@ -75,6 +75,8 @@ def execute_query_once(db_type: str, db_creds, query: str):
         )
         cur = conn.cursor()
         cur.execute(f"USE WAREHOUSE {db_creds['warehouse']}")  # set the warehouse
+        if "database" in db_creds:
+            cur.execute(f"USE DATABASE {db_creds['database']}")
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
         results = cur.fetchall()
