@@ -977,7 +977,7 @@ class Defog:
         )
         resp = r.json()
         return resp
-    
+
     def update_glossary(self, glossary: str = "", customized_glossary: dict = None):
         """
         Updates the glossary on the defog servers.
