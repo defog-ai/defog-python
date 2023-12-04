@@ -8,7 +8,17 @@ https://user-images.githubusercontent.com/4327467/236758074-042bc5d7-4452-46ce-b
 
 
 # Installation
+For a generic installation with Postgres or Redshift binaries, use
 `pip install --upgrade defog`
+
+For a Snowflake installation, use
+`pip install --upgrade defog[snowflake]`
+
+For a MySQL installation, use
+`pip install --upgrade defog[mysql]`
+
+For a BigQuery installation, use
+`pip install --upgrade defog[bigquery]`
 
 # Getting your API Key
 You can get your API key by going to [https://defog.ai/account](https://defog.ai/account) and creating an account.
