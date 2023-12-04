@@ -1,13 +1,18 @@
 from setuptools import find_packages, setup
 
-# with open("./requirements.txt", "r") as f:
-#     requirements = f.read().splitlines()
+extras = {
+    "postgres": ['psycopg2-binary'],
+    "mysql": ['mysql-connector-python'],
+    "snowflake": ['snowflake-connector-python'],
+    "bigquery": ['google-cloud-bigquery'],
+    "redshift": ['psycopg2-binary'],
+}
 
 setup(
     name="defog",
     packages=find_packages(),
     package_data={"defog": ["gcp/*", "aws/*"]},
-    version="0.50.0",
+    version="0.51.0",
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
     license="MIT",
@@ -26,4 +31,5 @@ setup(
     url="https://github.com/defog-ai/defog-python",
     long_description="Defog is a Python library that helps you generate data queries from natural language questions.",
     long_description_content_type="text/markdown",
+    extras_require=extras,
 )
