@@ -1,18 +1,18 @@
 from setuptools import find_packages, setup
 
 extras = {
-    "postgres": ['psycopg2-binary'],
-    "mysql": ['mysql-connector-python'],
-    "snowflake": ['snowflake-connector-python'],
-    "bigquery": ['google-cloud-bigquery'],
-    "redshift": ['psycopg2-binary'],
+    "postgres": ["psycopg2-binary"],
+    "mysql": ["mysql-connector-python"],
+    "snowflake": ["snowflake-connector-python"],
+    "bigquery": ["google-cloud-bigquery"],
+    "redshift": ["psycopg2-binary"],
 }
 
 setup(
     name="defog",
     packages=find_packages(),
     package_data={"defog": ["gcp/*", "aws/*"]},
-    version="0.51.0",
+    version="0.52.0",
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
     license="MIT",
