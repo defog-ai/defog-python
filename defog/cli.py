@@ -258,8 +258,12 @@ def gen():
     gsheets_url = df.generate_db_schema(table_name_list)
     print("Your schema has been generated and is available at:\n")
     print(f"\033[1m{gsheets_url}\033[0m\n")
+
+    print("We are now uploading this auto-generated schema to Defog.")
+    df.update_db_schema(gsheets_url)
+
     print(
-        "If you do modify the schema in the link provided, please run `defog update <url>` to update the updated schema."
+        "If you modify the auto-generated schema, please run `defog update <url>` again to refresh the schema on Defog's servers."
     )
 
 
@@ -363,16 +367,23 @@ def query():
             user_question = query
             resp = df.run_query(query, retries=3)
             if not resp["ran_successfully"]:
-                print("Defog generated the following query to answer your question:\n")
-                print(f"\033[1m{resp['query_generated']}\033[0m\n")
+                if "query_generated" in resp:
+                    print(
+                        "Defog generated the following query to answer your question:\n"
+                    )
+                    print(f"\033[1m{resp['query_generated']}\033[0m\n")
 
-                print(
-                    f"However, your query did not run successfully. The error message generated while running the query on your database was\n\n\033[1m{resp['error_message']}\033[0m\n."
-                )
+                    print(
+                        f"However, your query did not run successfully. The error message generated while running the query on your database was\n\n\033[1m{resp['error_message']}\033[0m\n."
+                    )
 
-                print(
-                    f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
-                )
+                    print(
+                        f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
+                    )
+                else:
+                    print(
+                        f"Defog was unable to generate a query for your question. The error message generated while running the query on your database was\n\n\033[1m{resp.get('error_message')}\033[0m\n."
+                    )
                 query = prompt("Enter another query, or type 'e' to exit: ")
             else:
                 sql_generated = resp.get("query_generated")
