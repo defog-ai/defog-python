@@ -70,7 +70,10 @@ class Defog:
                         self.api_key = data["api_key"]
                         self.db_type = data["db_type"]
                         self.db_creds = data["db_creds"]
-                        self.generate_query_url = data.get("generate_query_url", "https://api.defog.ai/generate_query_chat")
+                        self.generate_query_url = data.get(
+                            "generate_query_url",
+                            "https://api.defog.ai/generate_query_chat",
+                        )
                         print(f"Connection details read from {self.filepath}.")
                     else:
                         raise KeyError(
@@ -83,7 +86,7 @@ class Defog:
                     self.api_key = api_key
                 if db_type != "":
                     self.db_type = db_type
-                
+
                 self.generate_query_url = generate_query_url
                 self.db_creds = db_creds
                 self.check_db_creds(self.db_type, self.db_creds)
@@ -102,7 +105,7 @@ class Defog:
                     "api_key": self.api_key,
                     "db_type": self.db_type,
                     "db_creds": self.db_creds,
-                    "generate_query_url": self.generate_query_url
+                    "generate_query_url": self.generate_query_url,
                 },
                 f,
                 indent=4,
