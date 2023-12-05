@@ -217,7 +217,9 @@ class Defog:
             print(message)
             return True
 
-    def generate_postgres_schema(self, tables: list, upload: bool = True, return_format: str = "gsheets") -> str:
+    def generate_postgres_schema(
+        self, tables: list, upload: bool = True, return_format: str = "gsheets"
+    ) -> str:
         # when upload is True, we send the schema to the defog servers and generate a Google Sheet
         # when its false, we return the schema as a dict
         try:
@@ -336,7 +338,9 @@ class Defog:
         else:
             return schemas
 
-    def generate_redshift_schema(self, tables: list, upload: bool = True, return_format: str = "gsheets") -> str:
+    def generate_redshift_schema(
+        self, tables: list, upload: bool = True, return_format: str = "gsheets"
+    ) -> str:
         # when upload is True, we send the schema to the defog servers and generate a Google Sheet
         # when its false, we return the schema as a dict
         try:
@@ -465,7 +469,9 @@ class Defog:
         else:
             return schemas
 
-    def generate_mysql_schema(self, tables: list, upload: bool = True, return_format: str = "gsheets") -> str:
+    def generate_mysql_schema(
+        self, tables: list, upload: bool = True, return_format: str = "gsheets"
+    ) -> str:
         try:
             import mysql.connector
         except:
@@ -535,7 +541,9 @@ class Defog:
         else:
             return schemas
 
-    def generate_snowflake_schema(self, tables: list, upload: bool = True, return_format: str = "gsheets") -> str:
+    def generate_snowflake_schema(
+        self, tables: list, upload: bool = True, return_format: str = "gsheets"
+    ) -> str:
         try:
             import snowflake.connector
         except:
@@ -620,7 +628,9 @@ class Defog:
         else:
             return schemas
 
-    def generate_bigquery_schema(self, tables: list, upload: bool = True, return_format: str = "gsheets") -> str:
+    def generate_bigquery_schema(
+        self, tables: list, upload: bool = True, return_format: str = "gsheets"
+    ) -> str:
         try:
             from google.cloud import bigquery
         except:
