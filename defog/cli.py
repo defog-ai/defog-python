@@ -278,15 +278,15 @@ def update():
     # check for 3rd arg (url), if not there, prompt user for url
     if len(sys.argv) < 3:
         print(
-            "defog update requires a google sheets url. Please enter the url of the google sheets document you would like to update:"
+            "defog update requires a CSV that contains your Database metadata. Please enter the path to the CSV you would like to update:"
         )
-        gsheets_url = prompt()
+        filename = prompt()
     else:
-        gsheets_url = sys.argv[2]
+        filename = sys.argv[2]
     # load config from .defog/connection.json
     df = defog.Defog()
     # upload schema to defog
-    resp = df.update_db_schema(gsheets_url)
+    resp = df.update_db_schema_csv(filename)
     if resp["status"] == "success":
         print("Your schema has been updated. You're ready to start querying!")
     else:
