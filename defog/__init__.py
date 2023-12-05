@@ -5,6 +5,7 @@ import requests
 import pandas as pd
 from defog.query import execute_query
 from importlib.metadata import version
+from io import StringIO
 
 try:
     __version__ = version("defog")
@@ -216,7 +217,7 @@ class Defog:
             print(message)
             return True
 
-    def generate_postgres_schema(self, tables: list, upload: bool = True) -> str:
+    def generate_postgres_schema(self, tables: list, upload: bool = True, return_format: str = "gsheets") -> str:
         # when upload is True, we send the schema to the defog servers and generate a Google Sheet
         # when its false, we return the schema as a dict
         try:
@@ -285,34 +286,57 @@ class Defog:
         conn.close()
 
         print(
-            "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
+            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
         )
         if upload:
             # send the schemas dict to the defog servers
-            r = requests.post(
-                "https://api.defog.ai/get_postgres_schema_gsheets",
-                json={
-                    "api_key": self.api_key,
-                    "schemas": schemas,
-                    "foreign_keys": foreign_keys,
-                    "indexes": indexes,
-                },
-            )
-            resp = r.json()
-            if "sheet_url" in resp:
-                gsheet_url = resp["sheet_url"]
-                return gsheet_url
-            else:
-                print(f"We got an error!")
-                if "message" in resp:
-                    print(f"Error message: {resp['message']}")
-                print(
-                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+            if return_format == "gsheets":
+                r = requests.post(
+                    "https://api.defog.ai/get_postgres_schema_gsheets",
+                    json={
+                        "api_key": self.api_key,
+                        "schemas": schemas,
+                        "foreign_keys": foreign_keys,
+                        "indexes": indexes,
+                    },
                 )
+                resp = r.json()
+                if "sheet_url" in resp:
+                    gsheet_url = resp["sheet_url"]
+                    return gsheet_url
+                else:
+                    print(f"We got an error!")
+                    if "message" in resp:
+                        print(f"Error message: {resp['message']}")
+                    print(
+                        f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+                    )
+            else:
+                r = requests.post(
+                    "https://api.defog.ai/get_schema_csv",
+                    json={
+                        "api_key": self.api_key,
+                        "schemas": schemas,
+                        "foreign_keys": foreign_keys,
+                        "indexes": indexes,
+                    },
+                )
+                resp = r.json()
+                if "csv" in resp:
+                    csv = resp["csv"]
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    return "defog_metadata.csv"
+                else:
+                    print(f"We got an error!")
+                    if "message" in resp:
+                        print(f"Error message: {resp['message']}")
+                    print(
+                        f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+                    )
         else:
             return schemas
 
-    def generate_redshift_schema(self, tables: list, upload: bool = True) -> str:
+    def generate_redshift_schema(self, tables: list, upload: bool = True, return_format: str = "gsheets") -> str:
         # when upload is True, we send the schema to the defog servers and generate a Google Sheet
         # when its false, we return the schema as a dict
         try:
@@ -392,33 +416,56 @@ class Defog:
 
         if upload:
             print(
-                "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
+                "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
             )
             # send the schemas dict to the defog servers
-            r = requests.post(
-                "https://api.defog.ai/get_postgres_schema_gsheets",
-                json={
-                    "api_key": self.api_key,
-                    "schemas": schemas,
-                    "foreign_keys": foreign_keys,
-                    "indexes": indexes,
-                },
-            )
-            resp = r.json()
-            if "sheet_url" in resp:
-                gsheet_url = resp["sheet_url"]
-                return gsheet_url
-            else:
-                print(f"We got an error!")
-                if "message" in resp:
-                    print(f"Error message: {resp['message']}")
-                print(
-                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+            if return_format == "gsheets":
+                r = requests.post(
+                    "https://api.defog.ai/get_postgres_schema_gsheets",
+                    json={
+                        "api_key": self.api_key,
+                        "schemas": schemas,
+                        "foreign_keys": foreign_keys,
+                        "indexes": indexes,
+                    },
                 )
+                resp = r.json()
+                if "sheet_url" in resp:
+                    gsheet_url = resp["sheet_url"]
+                    return gsheet_url
+                else:
+                    print(f"We got an error!")
+                    if "message" in resp:
+                        print(f"Error message: {resp['message']}")
+                    print(
+                        f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                    )
+            else:
+                r = requests.post(
+                    "https://api.defog.ai/get_schema_csv",
+                    json={
+                        "api_key": self.api_key,
+                        "schemas": schemas,
+                        "foreign_keys": foreign_keys,
+                        "indexes": indexes,
+                    },
+                )
+                resp = r.json()
+                if "csv" in resp:
+                    csv = resp["csv"]
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    return "defog_metadata.csv"
+                else:
+                    print(f"We got an error!")
+                    if "message" in resp:
+                        print(f"Error message: {resp['message']}")
+                    print(
+                        f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+                    )
         else:
             return schemas
 
-    def generate_mysql_schema(self, tables: list, upload: bool = True) -> str:
+    def generate_mysql_schema(self, tables: list, upload: bool = True, return_format: str = "gsheets") -> str:
         try:
             import mysql.connector
         except:
@@ -443,74 +490,52 @@ class Defog:
         conn.close()
 
         if upload:
-            print(
-                "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
-            )
-            # send the schemas dict to the defog servers
-            r = requests.post(
-                "https://api.defog.ai/get_postgres_schema_gsheets",
-                json={"api_key": self.api_key, "schemas": schemas},
-            )
-            resp = r.json()
-            if "sheet_url" in resp:
-                gsheet_url = resp["sheet_url"]
-                return gsheet_url
-            else:
-                print(f"We got an error!")
-                if "message" in resp:
-                    print(f"Error message: {resp['message']}")
+            if return_format == "gsheets":
                 print(
-                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                    "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
                 )
+                # send the schemas dict to the defog servers
+                r = requests.post(
+                    "https://api.defog.ai/get_postgres_schema_gsheets",
+                    json={"api_key": self.api_key, "schemas": schemas},
+                )
+                resp = r.json()
+                if "sheet_url" in resp:
+                    gsheet_url = resp["sheet_url"]
+                    return gsheet_url
+                else:
+                    print(f"We got an error!")
+                    if "message" in resp:
+                        print(f"Error message: {resp['message']}")
+                    print(
+                        f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                    )
+            else:
+                r = requests.post(
+                    "https://api.defog.ai/get_schema_csv",
+                    json={
+                        "api_key": self.api_key,
+                        "schemas": schemas,
+                        "foreign_keys": [],
+                        "indexes": [],
+                    },
+                )
+                resp = r.json()
+                if "csv" in resp:
+                    csv = resp["csv"]
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    return "defog_metadata.csv"
+                else:
+                    print(f"We got an error!")
+                    if "message" in resp:
+                        print(f"Error message: {resp['message']}")
+                    print(
+                        f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+                    )
         else:
             return schemas
 
-    def generate_sqlserver_schema(self, tables: list, upload: bool = True) -> str:
-        try:
-            import pyodbc
-        except:
-            raise Exception("pyodbc not installed.")
-
-        conn = pyodbc.connect(self.db_creds["connection_string"])
-        cur = conn.cursor()
-        schemas = {}
-
-        print("Getting schema for each table in your database...")
-        # get the schema for each table
-        for table_name in tables:
-            cur.execute(
-                f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table_name}';"
-            )
-            rows = cur.fetchall()
-            rows = [row for row in rows]
-            rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-            schemas[table_name] = rows
-
-        conn.close()
-        if upload:
-            print(
-                "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
-            )
-            # send the schemas dict to the defog servers
-            r = requests.post(
-                "https://api.defog.ai/get_postgres_schema_gsheets",
-                json={"api_key": self.api_key, "schemas": schemas},
-            )
-            resp = r.json()
-            if "sheet_url" in resp:
-                gsheet_url = resp["sheet_url"]
-                return gsheet_url
-            else:
-                print(f"We got an error!")
-                if "message" in resp:
-                    print(f"Error message: {resp['message']}")
-                print(
-                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
-                )
-        else:
-            return schemas
-
-    def generate_snowflake_schema(self, tables: list, upload: bool = True) -> str:
+    def generate_snowflake_schema(self, tables: list, upload: bool = True, return_format: str = "gsheets") -> str:
         try:
             import snowflake.connector
         except:
@@ -551,67 +576,51 @@ class Defog:
 
         if upload:
             print(
-                "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
+                "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
             )
-            # send the schemas dict to the defog servers
-            r = requests.post(
-                "https://api.defog.ai/get_postgres_schema_gsheets",
-                json={"api_key": self.api_key, "schemas": schemas},
-            )
-            resp = r.json()
-            if "sheet_url" in resp:
-                gsheet_url = resp["sheet_url"]
-                return gsheet_url
-            else:
-                print(f"We got an error!")
-                if "message" in resp:
-                    print(f"Error message: {resp['message']}")
-                print(
-                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+            if return_format == "gsheets":
+                # send the schemas dict to the defog servers
+                r = requests.post(
+                    "https://api.defog.ai/get_postgres_schema_gsheets",
+                    json={"api_key": self.api_key, "schemas": schemas},
                 )
+                resp = r.json()
+                if "sheet_url" in resp:
+                    gsheet_url = resp["sheet_url"]
+                    return gsheet_url
+                else:
+                    print(f"We got an error!")
+                    if "message" in resp:
+                        print(f"Error message: {resp['message']}")
+                    print(
+                        f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                    )
+            else:
+                r = requests.post(
+                    "https://api.defog.ai/get_schema_csv",
+                    json={
+                        "api_key": self.api_key,
+                        "schemas": schemas,
+                        "foreign_keys": [],
+                        "indexes": [],
+                    },
+                )
+                resp = r.json()
+                if "csv" in resp:
+                    csv = resp["csv"]
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    return "defog_metadata.csv"
+                else:
+                    print(f"We got an error!")
+                    if "message" in resp:
+                        print(f"Error message: {resp['message']}")
+                    print(
+                        f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+                    )
         else:
             return schemas
 
-    def generate_mongo_schema(self, collections: list) -> str:
-        try:
-            from pymongo import MongoClient
-        except:
-            raise Exception("pymongo not installed.")
-
-        client = MongoClient(self.db_creds["connection_string"])
-        db = client.get_database()
-
-        schemas = {}
-
-        print("Getting schema for each collection in your database...")
-        # get the schema for each table
-        for collection_name in collections:
-            collection = db[collection_name]
-            rows = collection.find_one()
-            rows = [
-                {"field_name": i, "data_type": type(rows[i]).__name__} for i in rows
-            ]
-            schemas[collection_name] = rows
-
-        client.close()
-
-        print(
-            "Sending the schema to the defog servers and generating a Google Sheet. This might take up to 2 minutes..."
-        )
-        # send the schemas dict to the defog servers
-        r = requests.post(
-            "https://api.defog.ai/get_mongo_schema_gsheets",
-            json={"api_key": self.api_key, "schemas": schemas},
-        )
-        resp = r.json()
-        try:
-            gsheet_url = resp["sheet_url"]
-            return gsheet_url
-        except Exception as e:
-            print(f"We got the following error: {resp['message']}")
-            print(f"Please feel free to email support@defog.ai")
-
-    def generate_bigquery_schema(self, tables: list, upload: bool = True) -> str:
+    def generate_bigquery_schema(self, tables: list, upload: bool = True, return_format: str = "gsheets") -> str:
         try:
             from google.cloud import bigquery
         except:
@@ -634,43 +643,61 @@ class Defog:
 
         if upload:
             print(
-                "Sending the schema to Defog servers and generating a Google Sheet. This might take up to 2 minutes..."
+                "Sending the schema to Defog servers and generating column descriptions. This might take up to 2 minutes..."
             )
-            print(schemas)
-            # send the schemas dict to the defog servers
-            r = requests.post(
-                "https://api.defog.ai/get_bigquery_schema_gsheets",
-                json={"api_key": self.api_key, "schemas": schemas},
-            )
-            resp = r.json()
-            if "sheet_url" in resp:
-                gsheet_url = resp["sheet_url"]
-                return gsheet_url
-            else:
-                print(f"We got an error!")
-                if "message" in resp:
-                    print(f"Error message: {resp['message']}")
-                print(
-                    f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+            if return_format == "gsheets":
+                # send the schemas dict to the defog servers
+                r = requests.post(
+                    "https://api.defog.ai/get_bigquery_schema_gsheets",
+                    json={"api_key": self.api_key, "schemas": schemas},
                 )
+                resp = r.json()
+                if "sheet_url" in resp:
+                    gsheet_url = resp["sheet_url"]
+                    return gsheet_url
+                else:
+                    print(f"We got an error!")
+                    if "message" in resp:
+                        print(f"Error message: {resp['message']}")
+                    print(
+                        f"Please feel free to open a github issue if this a generic library issue, or email support@defog.ai if you need dedicated customer-specific support."
+                    )
+            else:
+                r = requests.post(
+                    "https://api.defog.ai/get_schema_csv",
+                    json={
+                        "api_key": self.api_key,
+                        "schemas": schemas,
+                        "foreign_keys": [],
+                        "indexes": [],
+                    },
+                )
+                resp = r.json()
+                if "csv" in resp:
+                    csv = resp["csv"]
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    return "defog_metadata.csv"
+                else:
+                    print(f"We got an error!")
+                    if "message" in resp:
+                        print(f"Error message: {resp['message']}")
+                    print(
+                        f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+                    )
         else:
             return schemas
 
     def generate_db_schema(self, tables: list) -> str:
         if self.db_type == "postgres":
-            return self.generate_postgres_schema(tables)
+            return self.generate_postgres_schema(tables, return_format="csv")
         elif self.db_type == "mysql":
-            return self.generate_mysql_schema(tables)
-        elif self.db_type == "mongo":
-            return self.generate_mongo_schema(tables)
+            return self.generate_mysql_schema(tables, return_format="csv")
         elif self.db_type == "bigquery":
-            return self.generate_bigquery_schema(tables)
+            return self.generate_bigquery_schema(tables, return_format="csv")
         elif self.db_type == "redshift":
-            return self.generate_redshift_schema(tables)
+            return self.generate_redshift_schema(tables, return_format="csv")
         elif self.db_type == "snowflake":
-            return self.generate_snowflake_schema(tables)
-        elif self.db_type == "sqlserver":
-            return self.generate_sqlserver_schema(tables)
+            return self.generate_snowflake_schema(tables, return_format="csv")
         else:
             raise ValueError(
                 f"Creation of a DB schema for {self.db_type} is not yet supported via the library. If you are a premium user, please contact us at founder@defog.ai so we can manually add it."
