@@ -39,25 +39,17 @@ If this is your first time running, we will write these information into a json 
 
 Once you have setup the connection settings, we will ask you for the names of the tables that you would like to register (space separated), generate the schema for each of them, upload the schema to defog, and print out the filename of a CSV with your metadata. If you do not wish to provide those at this point, you can exit this prompt by hitting `ctrl+c`
 
-## Checking the suitability of your database
-To check whether Defog will be suitable for your database, you can run the following:
+## Generating your schema
 
-```
-defog check <table_name_1> <table_name_1> ...
-```
-, where the table names are just the names of the table that you would want defog to query
-
-## Regenerating Schema
-
-If you would like to include new tables to be indexed, you can run the following to regenerate the schema for your tables:
+To include tables in Defog's indexed, you can run the following to generate column descriptions for your tables and columns:
 ```
 defog gen <table1> <table2> ...
 ```
-This will generate a CSV file as before as before.
+This will generate a CSV file that is stored locally on your disk.
 
 ## Updating Schema
 
-If you spot some mistakes, and have updated the schema generated in the CSV, you can run the following to update the schema with defog:
+If you would like to edit the auto-generate column descriptions, just edit the CSV and run the following to update the schema with defog:
 ```
 defog update <csv_filename>
 ```
