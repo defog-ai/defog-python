@@ -191,7 +191,7 @@ def init():
     else:
         df = defog.Defog(api_key=api_key, db_type=db_type, db_creds=db_creds)
         filename = df.generate_db_schema(table_name_list)
-        print("Your schema has been generated and is available at:\n")
+        print("Your schema has been generated and is available as a CSV file in this folder at:\n")
         print(f"\033[1m{filename}\033[0m\n")
 
     print(
