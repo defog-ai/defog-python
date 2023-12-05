@@ -134,7 +134,7 @@ def init():
         print("Please enter your database user:")
         user = prompt()
         print("Please enter your database password:")
-        password = prompt()
+        password = getpass.getpass(prompt="Please enter your database password:")
         db_creds = {
             "host": host,
             "database": database,
@@ -149,18 +149,12 @@ def init():
         print("Please enter your database user:")
         user = prompt()
         print("Please enter your database password:")
-        password = prompt()
+        password = getpass.getpass(prompt="Please enter your database password:")
         db_creds = {
             "account": account,
             "warehouse": warehouse,
             "user": user,
             "password": password,
-        }
-    elif db_type == "mongo" or db_type == "sqlserver":
-        print("Please enter your database connection string:")
-        connection_string = prompt()
-        db_creds = {
-            "connection_string": connection_string,
         }
     elif db_type == "bigquery":
         print("Please enter your bigquery json key's path:")
