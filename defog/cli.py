@@ -587,12 +587,15 @@ def print_table(columns, data):
             print(to_str(value).ljust(column_widths[i]), end=" | ")
         print()
 
+
 def serve():
     from defog.serve import app
     import uvicorn
     import webbrowser
+
     webbrowser.open("https://defog.ai/embed/?endpoint=http://127.0.0.1:8000")
     uvicorn.run(app, host="localhost", port=8000)
+
 
 if __name__ == "__main__":
     main()
