@@ -43,8 +43,6 @@ class Defog:
         4) config file present, no params -> read params from config file
         5) config file present, some/all params -> ignore existing config file, save new params to config file
         """
-        self.generate_query_url = generate_query_url
-
         if base64creds != "":
             self.from_base64_creds(base64creds)
             return
@@ -57,7 +55,7 @@ class Defog:
             self.api_key = api_key
             self.db_type = db_type
             self.db_creds = db_creds
-            data = {"api_key": api_key, "db_type": db_type, "db_creds": db_creds}
+            self.generate_query_url = generate_query_url
             # write to filepath and print confirmation
             if save_json:
                 self.save_connection_json()
@@ -72,6 +70,7 @@ class Defog:
                         self.api_key = data["api_key"]
                         self.db_type = data["db_type"]
                         self.db_creds = data["db_creds"]
+                        self.generate_query_url = data.get("generate_query_url", "https://api.defog.ai/generate_query_chat")
                         print(f"Connection details read from {self.filepath}.")
                     else:
                         raise KeyError(
@@ -84,6 +83,8 @@ class Defog:
                     self.api_key = api_key
                 if db_type != "":
                     self.db_type = db_type
+                
+                self.generate_query_url = generate_query_url
                 self.db_creds = db_creds
                 self.check_db_creds(self.db_type, self.db_creds)
                 if save_json:
@@ -101,6 +102,7 @@ class Defog:
                     "api_key": self.api_key,
                     "db_type": self.db_type,
                     "db_creds": self.db_creds,
+                    "generate_query_url": self.generate_query_url
                 },
                 f,
                 indent=4,
