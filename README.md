@@ -21,7 +21,7 @@ For a BigQuery installation, use
 `pip install --upgrade 'defog[bigquery]'`
 
 # Getting your API Key
-You can get your API key by going to [https://defog.ai/account](https://defog.ai/account) and creating an account.
+You can get your API key by going to [https://defog.ai/signup](https://defog.ai/signup) and creating an account.
 
 # Integration
 
@@ -37,7 +37,7 @@ defog init
 ```
 If this is your first time running, we will write these information into a json config file, which will be stored in `~/.defog/connection.json`. If we detect a file present already, we will ask you if you intend to re-initialize the file. You can always delete the file and `defog init` all over again. Note that your credentials are _never_ sent to defog's servers.
 
-Once you have setup the connection settings, we will ask you for the names of the tables that you would like to register (space separated), generate the schema for each of them, upload the schema to defog, and print out the generate gsheets url in your console. If you do not wish to provide those at this point, you can exit this prompt by hitting `ctrl+c`
+Once you have setup the connection settings, we will ask you for the names of the tables that you would like to register (space separated), generate the schema for each of them, upload the schema to defog, and print out the filename of a CSV with your metadata. If you do not wish to provide those at this point, you can exit this prompt by hitting `ctrl+c`
 
 ## Checking the suitability of your database
 To check whether Defog will be suitable for your database, you can run the following:
@@ -45,8 +45,7 @@ To check whether Defog will be suitable for your database, you can run the follo
 ```
 defog check <table_name_1> <table_name_1> ...
 ```
-
-Where the table names are just the names of the table that you would want defog to query
+, where the table names are just the names of the table that you would want defog to query
 
 ## Regenerating Schema
 
@@ -54,13 +53,13 @@ If you would like to include new tables to be indexed, you can run the following
 ```
 defog gen <table1> <table2> ...
 ```
-This will generate a gsheets url as before.
+This will generate a CSV file as before as before.
 
 ## Updating Schema
 
-If you spot some mistakes, and have updated the schema generated in the gsheet, you can run the following to update the schema with defog:
+If you spot some mistakes, and have updated the schema generated in the CSV, you can run the following to update the schema with defog:
 ```
-defog update <url>
+defog update <csv_filename>
 ```
 
 ## Querying
@@ -77,7 +76,7 @@ You can check your quota usage by running:
 ```
 defog quota
 ```
-Free-tier users have 100 queries per month, while premium users have unlimited queries.
+Free-tier users have 1000 queries per month, while premium users have unlimited queries.
 
 # Usage
 
@@ -94,8 +93,6 @@ question = "question asked by a user"
 # run chat version of query
 results = defog.run_query(
   question=question,
-  mode="chat",
-  language=None # replace with a string, like 'Japanese', or 'Traditional Chinese' if using a non English language
 )
 
 print(results)
