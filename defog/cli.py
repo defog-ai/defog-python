@@ -197,7 +197,7 @@ def init():
         print(f"\033[1m{filename}\033[0m\n")
 
     print(
-        "You can give us more context about your schema at the above link. Once you're done, you can just hit enter to upload the data in this URL to Defog. If you would like to exit instead, just enter `exit`."
+        "You can give us more context about your schema by editing the CSV above. Once you're done, you can just hit enter to upload the data in the spreadsheet to Defog. If you would like to exit instead, just enter `exit`."
     )
     upload_option = prompt()
     if upload_option == "exit":
@@ -257,12 +257,14 @@ def gen():
         table_name_list = re.split(r"\s+", table_names.strip())
     else:
         table_name_list = sys.argv[2:]
-    gsheets_url = df.generate_db_schema(table_name_list)
-    print("Your schema has been generated and is available at:\n")
-    print(f"\033[1m{gsheets_url}\033[0m\n")
+    filename = df.generate_db_schema(table_name_list)
+    print(
+        "Your schema has been generated and is available at the following CSV file in this folder:\n"
+    )
+    print(f"\033[1m{filename}\033[0m\n")
 
     print("We are now uploading this auto-generated schema to Defog.")
-    df.update_db_schema(gsheets_url)
+    df.update_db_schema_csv(filename)
 
     print(
         "If you modify the auto-generated schema, please run `defog update <csv_filename>` again to refresh the schema on Defog's servers."
