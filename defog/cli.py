@@ -27,7 +27,6 @@ Available commands:
     quota\t\t\tCheck your API quota limits
     docs\t\t\tPrint documentation
     serve\t\t\tServe a defog server locally
-    serve_static\t\tServe a static version of the webpages locally
 """
 
 home_dir = os.path.expanduser("~")
@@ -56,7 +55,9 @@ def main():
         raise NotImplementedError("docs not implemented yet")
     elif sys.argv[1] == "serve":
         serve()
-    elif sys.argv[1] == "serve_static":
+    elif sys.argv[1] == "serve-webserver":
+        serve_webserver()
+    elif sys.argv[1] == "serve-static":
         serve_static()
     else:
         print(f"Unknown command: {sys.argv[1]}")
@@ -594,7 +595,7 @@ def print_table(columns, data):
         print()
 
 
-def serve():
+def serve_webserver():
     from defog.serve import app
     import uvicorn
 
@@ -619,6 +620,24 @@ def serve_static():
         print(f"Static folder is {directory}")
         httpd.serve_forever()
 
+def serve():
+    """
+    Serve a defog server locally.
+    """
+    print("Starting defog server...")
+    print("Serving static files...")
+    static_process = subprocess.Popen(["defog", "serve-static"])
+    print("Serving webserver...")
+    webserver_process = subprocess.Popen(["defog", "serve-webserver"])
+    print("Press Ctrl+C to exit.")
+    try:
+        while True:
+            pass
+    except KeyboardInterrupt:
+        print("Exiting...")
+        static_process.terminate()
+        webserver_process.terminate()
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()

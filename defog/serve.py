@@ -40,7 +40,7 @@ try:
         if total_size != 0 and t.n != total_size:
             print("ERROR, something went wrong while downloading the file")
 
-    llm = Llama(model_path=filepath, n_gpu_layers=1)
+    llm = Llama(model_path=filepath, n_gpu_layers=1, n_ctx=2048)
 except Exception as e:
     print("An error occured when trying to load the model!")
     sys.exit(1)
@@ -247,11 +247,15 @@ Generate a SQL query to answer the following question:
 The query will run on a database with the following schema:
 {ddl}
 
+# Instructions
+- only use the tables and columns in the schema above
+- you can use CTEs to create temporary tables that can be used in your query
+
 # SQL
 ```"""
     completion = llm(
         prompt,
-        max_tokens=5000,
+        max_tokens=100,
         temperature=0,
         repeat_penalty=1.0,
         echo=False,
@@ -275,12 +279,56 @@ The query will run on a database with the following schema:
         port=creds["port"],
     )
     cur = conn.cursor()
-    cur.execute(completion)
-    rows = cur.fetchall()
-    rows = [row for row in rows]
-    columns = [desc[0] for desc in cur.description]
-    cur.close()
-    conn.close()
+    try:
+        cur.execute(completion)
+        rows = cur.fetchall()
+        rows = [row for row in rows]
+        columns = [desc[0] for desc in cur.description]
+        cur.close()
+        conn.close()
+    except Exception as e:
+        error_message = str(e)
+        prompt = f"""# Task
+Fix SQL queries that have errors.
+
+# Database Schema
+The query will run on a database with the following schema:
+{ddl}
+
+# Original SQL
+```{completion}```
+
+# Error Message
+{error_message}
+
+# New SQL
+```"""
+        completion = llm(
+            prompt,
+            max_tokens=100,
+            temperature=0,
+            repeat_penalty=1.0,
+            echo=False,
+        )
+        completion = completion["choices"][0]["text"]
+        completion = completion.split("```")[0].split(";")[0].strip()
+        completion = completion + ";"
+        print(completion)
+        conn = psycopg2.connect(
+            host=creds["host"],
+            database=creds["database"],
+            user=creds["user"],
+            password=creds["password"],
+            port=creds["port"],
+        )
+        cur = conn.cursor()
+        cur.execute(completion)
+        rows = cur.fetchall()
+        rows = [row for row in rows]
+        columns = [desc[0] for desc in cur.description]
+        cur.close()
+        conn.close()
+    
     completion = sqlparse.format(completion, reindent_aligned=True)
     return {
         "columns": columns,
