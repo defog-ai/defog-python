@@ -12,6 +12,7 @@ import json
 try:
     from llama_cpp import Llama
 
+    home_dir = os.path.expanduser("~")
     filepath = os.path.join(home_dir, ".defog", "sqlcoder-7b-q4_k_m.gguf")
 
     if not os.path.exists(filepath):
@@ -25,9 +26,9 @@ try:
         with open(filepath, "wb") as f:
             f.write(r.content)
 
-    llm = Llama(model_path=filepath)
-except:
-    pass
+    llm = Llama(model_path=filepath, n_gpu_layers=1)
+except Exception as e:
+    print(e)
 
 
 app = FastAPI()
@@ -63,7 +64,7 @@ async def get_tables(request: Request):
 
     conn = psycopg2.connect(
         host=db_host,
-        database=database,
+        dbname=database,
         user=username,
         password=password,
         port=port,
@@ -88,7 +89,7 @@ async def get_metadata(request: Request):
 
     conn = psycopg2.connect(
         host=db_host,
-        database=database,
+        dbname=database,
         user=username,
         password=password,
         port=port,
@@ -135,7 +136,7 @@ async def make_gguf_request(request: Request):
     params = await request.json()
     prompt = params.get("prompt")
     completion = llm(
-        prompt, max_tokens=100, temperature=0, top_p=1, n=1, stop=["\n"], echo=False
+        prompt, max_tokens=100, temperature=0, top_p=1, stop=["\n"], echo=False
     )
     completion = completion["choices"][0]["text"]
     return {"completion": completion}
@@ -194,7 +195,6 @@ The query will run on a database with the following schema:
         max_tokens=600,
         temperature=0,
         top_p=1,
-        n=1,
         stop=["```", ";"],
         echo=False,
     )

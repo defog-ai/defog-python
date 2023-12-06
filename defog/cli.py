@@ -55,6 +55,8 @@ def main():
         raise NotImplementedError("docs not implemented yet")
     elif sys.argv[1] == "serve":
         serve()
+    elif sys.argv[1] == "serve_static":
+        serve_static()
     else:
         print(f"Unknown command: {sys.argv[1]}")
         print(USAGE_STRING)
@@ -591,7 +593,7 @@ def print_table(columns, data):
         print()
 
 
-def serve_webserver():
+def serve():
     from defog.serve import app
     import uvicorn
 
@@ -604,7 +606,7 @@ def serve_static():
     import webbrowser
 
     port = 8002
-    directory = "./out"
+    directory = os.path.join(defog.__path__[0], "static")
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
@@ -615,17 +617,6 @@ def serve_static():
         print(f"Serving at port {port}")
         print(f"Static folder is {directory}")
         httpd.serve_forever()
-
-
-def serve():
-    import threading
-
-    t1 = threading.Thread(target=serve_webserver)
-    t2 = threading.Thread(target=serve_static)
-    t1.start()
-    t2.start()
-    t1.join()
-    t2.join()
 
 
 if __name__ == "__main__":
