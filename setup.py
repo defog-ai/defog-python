@@ -11,8 +11,8 @@ extras = {
 setup(
     name="defog",
     packages=find_packages(),
-    package_data={"defog": ["gcp/*", "aws/*"]},
-    version="0.53.1",
+    package_data={"defog": ["gcp/*", "aws/*", "static/*"]},
+    version="0.54.0",
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
     license="MIT",
