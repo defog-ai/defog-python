@@ -8,6 +8,7 @@ import pandas as pd
 import requests
 import os
 import json
+import sqlparse
 
 try:
     from llama_cpp import Llama
@@ -136,7 +137,13 @@ async def make_gguf_request(request: Request):
     params = await request.json()
     prompt = params.get("prompt")
     completion = llm(
-        prompt, max_tokens=100, temperature=0, top_p=1, stop=["\n"], echo=False
+        prompt,
+        max_tokens=100,
+        temperature=0,
+        top_p=1,
+        stop=["\n"],
+        echo=False,
+        repeat_penalty=1.0,
     )
     completion = completion["choices"][0]["text"]
     return {"completion": completion}
@@ -146,6 +153,7 @@ async def make_gguf_request(request: Request):
 async def update_metadata(request: Request):
     params = await request.json()
     metadata = params.get("metadata")
+    allowed_joins = params.get("allowed_joins")
     # this in a list where each item is a dictionary
     # with the format {"table_name": ..., "column_name": ..., "data_type": ..., "column_description": ...}
 
@@ -157,18 +165,55 @@ async def update_metadata(request: Request):
         table_ddl.append(f"CREATE TABLE {table} (\n")
         for column in metadata:
             if column["table_name"] == table:
+                if column["column_description"]:
+                    desc = f"-- {column['column_description']}"
+                else:
+                    desc = ""
                 table_ddl.append(
-                    f"{column['column_name']} {column['data_type']} -- {column['column_description']},\n"
+                    f"{column['column_name']} {column['data_type']}{desc},\n"
                 )
         table_ddl.append(");\n\n")
     table_ddl = "".join(table_ddl)
+
+    if allowed_joins is None or allowed_joins == "":
+        prompt = f"""# Task
+Your task is to identify all valid joins between tables in a Postgres Database. Give your answers in the format
+-- table1.column1 can be joined with table2.column2
+-- table1.column3 can be joined with table2.column4
+etc.
+
+# Database Schema
+The database has the following schema:
+{table_ddl}
+
+# Allowed Joins
+Based on the database schema, the following joins are valid:
+--"""
+        completion = llm(
+            prompt,
+            max_tokens=500,
+            temperature=0,
+            top_p=1,
+            echo=False,
+            repeat_penalty=1.0,
+        )
+        completion = completion["choices"][0]["text"]
+        allowed_joins = completion
+        table_ddl += "\n" + completion
+    else:
+        table_ddl += "\n" + allowed_joins
+
     home_dir = os.path.expanduser("~")
     filepath = os.path.join(home_dir, ".defog", "metadata.sql")
     # save the DDL statements to a file in ~/.defog/
     with open(filepath, "w") as f:
         f.write(table_ddl)
 
-    return {"success": True, "message": "Metadata updated successfully!"}
+    return {
+        "success": True,
+        "message": "Metadata updated successfully!",
+        "suggested_joins": allowed_joins,
+    }
 
 
 @app.post("/query_db")
@@ -178,6 +223,8 @@ async def query_db(request: Request):
     filepath = os.path.join(home_dir, ".defog", "metadata.sql")
     with open(filepath, "r") as f:
         ddl = f.read()
+
+    print(ddl)
 
     user_question = params.get("question")
     prompt = f"""# Task
@@ -192,14 +239,15 @@ The query will run on a database with the following schema:
 ```"""
     completion = llm(
         prompt,
-        max_tokens=600,
+        max_tokens=5000,
         temperature=0,
-        top_p=1,
-        stop=["```", ";"],
+        repeat_penalty=1.0,
         echo=False,
     )
     completion = completion["choices"][0]["text"]
     completion = completion.split("```")[0].split(";")[0].strip()
+    completion = completion + ";"
+    print(completion)
     # now we have the SQL query, let's run it on the database
 
     # first we need to get the credentials
@@ -219,6 +267,9 @@ The query will run on a database with the following schema:
     rows = cur.fetchall()
     rows = [row for row in rows]
     columns = [desc[0] for desc in cur.description]
+    cur.close()
+    conn.close()
+    completion = sqlparse.format(completion, reindent_aligned=True)
     return {
         "columns": columns,
         "data": rows,
