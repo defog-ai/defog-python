@@ -591,13 +591,41 @@ def print_table(columns, data):
         print()
 
 
-def serve():
+def serve_webserver():
     from defog.serve import app
     import uvicorn
+
+    uvicorn.run(app, host="localhost", port=8000)
+
+
+def serve_static():
+    import http.server
+    import socketserver
     import webbrowser
 
-    webbrowser.open("https://defog.ai/embed/?endpoint=http://127.0.0.1:8000")
-    uvicorn.run(app, host="localhost", port=8000)
+    port = 8002
+    directory = "./out"
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=directory, **kwargs)
+
+    webbrowser.open(f"http://localhost:{port}")
+    with socketserver.TCPServer(("", port), Handler) as httpd:
+        print(f"Serving at port {port}")
+        print(f"Static folder is {directory}")
+        httpd.serve_forever()
+
+
+def serve():
+    import threading
+
+    t1 = threading.Thread(target=serve_webserver)
+    t2 = threading.Thread(target=serve_static)
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
 
 
 if __name__ == "__main__":
