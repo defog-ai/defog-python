@@ -27,6 +27,7 @@ Available commands:
     quota\t\t\tCheck your API quota limits
     docs\t\t\tPrint documentation
     serve\t\t\tServe a defog server locally
+    serve_static\t\tServe a static version of the webpages locally
 """
 
 home_dir = os.path.expanduser("~")
