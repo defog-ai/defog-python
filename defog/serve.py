@@ -9,7 +9,8 @@ import requests
 import os
 import json
 import sqlparse
-import tqdm
+from tqdm import tqdm
+import sys
 
 try:
     from llama_cpp import Llama
@@ -41,7 +42,8 @@ try:
 
     llm = Llama(model_path=filepath, n_gpu_layers=1)
 except Exception as e:
-    print("")
+    print("An error occured when trying to load the model!")
+    sys.exit(1)
 
 
 app = FastAPI()
