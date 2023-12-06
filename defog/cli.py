@@ -26,6 +26,7 @@ Available commands:
     check\t\t\tCheck if your database is suitable for defog (for prospective customers)
     quota\t\t\tCheck your API quota limits
     docs\t\t\tPrint documentation
+    serve\t\t\tServe a defog server locally
 """
 
 home_dir = os.path.expanduser("~")
@@ -52,6 +53,8 @@ def main():
     elif sys.argv[1] == "docs":
         # TODO
         raise NotImplementedError("docs not implemented yet")
+    elif sys.argv[1] == "serve":
+        serve()
     else:
         print(f"Unknown command: {sys.argv[1]}")
         print(USAGE_STRING)
