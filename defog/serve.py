@@ -11,17 +11,20 @@ import json
 
 try:
     from llama_cpp import Llama
+
     filepath = os.path.join(home_dir, ".defog", "sqlcoder-7b-q4_k_m.gguf")
-    
+
     if not os.path.exists(filepath):
-        print("Downloading the SQLCoder-7b GGUF file. This is a 4GB file and may take up to 10 minutes to download...")
-        
+        print(
+            "Downloading the SQLCoder-7b GGUF file. This is a 4GB file and may take up to 10 minutes to download..."
+        )
+
         # download the gguf file from the internet and save it
         url = "https://storage.googleapis.com/defog-ai/sqlcoder-7b/v2/sqlcoder-7b-q4_k_m.gguf"
         r = requests.get(url)
         with open(filepath, "wb") as f:
             f.write(r.content)
-    
+
     llm = Llama(model_path=filepath)
 except:
     pass
@@ -131,7 +134,9 @@ async def get_metadata(request: Request):
 async def make_gguf_request(request: Request):
     params = await request.json()
     prompt = params.get("prompt")
-    completion = llm(prompt, max_tokens=100, temperature=0, top_p=1, n=1, stop=["\n"], echo=False)
+    completion = llm(
+        prompt, max_tokens=100, temperature=0, top_p=1, n=1, stop=["\n"], echo=False
+    )
     completion = completion["choices"][0]["text"]
     return {"completion": completion}
 
@@ -184,7 +189,15 @@ The query will run on a database with the following schema:
 
 # SQL
 ```"""
-    completion = llm(prompt, max_tokens=600, temperature=0, top_p=1, n=1, stop=["```", ";"], echo=False)
+    completion = llm(
+        prompt,
+        max_tokens=600,
+        temperature=0,
+        top_p=1,
+        n=1,
+        stop=["```", ";"],
+        echo=False,
+    )
     completion = completion["choices"][0]["text"]
     completion = completion.split("```")[0].split(";")[0].strip()
     # now we have the SQL query, let's run it on the database
