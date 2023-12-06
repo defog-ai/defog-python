@@ -9,6 +9,7 @@ import requests
 import os
 import json
 import sqlparse
+import tqdm
 
 try:
     from llama_cpp import Llama
@@ -23,13 +24,24 @@ try:
 
         # download the gguf file from the internet and save it
         url = "https://storage.googleapis.com/defog-ai/sqlcoder-7b/v2/sqlcoder-7b-q4_k_m.gguf"
-        r = requests.get(url)
+        response = requests.get(url, stream=True)
+
+        total_size = int(response.headers.get("content-length", 0))
+        block_size = 1024  # 1 Kibibyte
+        t = tqdm(total=total_size, unit="B", unit_scale=True, unit_divisor=1024)
+
         with open(filepath, "wb") as f:
-            f.write(r.content)
+            for data in response.iter_content(block_size):
+                t.update(len(data))
+                f.write(data)
+
+        t.close()
+        if total_size != 0 and t.n != total_size:
+            print("ERROR, something went wrong while downloading the file")
 
     llm = Llama(model_path=filepath, n_gpu_layers=1)
 except Exception as e:
-    print(e)
+    print("")
 
 
 app = FastAPI()
@@ -223,8 +235,6 @@ async def query_db(request: Request):
     filepath = os.path.join(home_dir, ".defog", "metadata.sql")
     with open(filepath, "r") as f:
         ddl = f.read()
-
-    print(ddl)
 
     user_question = params.get("question")
     prompt = f"""# Task
