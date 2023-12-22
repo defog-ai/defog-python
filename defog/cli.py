@@ -620,6 +620,7 @@ def serve_static():
         print(f"Static folder is {directory}")
         httpd.serve_forever()
 
+
 def serve():
     """
     Serve a defog server locally.
@@ -638,6 +639,7 @@ def serve():
         static_process.terminate()
         webserver_process.terminate()
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
