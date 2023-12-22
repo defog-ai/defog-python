@@ -328,7 +328,7 @@ The query will run on a database with the following schema:
         columns = [desc[0] for desc in cur.description]
         cur.close()
         conn.close()
-    
+
     completion = sqlparse.format(completion, reindent_aligned=True)
     return {
         "columns": columns,

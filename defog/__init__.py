@@ -1006,7 +1006,7 @@ class Defog:
         """
         Update the DB schema via a CSV, rather than by via a Google Sheet
         """
-        schema_df = pd.read_csv(path_to_csv)
+        schema_df = pd.read_csv(path_to_csv).fillna("")
         schema = {}
         for table_name in schema_df["table_name"].unique():
             schema[table_name] = schema_df[schema_df["table_name"] == table_name][
