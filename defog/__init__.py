@@ -150,10 +150,10 @@ class Defog:
             if "password" not in db_creds:
                 raise KeyError("db_creds must contain a 'password' key.")
         elif db_type == "databricks":
-            if "host" not in db_creds:
-                raise KeyError("db_creds must contain a 'host' key.")
-            if "token" not in db_creds:
-                raise KeyError("db_creds must contain a 'token' key.")
+            if "server_hostname" not in db_creds:
+                raise KeyError("db_creds must contain a 'server_hostname' key.")
+            if "access_token" not in db_creds:
+                raise KeyError("db_creds must contain a 'access_token' key.")
             if "http_path" not in db_creds:
                 raise KeyError("db_creds must contain a 'http_path' key.")
         elif db_type == "mongo" or db_type == "sqlserver":
@@ -516,7 +516,7 @@ class Defog:
                 )
                 rows = cur.fetchall()
                 rows = [row for row in rows]
-                rows = [{"column_name": i[3], "data_type": i[7]} for i in rows]
+                rows = [{"column_name": i[3], "data_type": i[5]} for i in rows]
                 schemas[table_name] = rows
 
             conn.close()
@@ -847,7 +847,7 @@ class Defog:
                 "question": question,
                 "api_key": self.api_key,
                 "previous_context": previous_context,
-                "db_type": self.db_type,
+                "db_type": self.db_type if self.db_type != "databricks" else "postgres",
                 "glossary": glossary,
                 "language": language,
                 "hard_filters": hard_filters,

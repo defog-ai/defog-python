@@ -163,15 +163,14 @@ def init():
     elif db_type == "databricks":
         print("Please enter your databricks host:")
         host = prompt()
-        print("Please enter your databricks token:")
         token = getpass.getpass(prompt="Please enter your databricks token:")
         print("Please add your http_path:")
         http_path = prompt()
         print("Please enter your schema name (this is usually 'default'):")
         schema = prompt()
         db_creds = {
-            "host": host,
-            "token": token,
+            "server_hostname": host,
+            "access_token": token,
             "http_path": http_path,
             "schema": schema,
         }
