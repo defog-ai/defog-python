@@ -119,7 +119,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
             from databricks import sql
         except:
             raise Exception("databricks-sql-connector not installed.")
-        conn = sql.connect(db_creds)
+        conn = sql.connect(**db_creds)
         with conn.cursor() as cursor:
             cursor.execute(query)
             colnames = [desc[0] for desc in cursor.description]
