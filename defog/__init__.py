@@ -495,7 +495,7 @@ class Defog:
                     )
         else:
             return schema
-    
+
     def generate_databricks_schema(
         self, tables: list, upload: bool = True, return_format: str = "csv"
     ) -> str:
@@ -510,7 +510,10 @@ class Defog:
             print("Getting schema for each table in your database...")
             # get the schema for each table
             for table_name in tables:
-                cur.columns(schema_name=self.db_creds.get("schema", "default"), table_name=table_name)
+                cur.columns(
+                    schema_name=self.db_creds.get("schema", "default"),
+                    table_name=table_name,
+                )
                 rows = cur.fetchall()
                 rows = [row for row in rows]
                 rows = [{"column_name": i[3], "data_type": i[7]} for i in rows]

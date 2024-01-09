@@ -7,6 +7,7 @@ extras = {
     "snowflake": ["snowflake-connector-python"],
     "bigquery": ["google-cloud-bigquery"],
     "redshift": ["psycopg2-binary"],
+    "databricks": ["databricks-sql-connector"],
 }
 
 
