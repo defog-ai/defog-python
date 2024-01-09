@@ -238,22 +238,30 @@ class Defog:
             cur.execute(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
             )
-            tables = [row[0] for row in cur.fetchall()]
+            tables = [f"public.{row[0]}" for row in cur.fetchall()]
+        else:
+            for table in tables:
+                if not table or len(table.split("."))!=2:
+                    raise ValueError(f"PostgreSQL table names should be of the following format <schema>.<table> which is violated by '{table}`")
+
         print("Retrieved the following tables:")
+
         for t in tables:
             print(f"\t{t}")
 
         print("Getting schema for each table in your database...")
         # get the schema for each table
-        for table_name in tables:
+        for table in tables:
+            
+            schema,table_name = table.split(".")
             cur.execute(
-                "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;",
-                (table_name,),
+                "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s and table_schema::text = %s;",
+                (table_name, schema),
             )
             rows = cur.fetchall()
             rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-            schemas[table_name] = rows
+            schemas[table] = rows
 
         # get foreign key relationships
         print("Getting foreign keys for each table in your database...")
