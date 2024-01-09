@@ -20,6 +20,9 @@ For a MySQL installation, use
 For a BigQuery installation, use
 `pip install --upgrade 'defog[bigquery]'`
 
+For a Databricks installation, use
+`pip install --upgrade 'defog[databricks]'`
+
 # Getting your API Key
 You can get your API key by going to [https://defog.ai/signup](https://defog.ai/signup) and creating an account.
 
@@ -29,8 +32,6 @@ You can either use our cli, which will take you through the setup step-by-step, 
 
 ## Connection Setup
 To get started, you can run the following cli command, which will prompt you for your defog api key, database type, and the corresponding database credentials required.
-
-If you are just checking the suitability of your database, just hit enter when prompted for your defog api key.
 
 ```
 defog init
