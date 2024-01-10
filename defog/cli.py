@@ -94,9 +94,11 @@ def init():
         )
         api_key = os.environ.get("DEFOG_API_KEY")
     else:
-        print("Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/accounts/dashboard/ and creating an account:")
+        print(
+            "Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/accounts/dashboard/ and creating an account:"
+        )
         api_key = prompt().strip()
-        
+
     # prompt user for db_type
     print(
         "What database are you using? Available options are: "
@@ -124,7 +126,9 @@ def init():
         database = prompt().strip()
         print("Please enter your database user:")
         user = prompt().strip()
-        password = pwinput.pwinput(prompt="Please enter your database password. This won't be displayed as you're typing for privacy reasons")
+        password = pwinput.pwinput(
+            prompt="Please enter your database password. This won't be displayed as you're typing for privacy reasons"
+        )
         db_creds = {
             "host": host,
             "port": port,
@@ -219,7 +223,9 @@ def init():
         print("Exiting.")
         sys.exit(0)
     else:
-        print("We are now uploading this schema to Defog. This might take up to 30 seconds...")
+        print(
+            "We are now uploading this schema to Defog. This might take up to 30 seconds..."
+        )
         resp = df.update_db_schema_csv(filename)
         if resp["status"] == "success":
             print("Your schema has been updated. You're ready to start querying!")
