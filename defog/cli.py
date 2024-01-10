@@ -159,7 +159,6 @@ def init():
         warehouse = prompt().strip()
         print("Please enter your database user:")
         user = prompt().strip()
-        print("Please enter your database password:")
         password = pwinput.pwinput(prompt="Please enter your database password:")
         db_creds = {
             "account": account,

@@ -6,7 +6,7 @@ import pandas as pd
 from defog.query import execute_query
 from importlib.metadata import version
 from io import StringIO
-from util import identify_categorical_columns
+from defog.util import identify_categorical_columns
 
 try:
     __version__ = version("defog")
