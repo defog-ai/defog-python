@@ -49,11 +49,12 @@ def write_logs(msg: str) -> None:
     except Exception as e:
         pass
 
+
 def identify_categorical_columns(
-        cur, # a cursor object for any database
-        table_name: str,
-        rows: list,
-    ):
+    cur,  # a cursor object for any database
+    table_name: str,
+    rows: list,
+):
     """
     Identify categorical columns in the table and return the top 10 distinct values for each column.
 
@@ -61,7 +62,7 @@ def identify_categorical_columns(
         cur (cursor): A cursor object for any database.
         table_name (str): The name of the table.
         rows (list): A list of dictionaries containing the column names and data types.
-    
+
     Returns:
         rows (list): The updated list of dictionaries containing the column names, data types and top 10 distinct values.
     """
@@ -71,9 +72,17 @@ def identify_categorical_columns(
     # for each categorical variable
     print(f"Identifying categorical columns in {table_name}...")
     for idx, row in enumerate(rows):
-        if row["data_type"].lower() in ["character varying", "text", "character", "varchar", "char"]:
+        if row["data_type"].lower() in [
+            "character varying",
+            "text",
+            "character",
+            "varchar",
+            "char",
+        ]:
             # get the total number of rows and number of distinct values in the table for this column
-            cur.execute(f"SELECT COUNT({row['column_name']}) as tot_count, COUNT(DISTINCT {row['column_name']}) AS unique_count FROM {table_name};")
+            cur.execute(
+                f"SELECT COUNT({row['column_name']}) as tot_count, COUNT(DISTINCT {row['column_name']}) AS unique_count FROM {table_name};"
+            )
             total_rows, num_distinct_values = cur.fetchone()
 
             if num_distinct_values <= 10:
