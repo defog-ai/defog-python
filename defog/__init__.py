@@ -18,6 +18,7 @@ SUPPORTED_DB_TYPES = [
     "mysql",
     "bigquery",
     "snowflake",
+    "databricks",
 ]
 
 
@@ -148,6 +149,13 @@ class Defog:
                 raise KeyError("db_creds must contain a 'user' key.")
             if "password" not in db_creds:
                 raise KeyError("db_creds must contain a 'password' key.")
+        elif db_type == "databricks":
+            if "server_hostname" not in db_creds:
+                raise KeyError("db_creds must contain a 'server_hostname' key.")
+            if "access_token" not in db_creds:
+                raise KeyError("db_creds must contain a 'access_token' key.")
+            if "http_path" not in db_creds:
+                raise KeyError("db_creds must contain a 'http_path' key.")
         elif db_type == "mongo" or db_type == "sqlserver":
             if "connection_string" not in db_creds:
                 raise KeyError("db_creds must contain a 'connection_string' key.")
@@ -163,59 +171,6 @@ class Defog:
             raise ValueError(
                 f"Database `{db_type}` is not supported right now. db_type must be one of {', '.join(SUPPORTED_DB_TYPES)}"
             )
-
-    def check_db_suitability(self, gsheets_url=None, tables=None):
-        # either send a request to the defog api or do it locally
-        if gsheets_url is not None:
-            # send a request to the defog api
-            raise NotImplemented(
-                "Checking suitability from a Google Sheets URL is not supported right now."
-            )
-        elif tables:
-            # run heuristic locally
-            # see how many table + column combinations the user has passed
-            # then, see if the column names are semantically meaningful
-            # if there are more than 15 tables and more than 200 columns, we should say that they should contact us to check suitability
-            # else, we should say that we can support this use case
-
-            # get the schema for each table
-            if self.db_type == "postgres":
-                schemas = self.generate_postgres_schema(tables, upload=False)
-            elif self.db_type == "redshift":
-                schemas = self.generate_redshift_schema(tables, upload=False)
-            elif self.db_type == "mysql":
-                schemas = self.generate_mysql_schema(tables, upload=False)
-            elif self.db_type == "snowflake":
-                schemas = self.generate_snowflake_schema(tables, upload=False)
-            elif self.db_type == "bigquery":
-                schemas = self.generate_bigquery_schema(tables, upload=False)
-            else:
-                raise NotImplemented(
-                    f"Database `{self.db_type}` is not supported right now for schema checks. Please contact us at founders@defog.ai to request support."
-                )
-
-            tot_columns = 0
-            for table in schemas:
-                tot_columns += len(schemas[table])
-
-            if len(schemas) > 15:
-                message = "You want to query more than than 15 tables in total. We should be able to support your use-case, but yuo should contact us at founders@defog.ai to confirm."
-            elif tot_columns > 200:
-                message = "You want to query more than 200 columns in total. We should be able to support your use-case, but you should contact us at at founders@defog.ai to confirm."
-            else:
-                # check if there are a lot of columns with the json type
-                json_columns = 0
-                for table in schemas:
-                    for item in schemas[table]:
-                        if "json" in item["data_type"].lower():
-                            json_columns += 1
-                if json_columns > 2:
-                    message = "There are 2 or more columns with the json type. If you do not need to make joins between JSON columns and others, we can definitely support your use case. If you do need to make such joins, please contact us at founders@defog.ai."
-                else:
-                    message = "We should be able to support your use-case! Feel free to upgrade to a paid plan to get started, or contact as at founders@defog.ai if you have any questions."
-
-            print(message)
-            return True
 
     def generate_postgres_schema(
         self, tables: list, upload: bool = True, return_format: str = "gsheets"
@@ -539,6 +494,56 @@ class Defog:
                         f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
                     )
         else:
+            return schema
+
+    def generate_databricks_schema(
+        self, tables: list, upload: bool = True, return_format: str = "csv"
+    ) -> str:
+        try:
+            from databricks import sql
+        except:
+            raise Exception("databricks-sql-connector not installed.")
+
+        conn = sql.connect(**self.db_creds)
+        schemas = {}
+        with conn.cursor() as cur:
+            print("Getting schema for each table in your database...")
+            # get the schema for each table
+            for table_name in tables:
+                cur.columns(
+                    schema_name=self.db_creds.get("schema", "default"),
+                    table_name=table_name,
+                )
+                rows = cur.fetchall()
+                rows = [row for row in rows]
+                rows = [{"column_name": i[3], "data_type": i[5]} for i in rows]
+                schemas[table_name] = rows
+
+            conn.close()
+
+        if upload:
+            r = requests.post(
+                "https://api.defog.ai/get_schema_csv",
+                json={
+                    "api_key": self.api_key,
+                    "schemas": schemas,
+                    "foreign_keys": [],
+                    "indexes": [],
+                },
+            )
+            resp = r.json()
+            if "csv" in resp:
+                csv = resp["csv"]
+                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                return "defog_metadata.csv"
+            else:
+                print(f"We got an error!")
+                if "message" in resp:
+                    print(f"Error message: {resp['message']}")
+                print(
+                    f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+                )
+        else:
             return schemas
 
     def generate_snowflake_schema(
@@ -708,6 +713,8 @@ class Defog:
             return self.generate_redshift_schema(tables, return_format="csv")
         elif self.db_type == "snowflake":
             return self.generate_snowflake_schema(tables, return_format="csv")
+        elif self.db_type == "databricks":
+            return self.generate_databricks_schema(tables, return_format="csv")
         else:
             raise ValueError(
                 f"Creation of a DB schema for {self.db_type} is not yet supported via the library. If you are a premium user, please contact us at founder@defog.ai so we can manually add it."
@@ -840,7 +847,7 @@ class Defog:
                 "question": question,
                 "api_key": self.api_key,
                 "previous_context": previous_context,
-                "db_type": self.db_type,
+                "db_type": self.db_type if self.db_type != "databricks" else "postgres",
                 "glossary": glossary,
                 "language": language,
                 "hard_filters": hard_filters,

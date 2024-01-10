@@ -23,7 +23,6 @@ Available commands:
     update <url>\t\tupdate schema (google sheets url) to defog
     query\t\t\tRun a query
     deploy <gcp|aws>\t\tDeploy a defog server as a cloud function
-    check\t\t\tCheck if your database is suitable for defog (for prospective customers)
     quota\t\t\tCheck your API quota limits
     docs\t\t\tPrint documentation
     serve\t\t\tServe a defog server locally
@@ -46,8 +45,6 @@ def main():
         query()
     elif sys.argv[1] == "deploy":
         deploy()
-    elif sys.argv[1] == "check":
-        check_suitability()
     elif sys.argv[1] == "quota":
         quota()
     elif sys.argv[1] == "docs":
@@ -162,6 +159,20 @@ def init():
             "warehouse": warehouse,
             "user": user,
             "password": password,
+        }
+    elif db_type == "databricks":
+        print("Please enter your databricks host:")
+        host = prompt()
+        token = getpass.getpass(prompt="Please enter your databricks token:")
+        print("Please add your http_path:")
+        http_path = prompt()
+        print("Please enter your schema name (this is usually 'default'):")
+        schema = prompt()
+        db_creds = {
+            "server_hostname": host,
+            "access_token": token,
+            "http_path": http_path,
+            "schema": schema,
         }
     elif db_type == "bigquery":
         print("Please enter your bigquery json key's path:")
@@ -503,23 +514,6 @@ def deploy():
             print(f"Error deploying with Chalice:\n{e}")
     else:
         raise ValueError("Cloud provider must be 'gcp' or 'aws'.")
-
-
-def check_suitability():
-    """
-    Check if tables in customer's schema are supported by our product.
-    """
-    df = defog.Defog()  # Note that api key can be invalid here for presales purposes
-    # parse list of tables from args
-    if len(sys.argv) < 3:
-        print(
-            "defog check-suitability requires a list of tables. Please enter your table names, separated by a space:"
-        )
-        table_names = prompt()
-        table_name_list = re.split(r"\s+", table_names.strip())
-    else:
-        table_name_list = sys.argv[2:]
-    df.check_db_suitability(tables=table_name_list)  # prints out messages to stdout
 
 
 def quota():

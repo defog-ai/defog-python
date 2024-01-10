@@ -114,6 +114,17 @@ def execute_query_once(db_type: str, db_creds, query: str):
             results = r.json()["rows"]
             colnames = [i["name"] for i in r.json()["columns"]]
             return colnames, results
+    elif db_type == "databricks":
+        try:
+            from databricks import sql
+        except:
+            raise Exception("databricks-sql-connector not installed.")
+        conn = sql.connect(**db_creds)
+        with conn.cursor() as cursor:
+            cursor.execute(query)
+            colnames = [desc[0] for desc in cursor.description]
+            results = cursor.fetchall()
+        return colnames, results
     else:
         raise Exception(f"Database type {db_type} not yet supported.")
 
