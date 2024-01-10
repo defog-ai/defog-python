@@ -48,3 +48,39 @@ def write_logs(msg: str) -> None:
             file.write(msg + "\n")
     except Exception as e:
         pass
+
+def identify_categorical_columns(
+        cur, # a cursor object for any database
+        table_name: str,
+        rows: list,
+    ):
+    """
+    Identify categorical columns in the table and return the top 10 distinct values for each column.
+
+    Args:
+        cur (cursor): A cursor object for any database.
+        table_name (str): The name of the table.
+        rows (list): A list of dictionaries containing the column names and data types.
+    
+    Returns:
+        rows (list): The updated list of dictionaries containing the column names, data types and top 10 distinct values.
+    """
+    # loop through each column, look at whether it is a string column, and then determine if it might be a categorical variable
+    # if it is a categorical variable, then we want to get the distinct values and their counts
+    # we will then send this to the defog servers so that we can generate a column description
+    # for each categorical variable
+    for idx, row in enumerate(rows):
+        if row["data_type"] in ["character varying", "text", "character"]:
+            # get the total number of rows and number of distinct values in the table for this column
+            cur.execute(f"SELECT COUNT({row['column_name']}) as tot_count, COUNT(DISTINCT {row['column_name']}) AS unique_count FROM {table_name};")
+            total_rows, num_distinct_values = cur.fetchone()
+
+            if num_distinct_values <= 10:
+                # get the top 10 distinct values
+                cur.execute(
+                    f"SELECT {row['column_name']}, COUNT({row['column_name']}) AS col_count FROM {table_name} GROUP BY {row['column_name']} ORDER BY col_count DESC LIMIT 10;"
+                )
+                top_values = cur.fetchall()
+                top_values = [i[0] for i in top_values if i[0] is not None]
+                rows[idx]["top_values"] = top_values
+    return rows
