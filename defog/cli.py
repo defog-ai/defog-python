@@ -212,13 +212,14 @@ def init():
         print(f"\033[1m{filename}\033[0m\n")
 
     print(
-        "You can give us more context about your schema by editing the CSV above. Once you're done, you can just hit enter to upload the data in the spreadsheet to Defog. If you would like to exit instead, just enter `exit`."
+        "You can give us more context about your schema by editing the CSV above. Refer to our cookbook on how to do this here: https://defog.notion.site/Cookbook-for-schema-definitions-1650a6855ea447fdb0be75d39975571b#2ba1d37e243e4da3b8f17590b4a3e4e3.\n\nOnce you're done, you can just hit enter to upload the data in the spreadsheet to Defog. If you would like to exit instead, just enter `exit`."
     )
     upload_option = prompt().strip()
     if upload_option == "exit":
         print("Exiting.")
         sys.exit(0)
     else:
+        print("We are now uploading this schema to Defog. This might take up to 30 seconds...")
         resp = df.update_db_schema_csv(filename)
         if resp["status"] == "success":
             print("Your schema has been updated. You're ready to start querying!")
