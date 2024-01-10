@@ -115,6 +115,9 @@ def init():
     if db_type == "postgres" or db_type == "redshift":
         print("Please enter your database host:")
         host = prompt().strip()
+        # check if host has http:// or https:// and remove it if it does
+        if host.startswith("http://") or host.startswith("https://"):
+            host = host.split("://")[1]
         print("Please enter your database port:")
         port = prompt().strip()
         print("Please enter your database name:")
