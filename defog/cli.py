@@ -94,9 +94,9 @@ def init():
         )
         api_key = os.environ.get("DEFOG_API_KEY")
     else:
-        api_key = getpass.getpass(
-            prompt="Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/accounts/dashboard/ and creating an account:"
-        )
+        print("Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/accounts/dashboard/ and creating an account:")
+        api_key = prompt()
+        
     # prompt user for db_type
     print(
         "What database are you using? Available options are: "
