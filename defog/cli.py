@@ -1,6 +1,6 @@
 import datetime
 import decimal
-import getpass
+import pwinput
 import json
 import os
 import re
@@ -121,7 +121,7 @@ def init():
         database = prompt().strip()
         print("Please enter your database user:")
         user = prompt().strip()
-        password = getpass.getpass(prompt="Please enter your database password:")
+        password = pwinput.pwinput(prompt="Please enter your database password. This won't be displayed as you're typing for privacy reasons")
         db_creds = {
             "host": host,
             "port": port,
@@ -138,7 +138,7 @@ def init():
         print("Please enter your database user:")
         user = prompt().strip()
         print("Please enter your database password:")
-        password = getpass.getpass(prompt="Please enter your database password:")
+        password = pwinput.pwinput(prompt="Please enter your database password:")
         db_creds = {
             "host": host,
             "database": database,
@@ -153,7 +153,7 @@ def init():
         print("Please enter your database user:")
         user = prompt().strip()
         print("Please enter your database password:")
-        password = getpass.getpass(prompt="Please enter your database password:")
+        password = pwinput.pwinput(prompt="Please enter your database password:")
         db_creds = {
             "account": account,
             "warehouse": warehouse,
@@ -163,7 +163,7 @@ def init():
     elif db_type == "databricks":
         print("Please enter your databricks host:")
         host = prompt().strip()
-        token = getpass.getpass(prompt="Please enter your databricks token:")
+        token = pwinput.pwinput(prompt="Please enter your databricks token:")
         print("Please add your http_path:")
         http_path = prompt().strip()
         print("Please enter your schema name (this is usually 'default'):")
