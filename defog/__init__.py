@@ -6,6 +6,7 @@ import pandas as pd
 from defog.query import execute_query
 from importlib.metadata import version
 from io import StringIO
+from defog.util import identify_categorical_columns
 
 try:
     __version__ = version("defog")
@@ -208,6 +209,7 @@ class Defog:
             rows = cur.fetchall()
             rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
+            rows = identify_categorical_columns(cur, table_name, rows)
             schemas[table_name] = rows
 
         # get foreign key relationships
@@ -339,6 +341,7 @@ class Defog:
                 rows = cur.fetchall()
                 rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
+            rows = identify_categorical_columns(cur, table_name, rows)
             schemas[table_name] = rows
 
         # get foreign key relationships
@@ -446,6 +449,7 @@ class Defog:
             rows = cur.fetchall()
             rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
+            rows = identify_categorical_columns(cur, table_name, rows)
             schemas[table_name] = rows
 
         conn.close()
@@ -517,9 +521,10 @@ class Defog:
                 rows = cur.fetchall()
                 rows = [row for row in rows]
                 rows = [{"column_name": i[3], "data_type": i[5]} for i in rows]
+                rows = identify_categorical_columns(cur, table_name, rows)
                 schemas[table_name] = rows
 
-            conn.close()
+        conn.close()
 
         if upload:
             r = requests.post(
@@ -583,6 +588,9 @@ class Defog:
                 if row["data_type"] in alt_types:
                     row["data_type"] = alt_types[row["data_type"]]
                 rows[idx] = row
+            cur = conn.cursor()
+            rows = identify_categorical_columns(cur, table_name, rows)
+            cur.close()
             schemas[table_name] = rows
 
         conn.close()
