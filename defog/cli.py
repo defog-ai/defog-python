@@ -76,7 +76,7 @@ def init():
         print(
             "It looks like you've already initialized defog. Do you want to overwrite your existing configuration? (y/n)"
         )
-        overwrite = prompt()
+        overwrite = prompt().strip()
         if overwrite.lower() != "y":
             print("We'll keep your existing config. No changes were made.")
             sys.exit(0)
@@ -95,32 +95,32 @@ def init():
         api_key = os.environ.get("DEFOG_API_KEY")
     else:
         print("Please enter your DEFOG_API_KEY. You can get it from https://defog.ai/accounts/dashboard/ and creating an account:")
-        api_key = prompt()
+        api_key = prompt().strip()
         
     # prompt user for db_type
     print(
         "What database are you using? Available options are: "
         + ", ".join(defog.SUPPORTED_DB_TYPES)
     )
-    db_type = prompt()
+    db_type = prompt().strip()
     db_type = db_type.lower()
     while db_type not in defog.SUPPORTED_DB_TYPES:
         print(
             "Sorry, we don't support that database yet. Available options are: "
             + ", ".join(defog.SUPPORTED_DB_TYPES)
         )
-        db_type = prompt()
+        db_type = prompt().strip()
         db_type = db_type.lower()
     # depending on db_type, prompt user for appropriate db_creds
     if db_type == "postgres" or db_type == "redshift":
         print("Please enter your database host:")
-        host = prompt()
+        host = prompt().strip()
         print("Please enter your database port:")
-        port = prompt()
+        port = prompt().strip()
         print("Please enter your database name:")
-        database = prompt()
+        database = prompt().strip()
         print("Please enter your database user:")
-        user = prompt()
+        user = prompt().strip()
         password = getpass.getpass(prompt="Please enter your database password:")
         db_creds = {
             "host": host,
@@ -132,11 +132,11 @@ def init():
 
     elif db_type == "mysql":
         print("Please enter your database host:")
-        host = prompt()
+        host = prompt().strip()
         print("Please enter your database name:")
-        database = prompt()
+        database = prompt().strip()
         print("Please enter your database user:")
-        user = prompt()
+        user = prompt().strip()
         print("Please enter your database password:")
         password = getpass.getpass(prompt="Please enter your database password:")
         db_creds = {
@@ -147,11 +147,11 @@ def init():
         }
     elif db_type == "snowflake":
         print("Please enter your database account:")
-        account = prompt()
+        account = prompt().strip()
         print("Please enter your database warehouse:")
-        warehouse = prompt()
+        warehouse = prompt().strip()
         print("Please enter your database user:")
-        user = prompt()
+        user = prompt().strip()
         print("Please enter your database password:")
         password = getpass.getpass(prompt="Please enter your database password:")
         db_creds = {
@@ -162,12 +162,12 @@ def init():
         }
     elif db_type == "databricks":
         print("Please enter your databricks host:")
-        host = prompt()
+        host = prompt().strip()
         token = getpass.getpass(prompt="Please enter your databricks token:")
         print("Please add your http_path:")
-        http_path = prompt()
+        http_path = prompt().strip()
         print("Please enter your schema name (this is usually 'default'):")
-        schema = prompt()
+        schema = prompt().strip()
         db_creds = {
             "server_hostname": host,
             "access_token": token,
@@ -176,7 +176,7 @@ def init():
         }
     elif db_type == "bigquery":
         print("Please enter your bigquery json key's path:")
-        json_key_path = prompt()
+        json_key_path = prompt().strip()
         db_creds = {
             "json_key_path": json_key_path,
         }
@@ -194,7 +194,7 @@ def init():
     print(
         "Please enter the names of the tables you would like to register, separated by a space:"
     )
-    table_names = prompt()
+    table_names = prompt().strip()
     table_name_list = re.split(r"\s+", table_names.strip())
     # if input is empty, exit
     if table_name_list == [""]:
@@ -211,7 +211,7 @@ def init():
     print(
         "You can give us more context about your schema by editing the CSV above. Once you're done, you can just hit enter to upload the data in the spreadsheet to Defog. If you would like to exit instead, just enter `exit`."
     )
-    upload_option = prompt()
+    upload_option = prompt().strip()
     if upload_option == "exit":
         print("Exiting.")
         sys.exit(0)
@@ -265,7 +265,7 @@ def gen():
         print(
             "If you would like to index all of your tables, just leave this blank and hit enter (Supported for postgres + redshift only)."
         )
-        table_names = prompt()
+        table_names = prompt().strip()
         table_name_list = re.split(r"\s+", table_names.strip())
     else:
         table_name_list = sys.argv[2:]
@@ -292,7 +292,7 @@ def update():
         print(
             "defog update requires a CSV that contains your Database metadata. Please enter the path to the CSV you would like to update:"
         )
-        filename = prompt()
+        filename = prompt().strip()
     else:
         filename = sys.argv[2]
     # load config from .defog/connection.json
@@ -314,7 +314,7 @@ def query():
     df = defog.Defog()  # load config from .defog/connection.json
     if len(sys.argv) < 3:
         print("defog query requires a query. Please enter your query:")
-        query = prompt()
+        query = prompt().strip()
     else:
         query = sys.argv[2]
 
@@ -432,7 +432,7 @@ def deploy():
     # check args for gcp or aws
     if len(sys.argv) < 3:
         print("defog deploy requires a cloud provider. Please enter 'gcp' or 'aws':")
-        cloud_provider = prompt().lower()
+        cloud_provider = prompt().strip().lower()
     else:
         cloud_provider = sys.argv[2].lower()
 
