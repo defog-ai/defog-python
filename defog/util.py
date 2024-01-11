@@ -1,6 +1,9 @@
 import os
 from typing import List
 
+from prompt_toolkit import prompt
+import requests
+
 
 def parse_update(
     args_list: List[str], attributes_list: List[str], config_dict: dict
@@ -94,3 +97,51 @@ def identify_categorical_columns(
                 top_values = [i[0] for i in top_values if i[0] is not None]
                 rows[idx]["top_values"] = top_values
     return rows
+
+
+def get_feedback(api_key: str, db_type: str, user_question: str, sql_generated: str):
+    """
+    Get feedback from the user on whether the query was good or bad, and why.
+    """
+    feedback = prompt(
+        "Did Defog answer your question well? Just hit enter to skip (y/n):\n"
+    )
+    while feedback not in ["y", "n", ""]:
+        feedback = prompt("Please enter y or n:\n")
+    if feedback == "":
+        # user skipped feedback
+        return
+    # get explanation for negative feedback
+    if feedback == "n":
+        feedback_text = prompt(
+            "Could you tell us why this was a bad query? This will help us improve the model for you. Just hit enter if you want to leave this blank.\n"
+        )
+    else:
+        feedback_text = ""
+    try:
+        data = {
+            "api_key": api_key,
+            "feedback": "good" if feedback == "y" else "bad",
+            "db_type": db_type,
+            "question": user_question,
+            "query": sql_generated,
+        }
+        if feedback_text != "":
+            data["feedback_text"] = feedback_text
+        requests.post(
+            "https://api.defog.ai/feedback",
+            json=data,
+            timeout=1,
+        )
+        if feedback == "y":
+            print("Thank you for the feedback!")
+        else:
+            print(
+                "Thank you for the feedback! We retrain our models every week, and you should see much better performance on these kinds of queries in another week.\n"
+            )
+            print(
+                f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
+            )
+    except Exception as e:
+        write_logs(f"Error in get_feedback:\n{e}")
+        pass
