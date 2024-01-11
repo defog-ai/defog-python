@@ -4,7 +4,7 @@ import shutil
 import unittest
 from unittest import mock
 
-from defog.query import execute_query_once, execute_query
+from defog.query import is_connection_error, execute_query_once, execute_query
 
 
 class ExecuteQueryOnceTestCase(unittest.TestCase):
@@ -164,6 +164,37 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
             self.assertIn(err_msg, lines[0])
             self.assertIn(f"Retries left: {retries}", lines[1])
             self.assertIn(json.dumps(json_req), lines[2])
+
+
+class TestConnectionError(unittest.TestCase):
+    def test_connection_failed(self):
+        self.assertTrue(
+            is_connection_error(
+                """connection to server on socket "/tmp/.s.PGSQL.5432" failed: No such file or directory
+    Is the server running locally and accepting connections on that socket?"""
+            )
+        )
+
+    def test_not_connection_failed(self):
+        self.assertFalse(
+            is_connection_error(
+                'psycopg2.errors.UndefinedTable: relation "nonexistent_table" does not exist'
+            )
+        )
+        self.assertFalse(
+            is_connection_error(
+                'psycopg2.errors.SyntaxError: syntax error at or near "nonexistent_table"'
+            )
+        )
+        self.assertFalse(
+            is_connection_error(
+                'psycopg2.errors.UndefinedColumn: column "nonexistent_column" does not exist'
+            )
+        )
+
+    def test_empty_string(self):
+        self.assertFalse(is_connection_error(""))
+        self.assertFalse(is_connection_error(None))
 
 
 if __name__ == "__main__":

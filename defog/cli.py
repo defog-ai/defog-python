@@ -10,8 +10,7 @@ import sys
 import requests
 
 import defog
-from defog import Defog
-from defog.util import parse_update
+from defog.util import get_feedback, parse_update
 from prompt_toolkit import prompt
 
 USAGE_STRING = """
@@ -327,8 +326,6 @@ def query():
     else:
         query = sys.argv[2]
 
-    feedback_mode = False
-    feedback = ""
     user_question = ""
     sql_generated = ""
     while True:
@@ -338,100 +335,44 @@ def query():
         elif query == "":
             print("Your query cannot be empty.")
             query = prompt("Enter a query, or type 'e' to exit: ")
-        if feedback_mode:
-            if feedback not in ["y", "n"]:
-                pass
-            elif feedback == "y":
-                # send data to /feedback endpoint
-                try:
-                    requests.post(
-                        "https://api.defog.ai/feedback",
-                        json={
-                            "api_key": df.api_key,
-                            "feedback": "good",
-                            "db_type": df.db_type,
-                            "question": user_question,
-                            "query": sql_generated,
-                        },
-                        timeout=1,
-                    )
-                    print("Thank you for the feedback!")
-                    feedback_mode = False
-                except:
-                    pass
+        user_question = query
+        resp = df.run_query(query, retries=3)
+        if not resp["ran_successfully"]:
+            if "query_generated" in resp:
+                print("Defog generated the following query to answer your question:\n")
+                print(f"\033[1m{resp['query_generated']}\033[0m\n")
 
-            elif feedback == "n":
-                # send data to /feedback endpoint
-                feedback_text = prompt(
-                    "Could you tell us why this was a bad query? This will help us improve the model for you. Just hit enter if you want to leave this blank.\n"
-                )
-                try:
-                    requests.post(
-                        "https://api.defog.ai/feedback",
-                        json={
-                            "api_key": df.api_key,
-                            "feedback": "bad",
-                            "text": feedback_text,
-                            "db_type": df.db_type,
-                            "question": user_question,
-                            "query": sql_generated,
-                        },
-                        timeout=1,
-                    )
-                except:
-                    pass
                 print(
-                    "Thank you for the feedback! We retrain our models every week, and you should see much better performance on these kinds of queries in another week.\n"
+                    f"However, your query did not run successfully. The error message generated while running the query on your database was\n\n\033[1m{resp['error_message']}\033[0m\n."
                 )
+
                 print(
                     f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
                 )
-            feedback_mode = False
-            query = prompt("Enter another query, or type 'e' to exit: ")
-        else:
-            user_question = query
-            resp = df.run_query(query, retries=3)
-            if not resp["ran_successfully"]:
-                if "query_generated" in resp:
-                    print(
-                        "Defog generated the following query to answer your question:\n"
-                    )
-                    print(f"\033[1m{resp['query_generated']}\033[0m\n")
-
-                    print(
-                        f"However, your query did not run successfully. The error message generated while running the query on your database was\n\n\033[1m{resp['error_message']}\033[0m\n."
-                    )
-
-                    print(
-                        f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
-                    )
-                else:
-                    print(
-                        f"Defog was unable to generate a query for your question. The error message generated while running the query on your database was\n\n\033[1m{resp.get('error_message')}\033[0m\n."
-                    )
-                query = prompt("Enter another query, or type 'e' to exit: ")
             else:
-                sql_generated = resp.get("query_generated")
-                print("Defog generated the following query to answer your question:\n")
-                print(f"\033[1m{resp['query_generated']}\033[0m\n")
-                reason_for_query = resp.get("reason_for_query", "")
-                reason_for_query = reason_for_query.replace(". ", "\n\n")
-
-                print("This was its reasoning for generating this query:\n")
-                print(f"\033[1m{reason_for_query}\033[0m\n")
-
-                print("Results:\n")
-                # print results in tabular format using 'columns' and 'data' keys
-                try:
-                    print_table(resp["columns"], resp["data"])
-                except:
-                    print(resp)
-
-                print()
-                feedback_mode = True
-                feedback = prompt(
-                    "Did Defog answer your question well? Just hit enter to skip (y/n):\n"
+                print(
+                    f"Defog was unable to generate a query for your question. The error message generated while running the query on your database was\n\n\033[1m{resp.get('error_message')}\033[0m\n."
                 )
+        else:
+            sql_generated = resp.get("query_generated")
+            print("Defog generated the following query to answer your question:\n")
+            print(f"\033[1m{resp['query_generated']}\033[0m\n")
+            reason_for_query = resp.get("reason_for_query", "")
+            reason_for_query = reason_for_query.replace(". ", "\n\n")
+
+            print("This was its reasoning for generating this query:\n")
+            print(f"\033[1m{reason_for_query}\033[0m\n")
+
+            print("Results:\n")
+            # print results in tabular format using 'columns' and 'data' keys
+            try:
+                print_table(resp["columns"], resp["data"])
+            except:
+                print(resp)
+
+            print()
+            get_feedback(df.api_key, df.db_type, user_question, sql_generated)
+        query = prompt("Please enter another query, or type 'e' to exit: ")
 
 
 def deploy():

@@ -1,4 +1,5 @@
 import json
+import re
 import requests
 from defog.util import write_logs
 
@@ -139,18 +140,22 @@ def execute_query(
     retries: int = 3,
     schema: dict = None,
 ):
+    """
+    Execute the query and retry with adaptive learning if there is an error.
+    Raises an Exception if there are no retries left, or if the error is a connection error.
+    """
     err_msg = None
     try:
         return execute_query_once(db_type, db_creds, query) + (query,)
     except Exception as e:
         err_msg = str(e)
-        print(
-            "There was an error when running the previous query. Retrying with adaptive learning..."
-        )
-
-        # log this error to our feedback system
+        if is_connection_error(err_msg):
+            raise Exception(
+                f"There was a connection issue to your database:\n{err_msg}\n\nPlease check your database credentials and try again."
+            )
+        # log this error to our feedback system first (this is a 1-way side-effect)
         try:
-            r = requests.post(
+            requests.post(
                 "https://api.defog.ai/feedback",
                 json={
                     "api_key": api_key,
@@ -164,8 +169,9 @@ def execute_query(
             )
         except:
             pass
-
+        # log locally
         write_logs(str(e))
+        # retry with adaptive learning
         while retries > 0:
             write_logs(f"Retries left: {retries}")
             try:
@@ -196,3 +202,10 @@ def execute_query(
                 write_logs(str(e))
                 retries -= 1
         raise Exception(err_msg)
+
+
+def is_connection_error(err_msg: str) -> bool:
+    return (
+        isinstance(err_msg, str)
+        and re.search(r"connection.*failed", err_msg) is not None
+    )

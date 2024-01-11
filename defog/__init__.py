@@ -1005,18 +1005,6 @@ class Defog:
         else:
             return []
 
-    def execute_predefined_query(self, query):
-        """
-        Executes a predefined query
-        """
-        resp = execute_query(
-            query["query"],
-            self.api_key,
-            self.db_type,
-            self.db_creds,
-        )
-        return resp
-
     def update_db_schema_csv(self, path_to_csv):
         """
         Update the DB schema via a CSV, rather than by via a Google Sheet

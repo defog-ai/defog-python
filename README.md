@@ -1,6 +1,6 @@
 # Defog Python
 
-[![black](https://github.com/defog-ai/defog-python/actions/workflows/main.yml/badge.svg)](https://github.com/defog-ai/defog-python/actions/workflows/main.yml)
+[![tests](https://github.com/defog-ai/defog-python/actions/workflows/main.yml/badge.svg)](https://github.com/defog-ai/defog-python/actions/workflows/main.yml)
 
 Defog converts your natural language text queries into SQL and other machine readable code. This library allows you to easily integrate Defog into your python application, and has a CLI to help you get started.
 
