@@ -73,7 +73,7 @@ def identify_categorical_columns(
     # if it is a categorical variable, then we want to get the distinct values and their counts
     # we will then send this to the defog servers so that we can generate a column description
     # for each categorical variable
-    print(f"Identifying categorical columns in {table_name}...")
+    print(f"Identifying categorical columns in {table_name}. This might take a while if you have many rows in your table.")
     for idx, row in enumerate(rows):
         if row["data_type"].lower() in [
             "character varying",
@@ -81,6 +81,7 @@ def identify_categorical_columns(
             "character",
             "varchar",
             "char",
+            "string"
         ]:
             # get the total number of rows and number of distinct values in the table for this column
             cur.execute(
@@ -96,6 +97,7 @@ def identify_categorical_columns(
                 top_values = cur.fetchall()
                 top_values = [i[0] for i in top_values if i[0] is not None]
                 rows[idx]["top_values"] = top_values
+            print(f"Identified {row['column_name']} as a likely categorical column.")
     return rows
 
 

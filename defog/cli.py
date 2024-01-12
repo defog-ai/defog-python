@@ -209,7 +209,6 @@ def init():
         print(
             "Do you want to automatically scan these tables to determine which column might be categorical? The distinct values in each categorical column will be sent to our server. (y/n)"
         )
-
         scan_option = prompt().strip()
         if scan_option.lower() == "y" or scan_option.lower() == "yes":
             scan = True
@@ -280,18 +279,29 @@ def gen():
         print(
             "defog gen requires a list of tables to generate. Please enter the names of the tables whose schema you would like to generate, separated by a space:"
         )
-        print(
-            "If you would like to index all of your tables, just leave this blank and hit enter (Supported for postgres + redshift only)."
-        )
         table_names = prompt().strip()
         table_name_list = re.split(r"\s+", table_names.strip())
     else:
         table_name_list = sys.argv[2:]
-    filename = df.generate_db_schema(table_name_list)
+    
+    if table_name_list == [""] or table_name_list == []:
+        print("No tables were registered. Exiting.")
+        sys.exit(0)
+    print(
+        "Do you want to automatically scan these tables to determine which column might be categorical? The distinct values in each column likely to be a categorical column will be sent to our server. (y/n)"
+    )
+    scan_option = prompt().strip()
+    if scan_option.lower() == "y" or scan_option.lower() == "yes":
+        scan = True
+    else:
+        scan = False
+    
+    filename = df.generate_db_schema(table_name_list, scan=scan)
+    pwd = os.getcwd()
     print(
         "Your schema has been generated and is available at the following CSV file in this folder:\n"
     )
-    print(f"\033[1m{filename}\033[0m\n")
+    print(f"\033[1m{pwd}/{filename}\033[0m\n")
 
     print("We are now uploading this auto-generated schema to Defog.")
     df.update_db_schema_csv(filename)
