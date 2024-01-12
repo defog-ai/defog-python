@@ -617,8 +617,8 @@ class Defog:
             # get all tables from Snowflake database
             cur = conn.cursor().execute("SHOW TERSE TABLES;")
             res = cur.fetchall()
-            tables = [f'{row[3]}.{row[4]}.{row[1]}' for row in res]
-        
+            tables = [f"{row[3]}.{row[4]}.{row[1]}" for row in res]
+
         for table_name in tables:
             rows = []
             for row in conn.cursor().execute(f"SHOW COLUMNS IN {table_name};"):
