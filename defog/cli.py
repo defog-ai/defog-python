@@ -207,8 +207,10 @@ def init():
         print("No tables were registered. Exiting.")
         sys.exit(0)
     else:
-        print("Do you want to automatically scan these tables to determine which column might be categorical? The distinct values in each categorical column will be sent to our server. (y/n)")
-        
+        print(
+            "Do you want to automatically scan these tables to determine which column might be categorical? The distinct values in each categorical column will be sent to our server. (y/n)"
+        )
+
         scan_option = prompt().strip()
         if scan_option.lower() == "y" or scan_option.lower() == "yes":
             scan = True
