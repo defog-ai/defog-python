@@ -200,7 +200,7 @@ class Defog:
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
             )
             tables = [row[0] for row in cur.fetchall()]
-        
+
         if return_tables_only:
             return tables
 
@@ -328,7 +328,7 @@ class Defog:
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
             )
             tables = [row[0] for row in cur.fetchall()]
-        
+
         if return_tables_only:
             return tables
 
@@ -463,7 +463,7 @@ class Defog:
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = '{table_schema}';"
             )
             tables = [row[0] for row in cur.fetchall()]
-        
+
         if return_tables_only:
             return tables
 
@@ -552,7 +552,7 @@ class Defog:
                 # get all tables from databricks
                 cur.tables(schema_name=self.db_creds.get("schema", "default"))
                 tables = [row.TABLE_NAME for row in cur.fetchall()]
-            
+
             if return_tables_only:
                 return tables
 
@@ -629,7 +629,7 @@ class Defog:
             cur = conn.cursor().execute("SHOW TERSE TABLES;")
             res = cur.fetchall()
             tables = [f"{row[3]}.{row[4]}.{row[1]}" for row in res]
-        
+
         if return_tables_only:
             return tables
 
@@ -778,31 +778,59 @@ class Defog:
             return schemas
 
     def generate_db_schema(
-        self, tables: list, scan: bool = True, upload: bool = True, return_tables_only: bool = False
+        self,
+        tables: list,
+        scan: bool = True,
+        upload: bool = True,
+        return_tables_only: bool = False,
     ) -> str:
         if self.db_type == "postgres":
             return self.generate_postgres_schema(
-                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
+                tables,
+                return_format="csv",
+                scan=scan,
+                upload=upload,
+                return_tables_only=return_tables_only,
             )
         elif self.db_type == "mysql":
             return self.generate_mysql_schema(
-                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
+                tables,
+                return_format="csv",
+                scan=scan,
+                upload=upload,
+                return_tables_only=return_tables_only,
             )
         elif self.db_type == "bigquery":
             return self.generate_bigquery_schema(
-                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
+                tables,
+                return_format="csv",
+                scan=scan,
+                upload=upload,
+                return_tables_only=return_tables_only,
             )
         elif self.db_type == "redshift":
             return self.generate_redshift_schema(
-                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
+                tables,
+                return_format="csv",
+                scan=scan,
+                upload=upload,
+                return_tables_only=return_tables_only,
             )
         elif self.db_type == "snowflake":
             return self.generate_snowflake_schema(
-                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
+                tables,
+                return_format="csv",
+                scan=scan,
+                upload=upload,
+                return_tables_only=return_tables_only,
             )
         elif self.db_type == "databricks":
             return self.generate_databricks_schema(
-                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
+                tables,
+                return_format="csv",
+                scan=scan,
+                upload=upload,
+                return_tables_only=return_tables_only,
             )
         else:
             raise ValueError(
