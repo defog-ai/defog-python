@@ -174,7 +174,7 @@ class Defog:
             )
 
     def generate_postgres_schema(
-        self, tables: list, upload: bool = True, return_format: str = "gsheets"
+        self, tables: list, upload: bool = True, return_format: str = "gsheets", scan: bool = True
     ) -> str:
         # when upload is True, we send the schema to the defog servers and generate a Google Sheet
         # when its false, we return the schema as a dict
@@ -209,7 +209,8 @@ class Defog:
             rows = cur.fetchall()
             rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-            rows = identify_categorical_columns(cur, table_name, rows)
+            if scan:
+                rows = identify_categorical_columns(cur, table_name, rows)
             schemas[table_name] = rows
 
         # get foreign key relationships
@@ -296,7 +297,7 @@ class Defog:
             return schemas
 
     def generate_redshift_schema(
-        self, tables: list, upload: bool = True, return_format: str = "gsheets"
+        self, tables: list, upload: bool = True, return_format: str = "gsheets", scan: bool = True
     ) -> str:
         # when upload is True, we send the schema to the defog servers and generate a Google Sheet
         # when its false, we return the schema as a dict
@@ -341,7 +342,8 @@ class Defog:
                 rows = cur.fetchall()
                 rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-            rows = identify_categorical_columns(cur, table_name, rows)
+            if scan:
+                rows = identify_categorical_columns(cur, table_name, rows)
             schemas[table_name] = rows
 
         # get foreign key relationships
@@ -428,7 +430,7 @@ class Defog:
             return schemas
 
     def generate_mysql_schema(
-        self, tables: list, upload: bool = True, return_format: str = "gsheets"
+        self, tables: list, upload: bool = True, return_format: str = "gsheets", scan: bool = True
     ) -> str:
         try:
             import mysql.connector
@@ -449,7 +451,8 @@ class Defog:
             rows = cur.fetchall()
             rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-            rows = identify_categorical_columns(cur, table_name, rows)
+            if scan:
+                rows = identify_categorical_columns(cur, table_name, rows)
             schemas[table_name] = rows
 
         conn.close()
@@ -498,10 +501,10 @@ class Defog:
                         f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
                     )
         else:
-            return schema
+            return schemas
 
     def generate_databricks_schema(
-        self, tables: list, upload: bool = True, return_format: str = "csv"
+        self, tables: list, upload: bool = True, return_format: str = "csv", scan: bool = True
     ) -> str:
         try:
             from databricks import sql
@@ -521,7 +524,8 @@ class Defog:
                 rows = cur.fetchall()
                 rows = [row for row in rows]
                 rows = [{"column_name": i[3], "data_type": i[5]} for i in rows]
-                rows = identify_categorical_columns(cur, table_name, rows)
+                if scan:
+                    rows = identify_categorical_columns(cur, table_name, rows)
                 schemas[table_name] = rows
 
         conn.close()
@@ -552,7 +556,7 @@ class Defog:
             return schemas
 
     def generate_snowflake_schema(
-        self, tables: list, upload: bool = True, return_format: str = "gsheets"
+        self, tables: list, upload: bool = True, return_format: str = "gsheets", scan: bool = True
     ) -> str:
         try:
             import snowflake.connector
@@ -589,7 +593,8 @@ class Defog:
                     row["data_type"] = alt_types[row["data_type"]]
                 rows[idx] = row
             cur = conn.cursor()
-            rows = identify_categorical_columns(cur, table_name, rows)
+            if scan:
+                rows = identify_categorical_columns(cur, table_name, rows)
             cur.close()
             schemas[table_name] = rows
 
@@ -642,7 +647,7 @@ class Defog:
             return schemas
 
     def generate_bigquery_schema(
-        self, tables: list, upload: bool = True, return_format: str = "gsheets"
+        self, tables: list, upload: bool = True, return_format: str = "gsheets", scan: bool = True
     ) -> str:
         try:
             from google.cloud import bigquery
@@ -710,19 +715,19 @@ class Defog:
         else:
             return schemas
 
-    def generate_db_schema(self, tables: list) -> str:
+    def generate_db_schema(self, tables: list, scan: bool = True, upload: bool = True) -> str:
         if self.db_type == "postgres":
-            return self.generate_postgres_schema(tables, return_format="csv")
+            return self.generate_postgres_schema(tables, return_format="csv", scan=scan, upload=upload)
         elif self.db_type == "mysql":
-            return self.generate_mysql_schema(tables, return_format="csv")
+            return self.generate_mysql_schema(tables, return_format="csv", scan=scan, upload=upload)
         elif self.db_type == "bigquery":
-            return self.generate_bigquery_schema(tables, return_format="csv")
+            return self.generate_bigquery_schema(tables, return_format="csv", scan=scan, upload=upload)
         elif self.db_type == "redshift":
-            return self.generate_redshift_schema(tables, return_format="csv")
+            return self.generate_redshift_schema(tables, return_format="csv", scan=scan, upload=upload)
         elif self.db_type == "snowflake":
-            return self.generate_snowflake_schema(tables, return_format="csv")
+            return self.generate_snowflake_schema(tables, return_format="csv", scan=scan, upload=upload)
         elif self.db_type == "databricks":
-            return self.generate_databricks_schema(tables, return_format="csv")
+            return self.generate_databricks_schema(tables, return_format="csv", scan=scan, upload=upload)
         else:
             raise ValueError(
                 f"Creation of a DB schema for {self.db_type} is not yet supported via the library. If you are a premium user, please contact us at founder@defog.ai so we can manually add it."
