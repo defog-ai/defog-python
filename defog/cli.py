@@ -283,7 +283,7 @@ def gen():
         table_name_list = re.split(r"\s+", table_names.strip())
     else:
         table_name_list = sys.argv[2:]
-    
+
     if table_name_list == [""] or table_name_list == []:
         print("No tables were registered. Exiting.")
         sys.exit(0)
@@ -295,7 +295,7 @@ def gen():
         scan = True
     else:
         scan = False
-    
+
     filename = df.generate_db_schema(table_name_list, scan=scan)
     pwd = os.getcwd()
     print(
