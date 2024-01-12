@@ -458,9 +458,9 @@ class Defog:
 
         if len(tables) == 0:
             # get all tables
-            table_schema = self.db_creds.get("database", "")
+            db_name = self.db_creds.get("database", "")
             cur.execute(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = '{table_schema}';"
+                f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{db_name}';"
             )
             tables = [row[0] for row in cur.fetchall()]
 
