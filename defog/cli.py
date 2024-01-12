@@ -206,8 +206,17 @@ def init():
         print("No tables were registered. Exiting.")
         sys.exit(0)
     else:
+        print(
+            "Do you want to automatically scan these tables to determine which column might be categorical? The distinct values in each categorical column will be sent to our server. (y/n)"
+        )
+
+        scan_option = prompt().strip()
+        if scan_option.lower() == "y" or scan_option.lower() == "yes":
+            scan = True
+        else:
+            scan = False
         df = defog.Defog(api_key=api_key, db_type=db_type, db_creds=db_creds)
-        filename = df.generate_db_schema(table_name_list)
+        filename = df.generate_db_schema(table_name_list, scan=scan)
         print(
             "Your schema has been generated and is available as a CSV file in this folder at:\n"
         )
