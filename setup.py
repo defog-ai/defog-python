@@ -21,8 +21,6 @@ def package_files(directory):
 
 next_static_files = package_files("defog/static")
 
-print(next_static_files)
-
 setup(
     name="defog",
     packages=find_packages(),
@@ -31,7 +29,6 @@ setup(
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
     license="MIT",
-    # install_requires=requirements,
     install_requires=[
         "requests>=2.28.2",
         "psycopg2-binary>=2.9.5",
