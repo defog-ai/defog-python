@@ -217,10 +217,11 @@ def init():
             scan = False
         df = defog.Defog(api_key=api_key, db_type=db_type, db_creds=db_creds)
         filename = df.generate_db_schema(table_name_list, scan=scan)
+        pwd = os.getcwd()
         print(
             "Your schema has been generated and is available as a CSV file in this folder at:\n"
         )
-        print(f"\033[1m{filename}\033[0m\n")
+        print(f"\033[1m{pwd}/{filename}\033[0m\n")
 
     print(
         "You can give us more context about your schema by editing the CSV above. Refer to our cookbook on how to do this here: https://defog.notion.site/Cookbook-for-schema-definitions-1650a6855ea447fdb0be75d39975571b#2ba1d37e243e4da3b8f17590b4a3e4e3.\n\nOnce you're done, you can just hit enter to upload the data in the spreadsheet to Defog. If you would like to exit instead, just enter `exit`."
