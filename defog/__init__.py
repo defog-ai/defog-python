@@ -193,7 +193,7 @@ class Defog:
         cur = conn.cursor()
         schemas = {}
 
-        if tables == [""]:
+        if len(tables) == 0:
             # get all tables
             cur.execute(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
@@ -453,7 +453,15 @@ class Defog:
         cur = conn.cursor()
         schemas = {}
 
-        print("Getting schema for each table in your database...")
+        if len(tables) == 0:
+            # get all tables
+            table_schema = self.db_creds.get("database", "")
+            cur.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = '{table_schema}';"
+            )
+            tables = [row[0] for row in cur.fetchall()]
+
+        print("Getting schema for the relevant table in your database...")
         # get the schema for each table
         for table_name in tables:
             cur.execute(
@@ -532,6 +540,12 @@ class Defog:
         with conn.cursor() as cur:
             print("Getting schema for each table in your database...")
             # get the schema for each table
+
+            if len(tables) == 0:
+                # get all tables from databricks
+                cur.tables(schema_name=self.db_creds.get("schema", "default"))
+                tables = [row.TABLE_NAME for row in cur.fetchall()]
+
             for table_name in tables:
                 cur.columns(
                     schema_name=self.db_creds.get("schema", "default"),
@@ -539,7 +553,10 @@ class Defog:
                 )
                 rows = cur.fetchall()
                 rows = [row for row in rows]
-                rows = [{"column_name": i[3], "data_type": i[5]} for i in rows]
+                rows = [
+                    {"column_name": i.COLUMN_NAME, "data_type": i.TYPE_NAME}
+                    for i in rows
+                ]
                 if scan:
                     rows = identify_categorical_columns(cur, table_name, rows)
                 schemas[table_name] = rows
@@ -596,6 +613,12 @@ class Defog:
         alt_types = {"DATE": "TIMESTAMP", "TEXT": "VARCHAR", "FIXED": "NUMERIC"}
         print("Getting schema for each table in your database...")
         # get the schema for each table
+        if len(tables) == 0:
+            # get all tables from Snowflake database
+            cur = conn.cursor().execute("SHOW TERSE TABLES;")
+            res = cur.fetchall()
+            tables = [f'{row[3]}.{row[4]}.{row[1]}' for row in res]
+        
         for table_name in tables:
             rows = []
             for row in conn.cursor().execute(f"SHOW COLUMNS IN {table_name};"):
