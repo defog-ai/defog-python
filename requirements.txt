@@ -4,3 +4,5 @@ psycopg2-binary>=2.9.5
 pwinput
 requests>=2.28.2
 tabulate
+uvicorn
+tqdm
