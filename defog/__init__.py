@@ -179,6 +179,7 @@ class Defog:
         upload: bool = True,
         return_format: str = "gsheets",
         scan: bool = True,
+        return_tables_only: bool = False,
     ) -> str:
         # when upload is True, we send the schema to the defog servers and generate a Google Sheet
         # when its false, we return the schema as a dict
@@ -199,11 +200,11 @@ class Defog:
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
             )
             tables = [row[0] for row in cur.fetchall()]
-        print("Retrieved the following tables:")
-        for t in tables:
-            print(f"\t{t}")
+        
+        if return_tables_only:
+            return tables
 
-        print("Getting schema for each table in your database...")
+        print("Getting schema for each table that you selected...")
         # get the schema for each table
         for table_name in tables:
             cur.execute(
@@ -218,7 +219,7 @@ class Defog:
             schemas[table_name] = rows
 
         # get foreign key relationships
-        print("Getting foreign keys for each table in your database...")
+        print("Getting foreign keys for each table that you selected...")
         tables_regclass_str = ", ".join(
             [f"'{table_name}'::regclass" for table_name in tables]
         )
@@ -235,7 +236,7 @@ class Defog:
         foreign_keys = [fk[0] + " " + fk[1] for fk in foreign_keys]
 
         # get indexes for each table
-        print("Getting indexes for each table in your database...")
+        print("Getting indexes for each table that you selected...")
         tables_str = ", ".join([f"'{table_name}'" for table_name in tables])
         query = (
             f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
@@ -306,6 +307,7 @@ class Defog:
         upload: bool = True,
         return_format: str = "gsheets",
         scan: bool = True,
+        return_tables_only: bool = False,
     ) -> str:
         # when upload is True, we send the schema to the defog servers and generate a Google Sheet
         # when its false, we return the schema as a dict
@@ -326,11 +328,11 @@ class Defog:
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
             )
             tables = [row[0] for row in cur.fetchall()]
-        print("Retrieved the following tables:")
-        for t in tables:
-            print(f"\t{t}")
+        
+        if return_tables_only:
+            return tables
 
-        print("Getting schema for each table in your database...")
+        print("Getting schema for each table that you selected...")
         # get the schema for each table
         for table_name in tables:
             try:
@@ -355,7 +357,7 @@ class Defog:
             schemas[table_name] = rows
 
         # get foreign key relationships
-        print("Getting foreign keys for each table in your database...")
+        print("Getting foreign keys for each table that you selected...")
         tables_regclass_str = ", ".join(
             [f"'{table_name}'::regclass" for table_name in tables]
         )
@@ -372,7 +374,7 @@ class Defog:
         foreign_keys = [fk[0] + " " + fk[1] for fk in foreign_keys]
 
         # get indexes for each table
-        print("Getting indexes for each table in your database...")
+        print("Getting indexes for each table that you selected...")
         tables_str = ", ".join([f"'{table_name}'" for table_name in tables])
         query = (
             f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
@@ -443,6 +445,7 @@ class Defog:
         upload: bool = True,
         return_format: str = "gsheets",
         scan: bool = True,
+        return_tables_only: bool = False,
     ) -> str:
         try:
             import mysql.connector
@@ -460,6 +463,9 @@ class Defog:
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = '{table_schema}';"
             )
             tables = [row[0] for row in cur.fetchall()]
+        
+        if return_tables_only:
+            return tables
 
         print("Getting schema for the relevant table in your database...")
         # get the schema for each table
@@ -529,6 +535,7 @@ class Defog:
         upload: bool = True,
         return_format: str = "csv",
         scan: bool = True,
+        return_tables_only: bool = False,
     ) -> str:
         try:
             from databricks import sql
@@ -538,13 +545,16 @@ class Defog:
         conn = sql.connect(**self.db_creds)
         schemas = {}
         with conn.cursor() as cur:
-            print("Getting schema for each table in your database...")
+            print("Getting schema for each table that you selected...")
             # get the schema for each table
 
             if len(tables) == 0:
                 # get all tables from databricks
                 cur.tables(schema_name=self.db_creds.get("schema", "default"))
                 tables = [row.TABLE_NAME for row in cur.fetchall()]
+            
+            if return_tables_only:
+                return tables
 
             for table_name in tables:
                 cur.columns(
@@ -594,6 +604,7 @@ class Defog:
         upload: bool = True,
         return_format: str = "gsheets",
         scan: bool = True,
+        return_tables_only: bool = False,
     ) -> str:
         try:
             import snowflake.connector
@@ -611,13 +622,16 @@ class Defog:
 
         schemas = {}
         alt_types = {"DATE": "TIMESTAMP", "TEXT": "VARCHAR", "FIXED": "NUMERIC"}
-        print("Getting schema for each table in your database...")
+        print("Getting schema for each table that you selected...")
         # get the schema for each table
         if len(tables) == 0:
             # get all tables from Snowflake database
             cur = conn.cursor().execute("SHOW TERSE TABLES;")
             res = cur.fetchall()
             tables = [f"{row[3]}.{row[4]}.{row[1]}" for row in res]
+        
+        if return_tables_only:
+            return tables
 
         for table_name in tables:
             rows = []
@@ -695,6 +709,7 @@ class Defog:
         upload: bool = True,
         return_format: str = "gsheets",
         scan: bool = True,
+        return_tables_only: bool = False,
     ) -> str:
         try:
             from google.cloud import bigquery
@@ -706,7 +721,7 @@ class Defog:
         )
         schemas = {}
 
-        print("Getting the schema for each table in your database...")
+        print("Getting the schema for each table that you selected...")
         # get the schema for each table
         for table_name in tables:
             table = client.get_table(table_name)
@@ -763,31 +778,31 @@ class Defog:
             return schemas
 
     def generate_db_schema(
-        self, tables: list, scan: bool = True, upload: bool = True
+        self, tables: list, scan: bool = True, upload: bool = True, return_tables_only: bool = False
     ) -> str:
         if self.db_type == "postgres":
             return self.generate_postgres_schema(
-                tables, return_format="csv", scan=scan, upload=upload
+                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
             )
         elif self.db_type == "mysql":
             return self.generate_mysql_schema(
-                tables, return_format="csv", scan=scan, upload=upload
+                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
             )
         elif self.db_type == "bigquery":
             return self.generate_bigquery_schema(
-                tables, return_format="csv", scan=scan, upload=upload
+                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
             )
         elif self.db_type == "redshift":
             return self.generate_redshift_schema(
-                tables, return_format="csv", scan=scan, upload=upload
+                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
             )
         elif self.db_type == "snowflake":
             return self.generate_snowflake_schema(
-                tables, return_format="csv", scan=scan, upload=upload
+                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
             )
         elif self.db_type == "databricks":
             return self.generate_databricks_schema(
-                tables, return_format="csv", scan=scan, upload=upload
+                tables, return_format="csv", scan=scan, upload=upload, return_tables_only=return_tables_only
             )
         else:
             raise ValueError(
