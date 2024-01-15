@@ -289,8 +289,10 @@ class Defog:
                 resp = r.json()
                 if "csv" in resp:
                     csv = resp["csv"]
-                    if return_format == "csv":    
-                        pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    if return_format == "csv":
+                        pd.read_csv(StringIO(csv)).to_csv(
+                            "defog_metadata.csv", index=False
+                        )
                         return "defog_metadata.csv"
                     else:
                         return csv
@@ -430,8 +432,10 @@ class Defog:
                 resp = r.json()
                 if "csv" in resp:
                     csv = resp["csv"]
-                    if return_format == "csv":    
-                        pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    if return_format == "csv":
+                        pd.read_csv(StringIO(csv)).to_csv(
+                            "defog_metadata.csv", index=False
+                        )
                         return "defog_metadata.csv"
                     else:
                         return csv
@@ -523,8 +527,10 @@ class Defog:
                 resp = r.json()
                 if "csv" in resp:
                     csv = resp["csv"]
-                    if return_format == "csv":    
-                        pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    if return_format == "csv":
+                        pd.read_csv(StringIO(csv)).to_csv(
+                            "defog_metadata.csv", index=False
+                        )
                         return "defog_metadata.csv"
                     else:
                         return csv
@@ -595,7 +601,7 @@ class Defog:
             resp = r.json()
             if "csv" in resp:
                 csv = resp["csv"]
-                if return_format == "csv":    
+                if return_format == "csv":
                     pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
                     return "defog_metadata.csv"
                 else:
@@ -703,8 +709,10 @@ class Defog:
                 resp = r.json()
                 if "csv" in resp:
                     csv = resp["csv"]
-                    if return_format == "csv":    
-                        pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    if return_format == "csv":
+                        pd.read_csv(StringIO(csv)).to_csv(
+                            "defog_metadata.csv", index=False
+                        )
                         return "defog_metadata.csv"
                     else:
                         return csv
@@ -780,8 +788,10 @@ class Defog:
                 resp = r.json()
                 if "csv" in resp:
                     csv = resp["csv"]
-                    if return_format == "csv":    
-                        pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    if return_format == "csv":
+                        pd.read_csv(StringIO(csv)).to_csv(
+                            "defog_metadata.csv", index=False
+                        )
                         return "defog_metadata.csv"
                     else:
                         return csv
