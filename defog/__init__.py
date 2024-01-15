@@ -289,8 +289,11 @@ class Defog:
                 resp = r.json()
                 if "csv" in resp:
                     csv = resp["csv"]
-                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                    return "defog_metadata.csv"
+                    if return_format == "csv":    
+                        pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                        return "defog_metadata.csv"
+                    else:
+                        return csv
                 else:
                     print(f"We got an error!")
                     if "message" in resp:
@@ -427,8 +430,11 @@ class Defog:
                 resp = r.json()
                 if "csv" in resp:
                     csv = resp["csv"]
-                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                    return "defog_metadata.csv"
+                    if return_format == "csv":    
+                        pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                        return "defog_metadata.csv"
+                    else:
+                        return csv
                 else:
                     print(f"We got an error!")
                     if "message" in resp:
@@ -517,8 +523,11 @@ class Defog:
                 resp = r.json()
                 if "csv" in resp:
                     csv = resp["csv"]
-                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                    return "defog_metadata.csv"
+                    if return_format == "csv":    
+                        pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                        return "defog_metadata.csv"
+                    else:
+                        return csv
                 else:
                     print(f"We got an error!")
                     if "message" in resp:
@@ -586,8 +595,11 @@ class Defog:
             resp = r.json()
             if "csv" in resp:
                 csv = resp["csv"]
-                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                return "defog_metadata.csv"
+                if return_format == "csv":    
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                    return "defog_metadata.csv"
+                else:
+                    return csv
             else:
                 print(f"We got an error!")
                 if "message" in resp:
@@ -691,8 +703,11 @@ class Defog:
                 resp = r.json()
                 if "csv" in resp:
                     csv = resp["csv"]
-                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                    return "defog_metadata.csv"
+                    if return_format == "csv":    
+                        pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                        return "defog_metadata.csv"
+                    else:
+                        return csv
                 else:
                     print(f"We got an error!")
                     if "message" in resp:
@@ -765,8 +780,11 @@ class Defog:
                 resp = r.json()
                 if "csv" in resp:
                     csv = resp["csv"]
-                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                    return "defog_metadata.csv"
+                    if return_format == "csv":    
+                        pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                        return "defog_metadata.csv"
+                    else:
+                        return csv
                 else:
                     print(f"We got an error!")
                     if "message" in resp:
@@ -783,11 +801,12 @@ class Defog:
         scan: bool = True,
         upload: bool = True,
         return_tables_only: bool = False,
+        return_format: str = "csv",
     ) -> str:
         if self.db_type == "postgres":
             return self.generate_postgres_schema(
                 tables,
-                return_format="csv",
+                return_format=return_format,
                 scan=scan,
                 upload=upload,
                 return_tables_only=return_tables_only,
@@ -795,7 +814,7 @@ class Defog:
         elif self.db_type == "mysql":
             return self.generate_mysql_schema(
                 tables,
-                return_format="csv",
+                return_format=return_format,
                 scan=scan,
                 upload=upload,
                 return_tables_only=return_tables_only,
@@ -803,7 +822,7 @@ class Defog:
         elif self.db_type == "bigquery":
             return self.generate_bigquery_schema(
                 tables,
-                return_format="csv",
+                return_format=return_format,
                 scan=scan,
                 upload=upload,
                 return_tables_only=return_tables_only,
@@ -811,7 +830,7 @@ class Defog:
         elif self.db_type == "redshift":
             return self.generate_redshift_schema(
                 tables,
-                return_format="csv",
+                return_format=return_format,
                 scan=scan,
                 upload=upload,
                 return_tables_only=return_tables_only,
@@ -819,7 +838,7 @@ class Defog:
         elif self.db_type == "snowflake":
             return self.generate_snowflake_schema(
                 tables,
-                return_format="csv",
+                return_format=return_format,
                 scan=scan,
                 upload=upload,
                 return_tables_only=return_tables_only,
@@ -827,7 +846,7 @@ class Defog:
         elif self.db_type == "databricks":
             return self.generate_databricks_schema(
                 tables,
-                return_format="csv",
+                return_format=return_format,
                 scan=scan,
                 upload=upload,
                 return_tables_only=return_tables_only,
