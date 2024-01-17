@@ -261,7 +261,7 @@ class Defog:
         if upload:
             # send the schemas dict to the defog servers
             r = requests.post(
-                "https://api.defog.ai/get_schema_csv",
+                f"{self.base_url}/get_schema_csv",
                 json={
                     "api_key": self.api_key,
                     "schemas": schemas,
@@ -380,7 +380,7 @@ class Defog:
             )
             # send the schemas dict to the defog servers
             r = requests.post(
-                "https://api.defog.ai/get_schema_csv",
+                f"{self.base_url}/get_schema_csv",
                 json={
                     "api_key": self.api_key,
                     "schemas": schemas,
@@ -452,7 +452,7 @@ class Defog:
 
         if upload:
             r = requests.post(
-                "https://api.defog.ai/get_schema_csv",
+                f"{self.base_url}/get_schema_csv",
                 json={
                     "api_key": self.api_key,
                     "schemas": schemas,
@@ -524,7 +524,7 @@ class Defog:
 
         if upload:
             r = requests.post(
-                "https://api.defog.ai/get_schema_csv",
+                f"{self.base_url}/get_schema_csv",
                 json={
                     "api_key": self.api_key,
                     "schemas": schemas,
@@ -614,7 +614,7 @@ class Defog:
                 "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
             )
             r = requests.post(
-                "https://api.defog.ai/get_schema_csv",
+                f"{self.base_url}/get_schema_csv",
                 json={
                     "api_key": self.api_key,
                     "schemas": schemas,
@@ -673,7 +673,7 @@ class Defog:
                 "Sending the schema to Defog servers and generating column descriptions. This might take up to 2 minutes..."
             )
             r = requests.post(
-                "https://api.defog.ai/get_schema_csv",
+                f"{self.base_url}/get_schema_csv",
                 json={
                     "api_key": self.api_key,
                     "schemas": schemas,
@@ -876,7 +876,7 @@ class Defog:
             "Authorization": f"Bearer {self.api_key}",
         }
         response = requests.get(
-            "https://api.defog.ai/quota",
+            f"{self.base_url}/quota",
             headers=headers,
         )
         return response.json()
@@ -907,7 +907,7 @@ class Defog:
             ].to_dict(orient="records")
 
         r = requests.post(
-            "https://api.defog.ai/update_metadata",
+            f"{self.base_url}/update_metadata",
             json={"api_key": self.api_key, "table_metadata": schema},
         )
         resp = r.json()
@@ -919,7 +919,7 @@ class Defog:
         :param glossary: The glossary to be used.
         """
         r = requests.post(
-            "https://api.defog.ai/update_glossary",
+            f"{self.base_url}/update_glossary",
             json={
                 "api_key": self.api_key,
                 "glossary": glossary,
@@ -934,7 +934,7 @@ class Defog:
         Gets the glossary on the defog servers.
         """
         r = requests.post(
-            "https://api.defog.ai/get_metadata",
+            f"{self.base_url}/get_metadata",
             json={"api_key": self.api_key},
         )
         resp = r.json()
@@ -948,7 +948,7 @@ class Defog:
         Gets the metadata on the defog servers.
         """
         r = requests.post(
-            "https://api.defog.ai/get_metadata",
+            f"{self.base_url}/get_metadata",
             json={"api_key": self.api_key},
         )
         resp = r.json()
@@ -975,7 +975,7 @@ class Defog:
         Gets the feedback on the defog servers.
         """
         r = requests.post(
-            "https://api.defog.ai/get_feedback",
+            f"{self.base_url}/get_feedback",
             json={"api_key": self.api_key},
         )
         resp = r.json()
