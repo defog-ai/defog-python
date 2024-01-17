@@ -73,7 +73,7 @@ def init():
     filepath = os.path.join(home_dir, ".defog", "connection.json")
     if os.path.exists(filepath):
         print(
-            "It looks like you've already initialized defog. Do you want to overwrite your existing configuration? (y/n)"
+            "It looks like you've already initialized defog. Do you want to re-enter your database credentials? (y/n)"
         )
         overwrite = prompt().strip()
         if overwrite.lower() != "y":
