@@ -80,7 +80,7 @@ def init():
             print("We'll keep your existing config. No changes were made.")
             sys.exit(0)
         else:
-            print("We'll overwrite a new config file at ~/.defog/connection.json")
+            print("We'll create a new config file at ~/.defog/connection.json")
     else:
         print("We'll create a new config file at ~/.defog/connection.json")
         if not os.path.exists(os.path.join(home_dir, ".defog")):
