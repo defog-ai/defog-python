@@ -273,9 +273,7 @@ class Defog:
             if "csv" in resp:
                 csv = resp["csv"]
                 if return_format == "csv":
-                    pd.read_csv(StringIO(csv)).to_csv(
-                        "defog_metadata.csv", index=False
-                    )
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
                     return "defog_metadata.csv"
                 else:
                     return csv
@@ -394,9 +392,7 @@ class Defog:
             if "csv" in resp:
                 csv = resp["csv"]
                 if return_format == "csv":
-                    pd.read_csv(StringIO(csv)).to_csv(
-                        "defog_metadata.csv", index=False
-                    )
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
                     return "defog_metadata.csv"
                 else:
                     return csv
@@ -468,9 +464,7 @@ class Defog:
             if "csv" in resp:
                 csv = resp["csv"]
                 if return_format == "csv":
-                    pd.read_csv(StringIO(csv)).to_csv(
-                        "defog_metadata.csv", index=False
-                    )
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
                     return "defog_metadata.csv"
                 else:
                     return csv
@@ -632,9 +626,7 @@ class Defog:
             if "csv" in resp:
                 csv = resp["csv"]
                 if return_format == "csv":
-                    pd.read_csv(StringIO(csv)).to_csv(
-                        "defog_metadata.csv", index=False
-                    )
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
                     return "defog_metadata.csv"
                 else:
                     return csv
@@ -693,9 +685,7 @@ class Defog:
             if "csv" in resp:
                 csv = resp["csv"]
                 if return_format == "csv":
-                    pd.read_csv(StringIO(csv)).to_csv(
-                        "defog_metadata.csv", index=False
-                    )
+                    pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
                     return "defog_metadata.csv"
                 else:
                     return csv
@@ -769,7 +759,7 @@ class Defog:
             raise ValueError(
                 f"Creation of a DB schema for {self.db_type} is not yet supported via the library. If you are a premium user, please contact us at founder@defog.ai so we can manually add it."
             )
-    
+
     def get_query(
         self,
         question: str,
