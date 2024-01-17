@@ -233,7 +233,7 @@ def init():
         print(
             "We are now uploading this schema to Defog. This might take up to 30 seconds..."
         )
-        resp = df.update_db_schema_csv(filename)
+        resp = df.update_db_schema(filename)
         if resp["status"] == "success":
             print("Your schema has been updated. You're ready to start querying!")
         else:
@@ -304,7 +304,7 @@ def gen():
     print(f"\033[1m{pwd}/{filename}\033[0m\n")
 
     print("We are now uploading this auto-generated schema to Defog.")
-    df.update_db_schema_csv(filename)
+    df.update_db_schema(filename)
 
     print(
         "If you modify the auto-generated schema, please run `defog update <csv_filename>` again to refresh the schema on Defog's servers."
@@ -326,7 +326,7 @@ def update():
     # load config from .defog/connection.json
     df = defog.Defog()
     # upload schema to defog
-    resp = df.update_db_schema_csv(filename)
+    resp = df.update_db_schema(filename)
     if resp["status"] == "success":
         print("Your schema has been updated. You're ready to start querying!")
     else:
