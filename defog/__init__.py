@@ -75,9 +75,7 @@ class Defog:
                         self.api_key = data["api_key"]
                         self.db_type = data["db_type"]
                         self.db_creds = data["db_creds"]
-                        self.base_url = data.get(
-                            "base_url", "https://api.defog.ai"
-                        )
+                        self.base_url = data.get("base_url", "https://api.defog.ai")
                         self.generate_query_url = data.get(
                             "generate_query_url",
                             "https://api.defog.ai/generate_query_chat",
@@ -94,7 +92,7 @@ class Defog:
                     self.api_key = api_key
                 if db_type != "":
                     self.db_type = db_type
-                
+
                 self.base_url = base_url
                 self.generate_query_url = generate_query_url
                 self.db_creds = db_creds
