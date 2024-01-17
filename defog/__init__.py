@@ -908,7 +908,11 @@ class Defog:
 
         r = requests.post(
             f"{self.base_url}/update_metadata",
-            json={"api_key": self.api_key, "table_metadata": schema},
+            json={
+                "api_key": self.api_key,
+                "table_metadata": schema,
+                "db_type": self.db_type,
+            },
         )
         resp = r.json()
         return resp
