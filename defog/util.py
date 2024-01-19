@@ -77,7 +77,7 @@ def identify_categorical_columns(
         f"Identifying categorical columns in {table_name}. This might take a while if you have many rows in your table."
     )
     for idx, row in enumerate(rows):
-        if row["data_type"].lower() in [
+        if row["data_type"].lower().strip() in [
             "character varying",
             "text",
             "character",
@@ -87,9 +87,9 @@ def identify_categorical_columns(
         ]:
             # get the total number of rows and number of distinct values in the table for this column
             cur.execute(
-                f"SELECT COUNT({row['column_name']}) as tot_count, COUNT(DISTINCT {row['column_name']}) AS unique_count FROM {table_name};"
+                f"SELECT COUNT(DISTINCT {row['column_name']}) AS unique_count FROM {table_name};"
             )
-            total_rows, num_distinct_values = cur.fetchone()
+            num_distinct_values = cur.fetchone()[0]
 
             if num_distinct_values <= 10:
                 # get the top 10 distinct values
@@ -98,7 +98,7 @@ def identify_categorical_columns(
                 )
                 top_values = cur.fetchall()
                 top_values = [i[0] for i in top_values if i[0] is not None]
-                rows[idx]["top_values"] = top_values
+                rows[idx]["top_values"] = ",".join(top_values)
                 print(
                     f"Identified {row['column_name']} as a likely categorical column. The unique values are: {top_values}"
                 )
