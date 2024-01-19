@@ -3,9 +3,8 @@ import json
 import os
 import requests
 import pandas as pd
-from defog.query import execute_query
 from importlib.metadata import version
-from defog import generate_schema
+from defog import generate_schema, query_methods, admin_methods
 
 try:
     __version__ = version("defog")
@@ -177,127 +176,6 @@ class Defog:
                 f"Database `{db_type}` is not supported right now. db_type must be one of {', '.join(SUPPORTED_DB_TYPES)}"
             )
 
-    def get_query(
-        self,
-        question: str,
-        hard_filters: str = "",
-        previous_context: list = [],
-        schema: dict = {},
-        glossary: str = "",
-        language: str = None,
-        debug: bool = False,
-    ):
-        """
-        Sends the query to the defog servers, and return the response.
-        :param question: The question to be asked.
-        :return: The response from the defog server.
-        """
-        try:
-            data = {
-                "question": question,
-                "api_key": self.api_key,
-                "previous_context": previous_context,
-                "db_type": self.db_type if self.db_type != "databricks" else "postgres",
-                "glossary": glossary,
-                "language": language,
-                "hard_filters": hard_filters,
-            }
-            if schema != {}:
-                data["schema"] = schema
-                data["is_direct"] = True
-            r = requests.post(
-                self.generate_query_url,
-                json=data,
-                timeout=300,
-            )
-            resp = r.json()
-            query_generated = resp.get("sql", resp.get("query_generated"))
-            ran_successfully = resp.get("ran_successfully")
-            error_message = resp.get("error_message")
-            query_db = self.db_type
-            return {
-                "query_generated": query_generated,
-                "ran_successfully": ran_successfully,
-                "error_message": error_message,
-                "query_db": query_db,
-                "previous_context": resp.get("previous_context"),
-                "reason_for_query": resp.get("reason_for_query"),
-            }
-        except Exception as e:
-            if debug:
-                print(e)
-            return {
-                "ran_successfully": False,
-                "error_message": "Sorry :( Our server is at capacity right now and we are unable to process your query. Please try again in a few minutes?",
-            }
-
-    def run_query(
-        self,
-        question: str,
-        hard_filters: str = "",
-        previous_context: list = [],
-        schema: dict = {},
-        glossary: str = "",
-        mode: str = "chat",
-        language: str = None,
-        query: dict = None,
-        retries: int = 3,
-    ):
-        """
-        Sends the question to the defog servers, executes the generated SQL,
-        and returns the response.
-        :param question: The question to be asked.
-        :return: The response from the defog server.
-        """
-        if query is None:
-            print(f"Generating the query for your question: {question}...")
-            query = self.get_query(
-                question,
-                hard_filters,
-                previous_context,
-                schema=schema,
-                glossary=glossary,
-                language=language,
-            )
-        if query["ran_successfully"]:
-            try:
-                print("Query generated, now running it on your database...")
-                colnames, result, executed_query = execute_query(
-                    query["query_generated"],
-                    self.api_key,
-                    self.db_type,
-                    self.db_creds,
-                    question,
-                    hard_filters,
-                    retries,
-                )
-                return {
-                    "columns": colnames,
-                    "data": result,
-                    "query_generated": executed_query,
-                    "ran_successfully": True,
-                    "reason_for_query": query.get("reason_for_query"),
-                    "previous_context": query.get("previous_context"),
-                }
-            except Exception as e:
-                return {
-                    "ran_successfully": False,
-                    "error_message": str(e),
-                    "query_generated": query["query_generated"],
-                }
-        else:
-            return {"ran_successfully": False, "error_message": query["error_message"]}
-
-    def get_quota(self) -> str:
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-        }
-        response = requests.get(
-            f"{self.base_url}/quota",
-            headers=headers,
-        )
-        return response.json()
-
     def to_base64_creds(self) -> str:
         creds = {
             "api_key": self.api_key,
@@ -312,105 +190,24 @@ class Defog:
         self.db_type = creds["db_type"]
         self.db_creds = creds["db_creds"]
 
-    def update_db_schema(self, path_to_csv):
-        """
-        Update the DB schema via a CSV, rather than by via a Google Sheet
-        """
-        schema_df = pd.read_csv(path_to_csv).fillna("")
-        schema = {}
-        for table_name in schema_df["table_name"].unique():
-            schema[table_name] = schema_df[schema_df["table_name"] == table_name][
-                ["column_name", "data_type", "column_description"]
-            ].to_dict(orient="records")
-
-        r = requests.post(
-            f"{self.base_url}/update_metadata",
-            json={
-                "api_key": self.api_key,
-                "table_metadata": schema,
-                "db_type": self.db_type,
-            },
-        )
-        resp = r.json()
-        return resp
-
-    def update_glossary(self, glossary: str = "", customized_glossary: dict = None):
-        """
-        Updates the glossary on the defog servers.
-        :param glossary: The glossary to be used.
-        """
-        r = requests.post(
-            f"{self.base_url}/update_glossary",
-            json={
-                "api_key": self.api_key,
-                "glossary": glossary,
-                "customized_glossary": customized_glossary,
-            },
-        )
-        resp = r.json()
-        return resp
-
-    def get_glossary(self, mode="general"):
-        """
-        Gets the glossary on the defog servers.
-        """
-        r = requests.post(
-            f"{self.base_url}/get_metadata",
-            json={"api_key": self.api_key},
-        )
-        resp = r.json()
-        if mode == "general":
-            return resp["glossary"]
-        elif mode == "customized":
-            return resp["customized_glossary"]
-
-    def get_metadata(self, format="markdown", export_path=None):
-        """
-        Gets the metadata on the defog servers.
-        """
-        r = requests.post(
-            f"{self.base_url}/get_metadata",
-            json={"api_key": self.api_key},
-        )
-        resp = r.json()
-        items = []
-        for table in resp["table_metadata"]:
-            for item in resp["table_metadata"][table]:
-                item["table_name"] = table
-                items.append(item)
-        if format == "markdown":
-            return pd.DataFrame(items)[
-                ["table_name", "column_name", "data_type", "column_description"]
-            ].to_markdown(index=False)
-        elif format == "csv":
-            if export_path is None:
-                export_path = "metadata.csv"
-            pd.DataFrame(items)[
-                ["table_name", "column_name", "data_type", "column_description"]
-            ].to_csv(export_path, index=False)
-            print(f"Metadata exported to {export_path}")
-            return True
-
-    def get_feedback(self, n_rows: int = 50, start_from: int = 0):
-        """
-        Gets the feedback on the defog servers.
-        """
-        r = requests.post(
-            f"{self.base_url}/get_feedback",
-            json={"api_key": self.api_key},
-        )
-        resp = r.json()
-        df = pd.DataFrame(resp["data"], columns=resp["columns"])
-        df["created_at"] = df["created_at"].apply(lambda x: x[:10])
-        for col in ["query_generated", "feedback_text"]:
-            df[col] = df[col].fillna("")
-            df[col] = df[col].apply(lambda x: x.replace("\n", "\\n"))
-        return df.iloc[start_from:].head(n_rows).to_markdown(index=False)
-
 
 # Add all methods from generate_schema to Defog
 for name in dir(generate_schema):
     attr = getattr(generate_schema, name)
+    if callable(attr):
+        # Add the method to Defog
+        setattr(Defog, name, attr)
+
+# Add all methods from query_methods to Defog
+for name in dir(query_methods):
+    attr = getattr(query_methods, name)
+    if callable(attr):
+        # Add the method to Defog
+        setattr(Defog, name, attr)
+
+# Add all methods from admin_methods to Defog
+for name in dir(admin_methods):
+    attr = getattr(admin_methods, name)
     if callable(attr):
         # Add the method to Defog
         setattr(Defog, name, attr)
