@@ -111,3 +111,57 @@ def get_quota(self) -> str:
         headers=headers,
     )
     return response.json()
+
+
+def update_golden_queries(
+    self, golden_queries: dict = None, golden_queries_path: str = None
+):
+    """
+    Updates the golden queries on the defog servers.
+    :param golden_queries: The golden queries to be used.
+    :param golden_queries_path: The path to the golden queries CSV.
+    """
+    if golden_queries is None and golden_queries_path is None:
+        raise ValueError("Please provide either golden_queries or golden_queries_path.")
+
+    if golden_queries is None:
+        golden_queries = (
+            pd.read_csv(golden_queries_path).fillna("").to_dict(orient="records")
+        )
+
+    r = requests.post(
+        f"{self.base_url}/update_golden_queries",
+        json={
+            "api_key": self.api_key,
+            "golden_queries": golden_queries,
+        },
+    )
+    resp = r.json()
+    print(
+        "Golden queries have been received by the system, and will be processed shortly..."
+    )
+    print(
+        "Once that is done, you should be able to see improved results for your questions."
+    )
+    return resp
+
+
+def get_golden_queries(self, format="csv", export_path=None):
+    """
+    Gets the golden queries on the defog servers.
+    """
+    r = requests.post(
+        f"{self.base_url}/get_golden_queries",
+        json={"api_key": self.api_key},
+    )
+    resp = r.json()
+    if format == "csv":
+        if export_path is None:
+            export_path = "golden_queries.csv"
+        pd.DataFrame(resp["golden_queries"]).to_csv(export_path, index=False)
+        print(f"Golden queries exported to {export_path}")
+        return True
+    elif format == "json":
+        return resp["golden_queries"]
+    else:
+        raise ValueError("format must be either 'csv' or 'json'.")
