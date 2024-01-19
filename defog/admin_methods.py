@@ -1,6 +1,7 @@
 import requests
 import pandas as pd
 
+
 def update_db_schema(self, path_to_csv):
     """
     Update the DB schema via a CSV, rather than by via a Google Sheet
@@ -23,6 +24,7 @@ def update_db_schema(self, path_to_csv):
     resp = r.json()
     return resp
 
+
 def update_glossary(self, glossary: str = "", customized_glossary: dict = None):
     """
     Updates the glossary on the defog servers.
@@ -39,6 +41,7 @@ def update_glossary(self, glossary: str = "", customized_glossary: dict = None):
     resp = r.json()
     return resp
 
+
 def get_glossary(self, mode="general"):
     """
     Gets the glossary on the defog servers.
@@ -52,6 +55,7 @@ def get_glossary(self, mode="general"):
         return resp["glossary"]
     elif mode == "customized":
         return resp["customized_glossary"]
+
 
 def get_metadata(self, format="markdown", export_path=None):
     """
@@ -80,6 +84,7 @@ def get_metadata(self, format="markdown", export_path=None):
         print(f"Metadata exported to {export_path}")
         return True
 
+
 def get_feedback(self, n_rows: int = 50, start_from: int = 0):
     """
     Gets the feedback on the defog servers.
@@ -95,6 +100,7 @@ def get_feedback(self, n_rows: int = 50, start_from: int = 0):
         df[col] = df[col].fillna("")
         df[col] = df[col].apply(lambda x: x.replace("\n", "\\n"))
     return df.iloc[start_from:].head(n_rows).to_markdown(index=False)
+
 
 def get_quota(self) -> str:
     headers = {

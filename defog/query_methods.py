@@ -1,6 +1,6 @@
-
 import requests
 from defog.query import execute_query
+
 
 def get_query(
     self,
@@ -55,6 +55,7 @@ def get_query(
             "ran_successfully": False,
             "error_message": "Sorry :( Our server is at capacity right now and we are unable to process your query. Please try again in a few minutes?",
         }
+
 
 def run_query(
     self,
