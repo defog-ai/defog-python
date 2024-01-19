@@ -99,7 +99,9 @@ def identify_categorical_columns(
                 top_values = cur.fetchall()
                 top_values = [i[0] for i in top_values if i[0] is not None]
                 rows[idx]["top_values"] = top_values
-                print(f"Identified {row['column_name']} as a likely categorical column.")
+                print(
+                    f"Identified {row['column_name']} as a likely categorical column."
+                )
     return rows
 
 
