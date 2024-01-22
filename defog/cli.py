@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import requests
+import time
 
 import defog
 from defog.util import get_feedback, parse_update
@@ -563,7 +564,7 @@ def serve_webserver():
     from defog.serve import app
     import uvicorn
 
-    uvicorn.run(app, host="localhost", port=8000)
+    uvicorn.run(app, host="localhost", port=1235)
 
 
 def serve_static():
@@ -590,10 +591,13 @@ def serve():
     Serve a defog server locally.
     """
     print("Starting defog server...")
-    print("Serving static files...")
-    static_process = subprocess.Popen(["defog", "serve-static"])
     print("Serving webserver...")
     webserver_process = subprocess.Popen(["defog", "serve-webserver"])
+    time.sleep(2)
+
+    print("Serving static files...")
+    static_process = subprocess.Popen(["defog", "serve-static"])
+
     print("Press Ctrl+C to exit.")
     try:
         while True:
