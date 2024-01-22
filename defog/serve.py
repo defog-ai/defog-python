@@ -8,44 +8,6 @@ import os
 import json
 from io import StringIO
 
-# import requests
-# from tqdm import tqdm
-# import sys
-
-# try:
-#     from llama_cpp import Llama
-
-#     home_dir = os.path.expanduser("~")
-#     filepath = os.path.join(home_dir, ".defog", "sqlcoder-7b-q4_k_m.gguf")
-
-#     if not os.path.exists(filepath):
-#         print(
-#             "Downloading the SQLCoder-7b GGUF file. This is a 4GB file and may take up to 10 minutes to download..."
-#         )
-
-#         # download the gguf file from the internet and save it
-#         url = "https://storage.googleapis.com/defog-ai/sqlcoder-7b/v2/sqlcoder-7b-q4_k_m.gguf"
-#         response = requests.get(url, stream=True)
-
-#         total_size = int(response.headers.get("content-length", 0))
-#         block_size = 1024  # 1 Kibibyte
-#         t = tqdm(total=total_size, unit="B", unit_scale=True, unit_divisor=1024)
-
-#         with open(filepath, "wb") as f:
-#             for data in response.iter_content(block_size):
-#                 t.update(len(data))
-#                 f.write(data)
-
-#         t.close()
-#         if total_size != 0 and t.n != total_size:
-#             print("ERROR, something went wrong while downloading the file")
-
-#     llm = Llama(model_path=filepath, n_gpu_layers=1, n_ctx=2048)
-# except Exception as e:
-#     print("An error occured when trying to load the model!")
-#     sys.exit(1)
-
-
 app = FastAPI()
 
 origins = ["*"]
