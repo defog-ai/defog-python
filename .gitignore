@@ -62,3 +62,4 @@ ipython_config.py
 .python-version
 
 *.DS_Store
+local_test.py
