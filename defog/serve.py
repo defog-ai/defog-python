@@ -3,51 +3,49 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from defog import Defog
-import psycopg2
 import pandas as pd
-import requests
 import os
 import json
-import sqlparse
-from tqdm import tqdm
-import sys
+from io import StringIO
+# import requests
+# from tqdm import tqdm
+# import sys
 
-try:
-    from llama_cpp import Llama
+# try:
+#     from llama_cpp import Llama
 
-    home_dir = os.path.expanduser("~")
-    filepath = os.path.join(home_dir, ".defog", "sqlcoder-7b-q4_k_m.gguf")
+#     home_dir = os.path.expanduser("~")
+#     filepath = os.path.join(home_dir, ".defog", "sqlcoder-7b-q4_k_m.gguf")
 
-    if not os.path.exists(filepath):
-        print(
-            "Downloading the SQLCoder-7b GGUF file. This is a 4GB file and may take up to 10 minutes to download..."
-        )
+#     if not os.path.exists(filepath):
+#         print(
+#             "Downloading the SQLCoder-7b GGUF file. This is a 4GB file and may take up to 10 minutes to download..."
+#         )
 
-        # download the gguf file from the internet and save it
-        url = "https://storage.googleapis.com/defog-ai/sqlcoder-7b/v2/sqlcoder-7b-q4_k_m.gguf"
-        response = requests.get(url, stream=True)
+#         # download the gguf file from the internet and save it
+#         url = "https://storage.googleapis.com/defog-ai/sqlcoder-7b/v2/sqlcoder-7b-q4_k_m.gguf"
+#         response = requests.get(url, stream=True)
 
-        total_size = int(response.headers.get("content-length", 0))
-        block_size = 1024  # 1 Kibibyte
-        t = tqdm(total=total_size, unit="B", unit_scale=True, unit_divisor=1024)
+#         total_size = int(response.headers.get("content-length", 0))
+#         block_size = 1024  # 1 Kibibyte
+#         t = tqdm(total=total_size, unit="B", unit_scale=True, unit_divisor=1024)
 
-        with open(filepath, "wb") as f:
-            for data in response.iter_content(block_size):
-                t.update(len(data))
-                f.write(data)
+#         with open(filepath, "wb") as f:
+#             for data in response.iter_content(block_size):
+#                 t.update(len(data))
+#                 f.write(data)
 
-        t.close()
-        if total_size != 0 and t.n != total_size:
-            print("ERROR, something went wrong while downloading the file")
+#         t.close()
+#         if total_size != 0 and t.n != total_size:
+#             print("ERROR, something went wrong while downloading the file")
 
-    llm = Llama(model_path=filepath, n_gpu_layers=1, n_ctx=2048)
-except Exception as e:
-    print("An error occured when trying to load the model!")
-    sys.exit(1)
+#     llm = Llama(model_path=filepath, n_gpu_layers=1, n_ctx=2048)
+# except Exception as e:
+#     print("An error occured when trying to load the model!")
+#     sys.exit(1)
 
 
 app = FastAPI()
-defog = Defog()
 
 origins = ["*"]
 app.add_middleware(
@@ -58,281 +56,122 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+home_dir = os.path.expanduser("~")
+defog_path = os.path.join(home_dir, ".defog")
 
-@app.post("/")
+@app.get("/")
+async def root():
+    return {"message": "Hello, I am Defog"}
+
+@app.post("/generate_query")
 async def generate(request: Request):
     params = await request.json()
     question = params.get("question")
     previous_context = params.get("previous_context")
+    defog = Defog()
+    print(defog.__dict__)
     resp = defog.run_query(question, previous_context=previous_context)
     return resp
 
+@app.post("/integration/get_tables_db_creds")
+async def get_tables_db_creds(request: Request):
+    try:
+        defog = Defog()
+    except:
+        return {"error": "no defog instance found"}
+    
+    try:
+        with open(os.path.join(defog_path, "tables.json"), "r") as f:
+            table_names = json.load(f)
+    except:
+        table_names = []
+    
+    try:
+        with open(os.path.join(defog_path, "selected_tables.json"), "r") as f:
+            selected_table_names = json.load(f)
+    except:
+        selected_table_names = []
+    
+    db_type = defog.db_type
+    db_creds = defog.db_creds
+    api_key = defog.api_key
+    
+    return {"tables": table_names, "db_creds": db_creds, "db_type": db_type, "selected_tables": selected_table_names, "api_key": api_key}
 
-@app.post("/get_tables")
+@app.post("/integration/get_metadata")
+async def get_metadata(request: Request):
+    try:
+        with open(os.path.join(defog_path, "metadata.json"), "r") as f:
+            metadata = json.load(f)
+        
+        return {"metadata": metadata}
+    except:
+        return {"error": "no metadata found"}
+
+@app.post("/integration/generate_tables")
 async def get_tables(request: Request):
     params = await request.json()
-    db_host = params.get("host")
-    username = params.get("username")
-    password = params.get("password")
-    port = params.get("port")
-    database = params.get("database")
+    api_key = params.get("api_key")
+    db_type = params.get("db_type")
+    db_creds = params.get("db_creds")
+    for k in ["api_key", "db_type"]:
+        if k in db_creds:
+            del db_creds[k]
 
-    conn = psycopg2.connect(
-        host=db_host,
-        dbname=database,
-        user=username,
-        password=password,
-        port=port,
-    )
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
-    )
-    tables = [row[0] for row in cur.fetchall()]
-    return {"tables": tables}
+    defog = Defog(api_key, db_type, db_creds)
+    table_names = defog.generate_db_schema(tables=[], return_tables_only=True)
+    
+    with open(os.path.join(defog_path, "tables.json"), "w") as f:
+        json.dump(table_names, f)
+    
+    return {"tables": table_names}
 
-
-@app.post("/get_metadata")
-async def get_metadata(request: Request):
+@app.post("/integration/generate_metadata")
+async def generate_metadata(request: Request):
     params = await request.json()
-    db_host = params.get("host")
-    username = params.get("username")
-    password = params.get("password")
-    port = params.get("port")
-    database = params.get("database")
     tables = params.get("tables")
 
-    conn = psycopg2.connect(
-        host=db_host,
-        dbname=database,
-        user=username,
-        password=password,
-        port=port,
-    )
-    cur = conn.cursor()
-    print("Getting schema for each table in your database...")
+    with open(os.path.join(defog_path, "selected_tables.json"), "w") as f:
+        json.dump(tables, f)
 
-    schema = []
-    # get the schema for each table
-    for table_name in tables:
-        cur.execute(
-            "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;",
-            (table_name,),
-        )
-        rows = cur.fetchall()
-        rows = [row for row in rows]
-        rows = [
-            {"table_name": table_name, "column_name": i[0], "data_type": i[1]}
-            for i in rows
-        ]
-        schema += rows
+    defog = Defog()
+    table_metadata = defog.generate_db_schema(tables=tables, scan=True, upload=True, return_format="csv_string")
+    metadata = pd.read_csv(StringIO(table_metadata)).fillna("").to_dict(orient="records")
+    
+    with open(os.path.join(defog_path, "metadata.json"), "w") as f:
+        json.dump(metadata, f)
+    
+    defog.update_db_schema(StringIO(table_metadata))
+    return {"metadata": metadata}
 
-    schema = pd.DataFrame(schema)
-    schema["column_description"] = ""
-
-    # save the credentials to a file in ~/.defog/
-    home_dir = os.path.expanduser("~")
-    filepath = os.path.join(home_dir, ".defog", "gguf_credentials.json")
-    with open(filepath, "w") as f:
-        creds = {
-            "host": db_host,
-            "database": database,
-            "user": username,
-            "password": password,
-            "port": port,
-        }
-        json.dump(creds, f)
-
-    return {"schema": schema.to_dict(orient="records")}
-
-
-@app.post("/make_gguf_request")
-async def make_gguf_request(request: Request):
-    params = await request.json()
-    prompt = params.get("prompt")
-    completion = llm(
-        prompt,
-        max_tokens=100,
-        temperature=0,
-        top_p=1,
-        stop=["\n"],
-        echo=False,
-        repeat_penalty=1.0,
-    )
-    completion = completion["choices"][0]["text"]
-    return {"completion": completion}
-
-
-@app.post("/update_metadata")
+@app.post("/integration/update_metadata")
 async def update_metadata(request: Request):
     params = await request.json()
     metadata = params.get("metadata")
-    allowed_joins = params.get("allowed_joins")
-    # this in a list where each item is a dictionary
-    # with the format {"table_name": ..., "column_name": ..., "data_type": ..., "column_description": ...}
+    defog = Defog()
+    metadata = pd.DataFrame(metadata).to_csv(index=False)
+    defog.update_db_schema(StringIO(metadata))
+    return {"status": "success"}
 
-    # let's convert this into DDL statements
-    # first we need to get the tables
-    tables = list(set([i["table_name"] for i in metadata]))
-    table_ddl = []
-    for table in tables:
-        table_ddl.append(f"CREATE TABLE {table} (\n")
-        for column in metadata:
-            if column["table_name"] == table:
-                if column["column_description"]:
-                    desc = f"-- {column['column_description']}"
-                else:
-                    desc = ""
-                table_ddl.append(
-                    f"{column['column_name']} {column['data_type']}{desc},\n"
-                )
-        table_ddl.append(");\n\n")
-    table_ddl = "".join(table_ddl)
+@app.post("/instruct/get_glossary_golden_queries")
+async def update_glossary(request: Request):
+    defog = Defog()
+    glossary = defog.get_glossary()
+    golden_queries = defog.get_golden_queries(format="json")
+    return {"glossary": glossary, "golden_queries": golden_queries}
 
-    if allowed_joins is None or allowed_joins == "":
-        prompt = f"""# Task
-Your task is to identify all valid joins between tables in a Postgres Database. Give your answers in the format
--- table1.column1 can be joined with table2.column2
--- table1.column3 can be joined with table2.column4
-etc.
-
-# Database Schema
-The database has the following schema:
-{table_ddl}
-
-# Allowed Joins
-Based on the database schema, the following joins are valid:
---"""
-        completion = llm(
-            prompt,
-            max_tokens=500,
-            temperature=0,
-            top_p=1,
-            echo=False,
-            repeat_penalty=1.0,
-        )
-        completion = completion["choices"][0]["text"]
-        allowed_joins = completion
-        table_ddl += "\n" + completion
-    else:
-        table_ddl += "\n" + allowed_joins
-
-    home_dir = os.path.expanduser("~")
-    filepath = os.path.join(home_dir, ".defog", "metadata.sql")
-    # save the DDL statements to a file in ~/.defog/
-    with open(filepath, "w") as f:
-        f.write(table_ddl)
-
-    return {
-        "success": True,
-        "message": "Metadata updated successfully!",
-        "suggested_joins": allowed_joins,
-    }
-
-
-@app.post("/query_db")
-async def query_db(request: Request):
+@app.post("/instruct/update_glossary")
+async def update_glossary(request: Request):
     params = await request.json()
-    home_dir = os.path.expanduser("~")
-    filepath = os.path.join(home_dir, ".defog", "metadata.sql")
-    with open(filepath, "r") as f:
-        ddl = f.read()
+    glossary = params.get("glossary")
+    defog = Defog()
+    defog.update_glossary(glossary=glossary)
+    return {"status": "success"}
 
-    user_question = params.get("question")
-    prompt = f"""# Task
-Generate a SQL query to answer the following question:
-`{user_question}`
-
-# Database Schema
-The query will run on a database with the following schema:
-{ddl}
-
-# Instructions
-- only use the tables and columns in the schema above
-- you can use CTEs to create temporary tables that can be used in your query
-
-# SQL
-```"""
-    completion = llm(
-        prompt,
-        max_tokens=100,
-        temperature=0,
-        repeat_penalty=1.0,
-        echo=False,
-    )
-    completion = completion["choices"][0]["text"]
-    completion = completion.split("```")[0].split(";")[0].strip()
-    completion = completion + ";"
-    print(completion)
-    # now we have the SQL query, let's run it on the database
-
-    # first we need to get the credentials
-    filepath = os.path.join(home_dir, ".defog", "gguf_credentials.json")
-    with open(filepath, "r") as f:
-        creds = json.load(f)
-
-    conn = psycopg2.connect(
-        host=creds["host"],
-        database=creds["database"],
-        user=creds["user"],
-        password=creds["password"],
-        port=creds["port"],
-    )
-    cur = conn.cursor()
-    try:
-        cur.execute(completion)
-        rows = cur.fetchall()
-        rows = [row for row in rows]
-        columns = [desc[0] for desc in cur.description]
-        cur.close()
-        conn.close()
-    except Exception as e:
-        error_message = str(e)
-        prompt = f"""# Task
-Fix SQL queries that have errors.
-
-# Database Schema
-The query will run on a database with the following schema:
-{ddl}
-
-# Original SQL
-```{completion}```
-
-# Error Message
-{error_message}
-
-# New SQL
-```"""
-        completion = llm(
-            prompt,
-            max_tokens=100,
-            temperature=0,
-            repeat_penalty=1.0,
-            echo=False,
-        )
-        completion = completion["choices"][0]["text"]
-        completion = completion.split("```")[0].split(";")[0].strip()
-        completion = completion + ";"
-        print(completion)
-        conn = psycopg2.connect(
-            host=creds["host"],
-            database=creds["database"],
-            user=creds["user"],
-            password=creds["password"],
-            port=creds["port"],
-        )
-        cur = conn.cursor()
-        cur.execute(completion)
-        rows = cur.fetchall()
-        rows = [row for row in rows]
-        columns = [desc[0] for desc in cur.description]
-        cur.close()
-        conn.close()
-
-    completion = sqlparse.format(completion, reindent_aligned=True)
-    return {
-        "columns": columns,
-        "data": rows,
-        "query_generated": completion,
-        "ran_successfully": True,
-    }
+@app.post("/instruct/update_golden_queries")
+async def update_golden_queries(request: Request):
+    params = await request.json()
+    golden_queries = params.get("golden_queries")
+    defog = Defog()
+    defog.update_golden_queries(golden_queries=golden_queries)
+    return {"status": "success"}
