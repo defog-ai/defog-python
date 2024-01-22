@@ -72,7 +72,6 @@ async def generate(request: Request):
     question = params.get("question")
     previous_context = params.get("previous_context")
     defog = Defog()
-    print(defog.__dict__)
     resp = defog.run_query(question, previous_context=previous_context)
     return resp
 
