@@ -193,6 +193,11 @@ async def update_glossary(request: Request):
 async def update_golden_queries(request: Request):
     params = await request.json()
     golden_queries = params.get("golden_queries")
+    golden_queries = [
+        x
+        for x in golden_queries
+        if x["sql"] != "" and x["question"] != "" and x["user_validated"]
+    ]
     defog = Defog()
     defog.update_golden_queries(golden_queries=golden_queries)
     return {"status": "success"}
