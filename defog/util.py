@@ -89,9 +89,12 @@ def identify_categorical_columns(
             cur.execute(
                 f"SELECT COUNT(DISTINCT {row['column_name']}) AS unique_count FROM {table_name};"
             )
-            num_distinct_values = cur.fetchone()[0]
+            try:
+                num_distinct_values = cur.fetchone()[0]
+            except:
+                num_distinct_values = 0
 
-            if num_distinct_values <= 10:
+            if num_distinct_values <= 10 and num_distinct_values > 0:
                 # get the top 10 distinct values
                 cur.execute(
                     f"SELECT {row['column_name']}, COUNT({row['column_name']}) AS col_count FROM {table_name} GROUP BY {row['column_name']} ORDER BY col_count DESC LIMIT 10;"
