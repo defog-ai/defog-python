@@ -35,20 +35,6 @@ def execute_query_once(db_type: str, db_creds, query: str):
         cur.close()
         conn.close()
         return colnames, results
-    elif db_type == "mongo":
-        try:
-            from pymongo import MongoClient
-        except:
-            raise Exception("pymongo not installed.")
-        client = MongoClient(db_creds["connection_string"])
-        db = client.get_database()  # used in the query string passed to eval
-        results = eval(f"{query}")
-        results = [i for i in results]
-        if len(results) > 0:
-            colnames = results[0].keys()
-        else:
-            colnames = []
-        return colnames, results
     elif db_type == "bigquery":
         try:
             from google.cloud import bigquery
@@ -84,37 +70,6 @@ def execute_query_once(db_type: str, db_creds, query: str):
         cur.close()
         conn.close()
         return colnames, results
-    elif db_type == "sqlserver":
-        try:
-            import pyodbc
-        except:
-            raise Exception("pyodbc not installed.")
-        conn = pyodbc.connect(db_creds)
-        cur = conn.cursor()
-        cur.execute(query)
-        colnames = [desc[0] for desc in cur.description]
-        results = cur.fetchall()
-        cur.close()
-        conn.close()
-        return colnames, results
-    elif db_type == "elastic":
-        host = db_creds["host"]
-        if host.endswith("/"):
-            host = host[:-1]
-        url = host + "/_sql"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"ApiKey {db_creds['api_key']}",
-        }
-        r = requests.post(
-            url, headers=headers, data=json.dumps({"query": query}).replace(";", "")
-        )
-        if r.status_code != 200:
-            raise Exception(f"Error executing query: {r.json()['error']}")
-        else:
-            results = r.json()["rows"]
-            colnames = [i["name"] for i in r.json()["columns"]]
-            return colnames, results
     elif db_type == "databricks":
         try:
             from databricks import sql
