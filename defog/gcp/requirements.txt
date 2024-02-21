@@ -1,8 +1,8 @@
 functions-framework==3.*
 defog
 requests
+pandas
 psycopg2
 mysql-connector-python
-pymongo
 google-cloud-bigquery
 snowflake-connector-python
