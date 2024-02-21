@@ -1,3 +1,4 @@
 defog
 requests
 psycopg2-binary
+pandas
