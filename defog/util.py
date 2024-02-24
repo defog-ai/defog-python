@@ -173,7 +173,7 @@ def get_feedback(api_key: str, db_type: str, user_question: str, sql_generated: 
                 "Thank you for the feedback! We retrain our models every week, and you should see much better performance on these kinds of queries in another week.\n"
             )
             print(
-                f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
+                f"If you continue to get these errors, please consider updating the metadata in your schema by editing the CSV generated and running `defog update <url>`, or by updating your glossary.\n"
             )
     except Exception as e:
         write_logs(f"Error in get_feedback:\n{e}")

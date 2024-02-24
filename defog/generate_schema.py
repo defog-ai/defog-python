@@ -13,7 +13,7 @@ def generate_postgres_schema(
     scan: bool = True,
     return_tables_only: bool = False,
 ) -> str:
-    # when upload is True, we send the schema to the defog servers and generate a Google Sheet
+    # when upload is True, we send the schema to the defog servers and generate a CSV
     # when its false, we return the schema as a dict
     try:
         import psycopg2
@@ -121,7 +121,7 @@ def generate_redshift_schema(
     scan: bool = True,
     return_tables_only: bool = False,
 ) -> str:
-    # when upload is True, we send the schema to the defog servers and generate a Google Sheet
+    # when upload is True, we send the schema to the defog servers and generate a CSV
     # when its false, we return the schema as a dict
     try:
         import psycopg2

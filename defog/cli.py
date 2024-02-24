@@ -20,7 +20,7 @@ Usage: defog <command>
 Available commands:
     init\t\t\tSetup defog credentials and your database connection
     gen <table1> <table2>\tSpecify tables to generate schema for
-    update <url>\t\tupdate schema (google sheets url) to defog
+    update <csv>\t\tupdate schema (path to CSV) to defog
     query\t\t\tRun a query
     deploy <gcp|aws>\t\tDeploy a defog server as a cloud function
     quota\t\t\tCheck your API quota limits
@@ -224,7 +224,7 @@ def init():
         print(f"\033[1m{pwd}/{filename}\033[0m\n")
 
     print(
-        "You can give us more context about your schema by editing the CSV above. Refer to our cookbook on how to do this here: https://defog.notion.site/Cookbook-for-schema-definitions-1650a6855ea447fdb0be75d39975571b#2ba1d37e243e4da3b8f17590b4a3e4e3.\n\nOnce you're done, you can just hit enter to upload the data in the spreadsheet to Defog. If you would like to exit instead, just enter `exit`."
+        "You can give us more context about your schema by editing the CSV above. Refer to our cookbook on how to do this here: https://defog.notion.site/Cookbook-for-schema-definitions-1650a6855ea447fdb0be75d39975571b#2ba1d37e243e4da3b8f17590b4a3e4e3.\n\nOnce you're done, you can just hit enter to upload the data in the CSV to Defog. If you would like to exit instead, just enter `exit`."
     )
     upload_option = prompt().strip()
     if upload_option == "exit":
@@ -368,7 +368,7 @@ def query():
                 )
 
                 print(
-                    f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google sheet generated and running `defog update <url>`, or by updating your glossary.\n"
+                    f"If you continue to get these errors, please consider updating the metadata in your schema by editing the google CSV generated and running `defog update <path/to/csv>`, or by updating your glossary.\n"
                 )
             else:
                 print(
