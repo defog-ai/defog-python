@@ -9,13 +9,38 @@ def execute_query_once(db_type: str, db_creds, query: str):
     """
     Executes the query once and returns the column names and results.
     """
-    if db_type == "postgres" or db_type == "redshift":
+    if db_type == "postgres":
         try:
             import psycopg2
         except:
             raise Exception("psycopg2 not installed.")
         conn = psycopg2.connect(**db_creds)
         cur = conn.cursor()
+        cur.execute(query)
+        colnames = [desc[0] for desc in cur.description]
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        return colnames, results
+    elif db_type == "redshift":
+        try:
+            import psycopg2
+        except:
+            raise Exception("redshift_connector not installed.")
+
+        if "schema" not in db_creds or db_creds["schema"].lower() == "public":
+            schema = None
+            conn = psycopg2.connect(**db_creds)
+        else:
+            schema = db_creds["schema"]
+            del db_creds["schema"]
+            conn = psycopg2.connect(**db_creds)
+
+        cur = conn.cursor()
+
+        if schema is not None:
+            cur.execute(f"SET search_path TO {schema}")
+
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
         results = cur.fetchall()

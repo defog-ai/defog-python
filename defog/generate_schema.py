@@ -130,14 +130,22 @@ def generate_redshift_schema(
             "psycopg2 not installed. Please install it with `pip install psycopg2-binary`."
         )
 
-    conn = psycopg2.connect(**self.db_creds)
+    if "schema" not in self.db_creds or self.db_creds["schema"].lower() == "public":
+        schema = "public"
+        conn = psycopg2.connect(**self.db_creds)
+    else:
+        schema = self.db_creds["schema"]
+        del self.db_creds["schema"]
+        conn = psycopg2.connect(**self.db_creds)
     cur = conn.cursor()
+
     schemas = {}
 
     if len(tables) == 0:
         # get all tables
         cur.execute(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
+            (schema,),
         )
         tables = [row[0] for row in cur.fetchall()]
 
@@ -149,8 +157,11 @@ def generate_redshift_schema(
     for table_name in tables:
         try:
             cur.execute(
-                "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s;",
-                (table_name,),
+                "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s AND table_schema= %s;",
+                (
+                    table_name,
+                    schema,
+                ),
             )
             rows = cur.fetchall()
             rows = [row for row in rows]
@@ -159,7 +170,8 @@ def generate_redshift_schema(
             rows = []
         if len(rows) == 0:
             cur.execute(
-                f"SELECT CAST(columnname AS TEXT), CAST(external_type AS TEXT) FROM svv_external_columns WHERE table_name = '{table_name}';"
+                "SELECT CAST(columnname AS TEXT), CAST(external_type AS TEXT) FROM svv_external_columns WHERE table_name = %s;",
+                (table_name,),
             )
             rows = cur.fetchall()
             rows = [row for row in rows]
