@@ -130,7 +130,7 @@ def generate_redshift_schema(
             "psycopg2 not installed. Please install it with `pip install psycopg2-binary`."
         )
 
-    if "schema" not in self.db_creds or self.db_creds["schema"].lower() == "public":
+    if "schema" not in self.db_creds:
         schema = "public"
         conn = psycopg2.connect(**self.db_creds)
     else:

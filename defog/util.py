@@ -109,9 +109,9 @@ def identify_categorical_columns(
         if is_str_type(row["data_type"]):
             # get the total number of rows and number of distinct values in the table for this column
             column_name = row["column_name"]
+
             cur.execute(
-                f"""SELECT COUNT(DISTINCT {column_name}) AS unique_count FROM {table_name} WHERE LENGTH({column_name}) < %s LIMIT 10000;""",
-                (character_length_threshold,),
+                f"SELECT COUNT(*) FROM (SELECT DISTINCT {column_name} FROM {table_name} LIMIT 10000) AS temp;"
             )
             try:
                 num_distinct_values = cur.fetchone()[0]

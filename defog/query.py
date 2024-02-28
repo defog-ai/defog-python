@@ -28,7 +28,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
         except:
             raise Exception("redshift_connector not installed.")
 
-        if "schema" not in db_creds or db_creds["schema"].lower() == "public":
+        if "schema" not in db_creds:
             schema = "public"
             conn = psycopg2.connect(**db_creds)
         else:
