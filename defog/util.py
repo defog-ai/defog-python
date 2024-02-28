@@ -92,11 +92,11 @@ def identify_categorical_columns(
         rows (list): A list of dictionaries containing the column names and data types.a
         distinct_threshold (int): The threshold for the number of distinct values in a column to be considered categorical.
         character_length_threshold (int): The threshold for the maximum length of a string column to be considered categorical.
-          This is a heuristic for pruning columns that might contain arbitrarily long strings like json / configs.
+        This is a heuristic for pruning columns that might contain arbitrarily long strings like json / configs.
 
     Returns:
         rows (list): The updated list of dictionaries containing the column names, data types and top distinct values.
-          The list is modified in-place.
+        The list is modified in-place.
     """
     # loop through each column, look at whether it is a string column, and then determine if it might be a categorical variable
     # if it is a categorical variable, then we want to get the distinct values and their counts
@@ -110,7 +110,7 @@ def identify_categorical_columns(
             # get the total number of rows and number of distinct values in the table for this column
             column_name = row["column_name"]
             cur.execute(
-                f"""SELECT COUNT(DISTINCT {column_name}) AS unique_count FROM {table_name} WHERE LENGTH({column_name}) < %s;""",
+                f"""SELECT COUNT(DISTINCT {column_name}) AS unique_count FROM {table_name} WHERE LENGTH({column_name}) < %s LIMIT 10000;""",
                 (character_length_threshold,),
             )
             try:
