@@ -168,6 +168,7 @@ def generate_redshift_schema(
         if scan:
             cur.execute(f"SET search_path TO {schema}")
             rows = identify_categorical_columns(cur, table_name, rows)
+            cur.close()
         schemas[table_name] = rows
 
     if upload:
