@@ -155,60 +155,20 @@ def generate_redshift_schema(
     print("Getting schema for each table that you selected...")
     # get the schema for each table
     for table_name in tables:
-        try:
-            cur.execute(
-                "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s AND table_schema= %s;",
-                (
-                    table_name,
-                    schema,
-                ),
-            )
-            rows = cur.fetchall()
-            rows = [row for row in rows]
-        except:
-            # dirty hack for redshift spectrum
-            rows = []
-        if len(rows) == 0:
-            cur.execute(
-                "SELECT CAST(columnname AS TEXT), CAST(external_type AS TEXT) FROM svv_external_columns WHERE table_name = %s;",
-                (table_name,),
-            )
-            rows = cur.fetchall()
-            rows = [row for row in rows]
+        cur.execute(
+            "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s AND table_schema= %s;",
+            (
+                table_name,
+                schema,
+            ),
+        )
+        rows = cur.fetchall()
+        rows = [row for row in rows]
         rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
         if scan:
+            cur.execute(f"SET search_path TO {schema}")
             rows = identify_categorical_columns(cur, table_name, rows)
         schemas[table_name] = rows
-
-    # get foreign key relationships
-    print("Getting foreign keys for each table that you selected...")
-    tables_regclass_str = ", ".join(
-        [f"'{table_name}'::regclass" for table_name in tables]
-    )
-    query = f"""SELECT
-            conrelid::regclass AS table_from,
-            pg_get_constraintdef(oid) AS foreign_key_definition
-            FROM pg_constraint
-            WHERE contype = 'f'
-            AND conrelid::regclass IN ({tables_regclass_str})
-            AND confrelid::regclass IN ({tables_regclass_str});
-            """
-    cur.execute(query)
-    foreign_keys = list(cur.fetchall())
-    foreign_keys = [fk[0] + " " + fk[1] for fk in foreign_keys]
-
-    # get indexes for each table
-    print("Getting indexes for each table that you selected...")
-    tables_str = ", ".join([f"'{table_name}'" for table_name in tables])
-    query = f"""SELECT indexdef FROM pg_indexes WHERE tablename IN ({tables_str});"""
-    cur.execute(query)
-    indexes = list(cur.fetchall())
-    if len(indexes) > 0:
-        indexes = [index[0] for index in indexes]
-    else:
-        indexes = []
-        # print("No indexes found.")
-    conn.close()
 
     if upload:
         print(
@@ -220,8 +180,8 @@ def generate_redshift_schema(
             json={
                 "api_key": self.api_key,
                 "schemas": schemas,
-                "foreign_keys": foreign_keys,
-                "indexes": indexes,
+                "foreign_keys": [],
+                "indexes": [],
             },
         )
         resp = r.json()
