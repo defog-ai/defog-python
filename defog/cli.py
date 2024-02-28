@@ -378,11 +378,15 @@ def query():
             sql_generated = resp.get("query_generated")
             print("Defog generated the following query to answer your question:\n")
             print(f"\033[1m{resp['query_generated']}\033[0m\n")
-            reason_for_query = resp.get("reason_for_query", "")
+
+            reason_for_query = resp.get("reason_for_query")
             if reason_for_query:
                 reason_for_query = reason_for_query.replace(". ", "\n\n")
+
                 print("This was its reasoning for generating this query:\n")
                 print(f"\033[1m{reason_for_query}\033[0m\n")
+            else:
+                reason_for_query = ""
 
             print("Results:\n")
             # print results in tabular format using 'columns' and 'data' keys
