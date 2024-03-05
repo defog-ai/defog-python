@@ -4,7 +4,7 @@ import pandas as pd
 
 def update_db_schema(self, path_to_csv):
     """
-    Update the DB schema via a CSV, rather than by via a Google Sheet
+    Update the DB schema via a CSV
     """
     schema_df = pd.read_csv(path_to_csv).fillna("")
     schema = {}
