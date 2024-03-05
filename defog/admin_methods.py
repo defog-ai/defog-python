@@ -114,7 +114,10 @@ def get_quota(self) -> str:
 
 
 def update_golden_queries(
-    self, golden_queries: dict = None, golden_queries_path: str = None
+    self,
+    golden_queries: dict = None,
+    golden_queries_path: str = None,
+    scrub: bool = True,
 ):
     """
     Updates the golden queries on the defog servers.
@@ -134,6 +137,7 @@ def update_golden_queries(
         json={
             "api_key": self.api_key,
             "golden_queries": golden_queries,
+            "scrub": scrub,
         },
     )
     resp = r.json()
