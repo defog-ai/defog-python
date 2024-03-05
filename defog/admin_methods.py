@@ -123,6 +123,7 @@ def update_golden_queries(
     Updates the golden queries on the defog servers.
     :param golden_queries: The golden queries to be used.
     :param golden_queries_path: The path to the golden queries CSV.
+    :param scrub: Whether to scrub the golden queries.
     """
     if golden_queries is None and golden_queries_path is None:
         raise ValueError("Please provide either golden_queries or golden_queries_path.")
