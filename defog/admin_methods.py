@@ -164,7 +164,9 @@ def delete_golden_queries(
     :param scrub: Whether to scrub the golden queries.
     """
     if golden_queries is None and golden_queries_path is None and not all:
-        raise ValueError("Please provide either golden_queries or golden_queries_path, or set all=True.")
+        raise ValueError(
+            "Please provide either golden_queries or golden_queries_path, or set all=True."
+        )
 
     if golden_queries is None:
         golden_queries = (
@@ -189,11 +191,8 @@ def delete_golden_queries(
             },
         )
         resp = r.json()
-    print(
-        "All golden queries have now been deleted."
-    )
+    print("All golden queries have now been deleted.")
     return resp
-
 
 
 def get_golden_queries(self, format="csv", export_path=None):
