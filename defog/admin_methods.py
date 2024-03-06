@@ -168,11 +168,6 @@ def delete_golden_queries(
             "Please provide either golden_queries or golden_queries_path, or set all=True."
         )
 
-    if golden_queries is None:
-        golden_queries = (
-            pd.read_csv(golden_queries_path).fillna("").to_dict(orient="records")
-        )
-
     if all:
         r = requests.post(
             f"{self.base_url}/delete_golden_queries",
@@ -183,6 +178,11 @@ def delete_golden_queries(
         )
         resp = r.json()
     else:
+        if golden_queries is None:
+            golden_queries = (
+                pd.read_csv(golden_queries_path).fillna("").to_dict(orient="records")
+            )
+
         r = requests.post(
             f"{self.base_url}/update_golden_queries",
             json={
