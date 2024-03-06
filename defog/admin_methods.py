@@ -151,6 +151,51 @@ def update_golden_queries(
     return resp
 
 
+def delete_golden_queries(
+    self,
+    golden_queries: dict = None,
+    golden_queries_path: str = None,
+    all: bool = False,
+):
+    """
+    Updates the golden queries on the defog servers.
+    :param golden_queries: The golden queries to be used.
+    :param golden_queries_path: The path to the golden queries CSV.
+    :param scrub: Whether to scrub the golden queries.
+    """
+    if golden_queries is None and golden_queries_path is None and not all:
+        raise ValueError("Please provide either golden_queries or golden_queries_path, or set all=True.")
+
+    if golden_queries is None:
+        golden_queries = (
+            pd.read_csv(golden_queries_path).fillna("").to_dict(orient="records")
+        )
+
+    if all:
+        r = requests.post(
+            f"{self.base_url}/delete_golden_queries",
+            json={
+                "api_key": self.api_key,
+                "all": True,
+            },
+        )
+        resp = r.json()
+    else:
+        r = requests.post(
+            f"{self.base_url}/update_golden_queries",
+            json={
+                "api_key": self.api_key,
+                "golden_queries": golden_queries,
+            },
+        )
+        resp = r.json()
+    print(
+        "All golden queries have now been deleted."
+    )
+    return resp
+
+
+
 def get_golden_queries(self, format="csv", export_path=None):
     """
     Gets the golden queries on the defog servers.
