@@ -1,3 +1,4 @@
+import json
 import requests
 import pandas as pd
 
@@ -177,6 +178,7 @@ def delete_golden_queries(
             },
         )
         resp = r.json()
+        print("All golden queries have now been deleted.")
     else:
         if golden_queries is None:
             golden_queries = (
@@ -191,7 +193,6 @@ def delete_golden_queries(
             },
         )
         resp = r.json()
-    print("All golden queries have now been deleted.")
     return resp
 
 
@@ -204,13 +205,19 @@ def get_golden_queries(self, format="csv", export_path=None):
         json={"api_key": self.api_key},
     )
     resp = r.json()
+    golden_queries = resp["golden_queries"]
     if format == "csv":
         if export_path is None:
             export_path = "golden_queries.csv"
-        pd.DataFrame(resp["golden_queries"]).to_csv(export_path, index=False)
-        print(f"Golden queries exported to {export_path}")
-        return True
+        pd.DataFrame(golden_queries).to_csv(export_path, index=False)
+        print(f"{len(golden_queries)} golden queries exported to {export_path}")
+        return golden_queries
     elif format == "json":
-        return resp["golden_queries"]
+        if export_path is None:
+            export_path = "golden_queries.json"
+        with open(export_path, "w") as f:
+            json.dump(resp, f, indent=4)
+        print(f"{len(golden_queries)} golden queries exported to {export_path}")
+        return golden_queries
     else:
         raise ValueError("format must be either 'csv' or 'json'.")

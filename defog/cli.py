@@ -1,13 +1,13 @@
 import datetime
 import decimal
-import pwinput
 import json
 import os
+import pandas as pd
+import pwinput
 import re
 import shutil
 import subprocess
 import sys
-import requests
 import time
 
 import defog
@@ -43,6 +43,8 @@ def main():
         update()
     elif sys.argv[1] == "query":
         query()
+    elif sys.argv[1] == "golden":
+        golden()
     elif sys.argv[1] == "deploy":
         deploy()
     elif sys.argv[1] == "quota":
@@ -398,6 +400,99 @@ def query():
             print()
             get_feedback(df.api_key, df.db_type, user_question, sql_generated)
         query = prompt("Please enter another query, or type 'e' to exit: ")
+
+
+def golden():
+    """
+    Allow the user to get, add, or delete golden queries.
+    These are used as references during query generation (akin to k-shot learning),
+    and can significantly improve the performance of the query generation model.
+    """
+    # get action from sys.argv or prompt
+    if len(sys.argv) < 3:
+        print(
+            "defog golden requires an action. Please enter 'get', 'add', or 'delete':"
+        )
+        action = prompt().strip().lower()
+    else:
+        action = sys.argv[2].lower()
+    while action not in ["get", "add", "delete", "exit"]:
+        print("Please enter 'get', 'add', 'delete', or 'exit' to exit:")
+        action = prompt().strip().lower()
+
+    dfg = defog.Defog()
+    if action == "get":
+        # get format from sys.argv or prompt
+        if len(sys.argv) < 4:
+            print(
+                "defog golden get requires an export format. Please enter 'json' or 'csv':"
+            )
+            format = prompt().strip().lower()
+        else:
+            format = sys.argv[3].lower()
+        while format not in ["json", "csv"]:
+            print("Please enter 'json' or 'csv':")
+            format = prompt().strip().lower()
+        # make request to get golden queries
+        print("Getting golden queries...")
+        golden_queries = dfg.get_golden_queries(format)
+        if golden_queries:
+            print(f"\nYou have {len(golden_queries)} golden queries:\n")
+        for pair in golden_queries:
+            question = pair["question"]
+            sql = pair["sql"]
+            print(f"Question:\n{question}\nSQL:\n{sql}\n")
+    elif action == "add":
+        # get path from sys.argv or prompt
+        if len(sys.argv) < 4:
+            print(
+                "defog golden add requires a path to a JSON or CSV file containing golden queries:"
+            )
+            path = prompt().strip()
+        else:
+            path = sys.argv[3]
+        while (
+            not os.path.exists(path)
+            and not path.endswith(".json")
+            and not path.endswith(".csv")
+        ):
+            print("File not found. Please enter a valid path:")
+            path = prompt().strip()
+        # if path ends with json, read in json and pass in golden_queries
+        if path.endswith(".json"):
+            with open(path, "r") as f:
+                golden_queries = json.load(f)
+                dfg.update_golden_queries(golden_queries=golden_queries)
+        # if path ends with csv, pass in csv file
+        elif path.endswith(".csv"):
+            dfg.update_golden_queries(golden_queries_path=path)
+    elif action == "delete":
+        # get path from sys.argv or prompt
+        if len(sys.argv) < 4:
+            print(
+                "defog golden delete requires either a path to a JSON or CSV file containing golden queries for deletion, or 'all' to delete all golden queries."
+            )
+            path = prompt().strip()
+        else:
+            path = sys.argv[3]
+        while (
+            not os.path.exists(path)
+            and not path.endswith(".json")
+            and not path.endswith(".csv")
+            and path != "all"
+        ):
+            print(
+                "File not found. Please enter a valid path, or 'all' to delete all golden queries:"
+            )
+            path = prompt().strip()
+        if path == "all":
+            dfg.delete_golden_queries(all=True)
+        elif path.endswith(".json"):
+            with open(path, "r") as f:
+                golden_queries = json.load(f)
+                dfg.delete_golden_queries(golden_queries=golden_queries)
+        elif path.endswith(".csv"):
+            dfg.delete_golden_queries(golden_queries_path=path)
 
 
 def deploy():
