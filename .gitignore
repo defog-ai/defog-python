@@ -63,3 +63,7 @@ ipython_config.py
 
 *.DS_Store
 local_test.py
+
+defog_metadata.csv
+golden_queries.csv
+golden_queries.json
