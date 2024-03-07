@@ -31,16 +31,32 @@ def update_glossary(self, glossary: str = "", customized_glossary: dict = None):
     Updates the glossary on the defog servers.
     :param glossary: The glossary to be used.
     """
-    r = requests.post(
-        f"{self.base_url}/update_glossary",
-        json={
-            "api_key": self.api_key,
-            "glossary": glossary,
-            "customized_glossary": customized_glossary,
-        },
-    )
+    data = {
+        "api_key": self.api_key,
+        "glossary": glossary,
+    }
+    if customized_glossary:
+        data["customized_glossary"] = customized_glossary
+    r = requests.post(f"{self.base_url}/update_glossary", json=data)
     resp = r.json()
     return resp
+
+
+def delete_glossary(self, user_type=None):
+    """
+    Deletes the glossary on the defog servers.
+    """
+    data = {
+        "api_key": self.api_key,
+    }
+    if user_type:
+        data["key"] = user_type
+    r = requests.post(f"{self.base_url}/delete_glossary", json=data)
+    if r.status_code == 200:
+        print("Glossary deleted successfully.")
+    else:
+        error_message = r.json().get("message", "")
+        print(f"Glossary deletion failed.\nError message: {error_message}")
 
 
 def get_glossary(self, mode="general"):

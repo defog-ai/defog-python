@@ -41,6 +41,8 @@ def main():
         gen()
     elif sys.argv[1] == "update":
         update()
+    elif sys.argv[1] == "glossary":
+        glossary()
     elif sys.argv[1] == "query":
         query()
     elif sys.argv[1] == "golden":
@@ -338,6 +340,60 @@ def update():
         print("Please try again, or contact us at founders@defog.ai")
 
 
+def glossary():
+    """
+    Checks for the next action in sys.argv and runs the appropriate function.
+    Available actions are: update, get, delete
+    If the sys.argv is missing an action, prompt the user for the action.
+    """
+    if len(sys.argv) < 3:
+        print(
+            "defog glossary requires an action. Please enter 'update', 'get', or 'delete':"
+        )
+        action = prompt().strip().lower()
+    else:
+        action = sys.argv[2].lower()
+    while action not in ["update", "get", "delete", "exit"]:
+        print("Please enter 'update', 'get', 'delete', or 'exit' to exit:")
+        action = prompt().strip().lower()
+
+    dfg = defog.Defog()
+    if action == "update":
+        # get path from sys.argv or prompt
+        if len(sys.argv) < 4:
+            print(
+                "defog glossary update requires a path to a .txt file containing your glossary:"
+            )
+            path = prompt().strip()
+        else:
+            path = sys.argv[3]
+        while not os.path.exists(path):
+            print(f"File {path} not found. Please enter a valid path:")
+            path = prompt().strip()
+        with open(path, "r") as f:
+            glossary = f.read()
+        resp = dfg.update_glossary(glossary)
+        if resp["status"] == "success":
+            print("Your glossary has been updated.")
+    elif action == "get":
+        glossary = dfg.get_glossary()
+        if not glossary:
+            print("You don't have a glossary yet.")
+            return
+        print(f"Your glossary is:\n{glossary}")
+        print(
+            f"Enter the file path to save the glossary to, or just hit enter for default (glossary.txt):"
+        )
+        path = prompt().strip()
+        if path == "":
+            path = "glossary.txt"
+        with open(path, "w") as f:
+            f.write(glossary)
+        print(f"Your glossary has been saved to {path}.")
+    elif action == "delete":
+        dfg.delete_glossary()
+
+
 def query():
     """
     Run a query and print the results alongside the generated SQL query.
@@ -348,6 +404,15 @@ def query():
         query = prompt().strip()
     else:
         query = sys.argv[2]
+
+    while len(query) > 300 and query != "e":
+        print(
+            "Your query is too long. If you have general information about your database,"
+            + "you can add it to the glossary to help Defog generate queries more accurately.\n"
+            + "You can add a glossary by running `defog glossary update <path/to/glossary>`.\n"
+            + "You can also use the `defog golden add` command to add golden queries to help Defog generate queries more accurately."
+        )
+        query = prompt("Please enter a shorter query, or type 'e' to exit first:")
 
     user_question = ""
     sql_generated = ""
