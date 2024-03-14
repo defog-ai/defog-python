@@ -2,17 +2,19 @@ import datetime
 import decimal
 import json
 import os
-import pandas as pd
-import pwinput
 import re
 import shutil
 import subprocess
 import sys
 import time
 
+import pandas as pd
+import pwinput
+import requests
+from prompt_toolkit import prompt
+
 import defog
 from defog.util import get_feedback, parse_update
-from prompt_toolkit import prompt
 
 USAGE_STRING = """
 Usage: defog <command>
@@ -39,6 +41,8 @@ def main():
         init()
     if sys.argv[1] == "gen":
         gen()
+    elif sys.argv[1] == "vet" and sys.argv[2] == "metadata":
+        vet_metadata()
     elif sys.argv[1] == "update":
         update()
     elif sys.argv[1] == "glossary":
@@ -316,6 +320,72 @@ def gen():
     )
 
 
+def vet_metadata():
+    """
+    This function reads the metadata provided by the user, and for each
+    row, if it's column description is > 100 characters, it will
+    call /shorten_column_description to propose a shorter description.
+    Finally, it prompts the user to confirm and save the changes.
+    """
+    # get csv_path from sys.argv or prompt
+    if len(sys.argv) < 4:
+        print(
+            "defog vet-metadata requires a path to a CSV that contains your Database metadata. Please enter the path to the CSV you would like to vet:"
+        )
+        csv_path = prompt().strip()
+    else:
+        csv_path = sys.argv[3]
+    while not os.path.exists(csv_path):
+        print(f"File {csv_path} not found. Please enter a valid path:")
+        csv_path = prompt().strip()
+
+    dfg = defog.Defog()  # load config from .defog/connection.json
+    schema_df = pd.read_csv(csv_path).fillna("")
+    changes_made = False
+    for i, row in schema_df.iterrows():
+        column_name = row["column_name"]
+        column_description = row["column_description"]
+        if len(column_description) > 100:
+            print(
+                f"Column description for \033[1m{column_name}\033[0m is > 100 characters.\n"
+            )
+            print(f"Old description: {column_description}\n")
+            r = requests.post(
+                f"{dfg.base_url}/shorten_column_description",
+                json={
+                    "api_key": dfg.api_key,
+                    "column_name": column_name,
+                    "column_description": column_description,
+                },
+            )
+            resp = r.json()
+            new_column_description = resp["column_description"]
+            # show both descriptions and prompt user if they want to save
+            print(f"Suggested description: {new_column_description}\n")
+            reply = prompt(
+                "Do you want to save this description? Enter (Y/n) or your proposed edit: "
+            )
+            if reply.lower() == "y":
+                schema_df.at[i, "column_description"] = new_column_description
+                changes_made = True
+            elif reply.lower() == "n":
+                pass
+            else:
+                schema_df.at[i, "column_description"] = reply
+                changes_made = True
+    if not changes_made:
+        print("Your metadata is fine! No changes were made.")
+        sys.exit(0)
+    if_save = prompt(
+        f"Would you like to save the changes back to {csv_path}? Enter 'y' to save or anything else to exit without saving:"
+    )
+    if if_save.lower() == "y":
+        schema_df.to_csv(csv_path, index=False)
+        print(f"Changes saved to {csv_path}")
+    else:
+        print("Changes not saved.")
+
+
 def update():
     """
     Update the schema in defog with a new schema using the url provided.
@@ -330,6 +400,7 @@ def update():
         filename = sys.argv[2]
     # load config from .defog/connection.json
     df = defog.Defog()
+    # TODO call vet_schema
     # upload schema to defog
     resp = df.update_db_schema(filename)
     if resp["status"] == "success":
@@ -725,8 +796,9 @@ def print_table(columns, data):
 
 
 def serve_webserver():
-    from defog.serve import app
     import uvicorn
+
+    from defog.serve import app
 
     uvicorn.run(app, host="localhost", port=1235)
 

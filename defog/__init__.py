@@ -1,8 +1,6 @@
 import base64
 import json
 import os
-import requests
-import pandas as pd
 from importlib.metadata import version
 from defog import generate_schema, query_methods, admin_methods
 
@@ -35,6 +33,7 @@ class Defog:
         save_json: bool = True,
         base_url: str = "https://api.defog.ai",
         generate_query_url: str = "https://api.defog.ai/generate_query_chat",
+        verbose: bool = False,
     ):
         """
         Initializes the Defog class.
@@ -64,7 +63,10 @@ class Defog:
                 self.save_connection_json()
         elif os.path.exists(self.filepath):  # case 4 and 5
             # read connection details from filepath
-            print("Connection details found. Reading connection details from file...")
+            if verbose:
+                print(
+                    "Connection details found. Reading connection details from file..."
+                )
             if api_key == "":
                 with open(self.filepath, "r") as f:
                     data = json.load(f)
@@ -78,7 +80,8 @@ class Defog:
                             "generate_query_url",
                             "https://api.defog.ai/generate_query_chat",
                         )
-                        print(f"Connection details read from {self.filepath}.")
+                        if verbose:
+                            print(f"Connection details read from {self.filepath}.")
                     else:
                         raise KeyError(
                             f"Invalid file at {self.filepath}.\n"

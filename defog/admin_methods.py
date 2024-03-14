@@ -8,6 +8,14 @@ def update_db_schema(self, path_to_csv):
     Update the DB schema via a CSV
     """
     schema_df = pd.read_csv(path_to_csv).fillna("")
+    # check columns
+    if not all(
+        col in schema_df.columns
+        for col in ["table_name", "column_name", "data_type", "column_description"]
+    ):
+        raise ValueError(
+            "The CSV must contain the following columns: table_name, column_name, data_type, column_description"
+        )
     schema = {}
     for table_name in schema_df["table_name"].unique():
         schema[table_name] = schema_df[schema_df["table_name"] == table_name][
