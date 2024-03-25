@@ -1,4 +1,5 @@
 import json
+from typing import Dict, Optional
 import requests
 import pandas as pd
 
@@ -127,14 +128,15 @@ def get_feedback(self, n_rows: int = 50, start_from: int = 0):
     return df.iloc[start_from:].head(n_rows).to_markdown(index=False)
 
 
-def get_quota(self) -> str:
-    headers = {
-        "Authorization": f"Bearer {self.api_key}",
-    }
-    response = requests.get(
-        f"{self.base_url}/quota",
-        headers=headers,
+def get_quota(self) -> Optional[Dict]:
+    api_key = self.api_key
+    response = requests.post(
+        f"{self.base_url}/check_api_usage",
+        json={"api_key": api_key},
     )
+    # get status code and return None if not 200
+    if response.status_code != 200:
+        return None
     return response.json()
 
 
