@@ -534,7 +534,9 @@ def query():
                 print(resp)
 
             print()
-            get_feedback(df.api_key, df.db_type, user_question, sql_generated)
+            get_feedback(
+                df.api_key, df.db_type, user_question, sql_generated, df.base_url
+            )
         query = prompt("Please enter another query, or type 'e' to exit: ")
 
 

@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import requests
 import pandas as pd
 
@@ -142,7 +142,7 @@ def get_quota(self) -> Optional[Dict]:
 
 def update_golden_queries(
     self,
-    golden_queries: dict = None,
+    golden_queries: List[Dict] = None,
     golden_queries_path: str = None,
     scrub: bool = True,
 ):
