@@ -728,15 +728,15 @@ def quota():
     """
     df = defog.Defog()
     resp = df.get_quota()
-    if resp["ran_successfully"]:
+    if resp:
         if resp["premium"]:
             print(f"You are currently on the premium plan with unrestricted usage.")
-            print(f"Your current usage is {resp['queries_made']} queries.")
         else:
-            print(
-                f"You are currently on the free plan with {1000-resp['queries_made']} queries remaining for the month."
-            )
-            print(f"Your current usage is {resp['queries_made']} queries.")
+            print(f"You are currently on the free plan with 1000 queries per month.")
+        print("Usage so far:")
+        print(f"{'Month':<10}{'API Calls':<10}")
+        for month, api_calls in resp["data"]:
+            print(f"{month}:  {api_calls}")
     else:
         print(f"Failed to get quota")
 
