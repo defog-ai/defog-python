@@ -78,7 +78,7 @@ class Defog:
                         self.base_url = data.get("base_url", "https://api.defog.ai")
                         self.generate_query_url = data.get(
                             "generate_query_url",
-                            "https://api.defog.ai/generate_query_chat",
+                            f"{self.base_url}/generate_query_chat",
                         )
                         if verbose:
                             print(f"Connection details read from {self.filepath}.")
