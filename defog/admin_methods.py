@@ -36,7 +36,9 @@ def update_db_schema(self, path_to_csv, dev=False):
     return resp
 
 
-def update_glossary(self, glossary: str = "", customized_glossary: dict = None, dev: bool = False ):
+def update_glossary(
+    self, glossary: str = "", customized_glossary: dict = None, dev: bool = False
+):
     """
     Updates the glossary on the defog servers.
     :param glossary: The glossary to be used.
