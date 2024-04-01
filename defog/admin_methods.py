@@ -4,7 +4,7 @@ import requests
 import pandas as pd
 
 
-def update_db_schema(self, path_to_csv):
+def update_db_schema(self, path_to_csv, dev=False):
     """
     Update the DB schema via a CSV
     """
@@ -29,13 +29,14 @@ def update_db_schema(self, path_to_csv):
             "api_key": self.api_key,
             "table_metadata": schema,
             "db_type": self.db_type,
+            "dev": dev,
         },
     )
     resp = r.json()
     return resp
 
 
-def update_glossary(self, glossary: str = "", customized_glossary: dict = None):
+def update_glossary(self, glossary: str = "", customized_glossary: dict = None, dev: bool = False ):
     """
     Updates the glossary on the defog servers.
     :param glossary: The glossary to be used.
@@ -43,6 +44,7 @@ def update_glossary(self, glossary: str = "", customized_glossary: dict = None):
     data = {
         "api_key": self.api_key,
         "glossary": glossary,
+        "dev": dev,
     }
     if customized_glossary:
         data["customized_glossary"] = customized_glossary
@@ -51,12 +53,13 @@ def update_glossary(self, glossary: str = "", customized_glossary: dict = None):
     return resp
 
 
-def delete_glossary(self, user_type=None):
+def delete_glossary(self, user_type=None, dev=False):
     """
     Deletes the glossary on the defog servers.
     """
     data = {
         "api_key": self.api_key,
+        "dev": dev,
     }
     if user_type:
         data["key"] = user_type
@@ -68,13 +71,13 @@ def delete_glossary(self, user_type=None):
         print(f"Glossary deletion failed.\nError message: {error_message}")
 
 
-def get_glossary(self, mode="general"):
+def get_glossary(self, mode="general", dev=False):
     """
     Gets the glossary on the defog servers.
     """
     r = requests.post(
         f"{self.base_url}/get_metadata",
-        json={"api_key": self.api_key},
+        json={"api_key": self.api_key, "dev": dev},
     )
     resp = r.json()
     if mode == "general":
@@ -83,13 +86,13 @@ def get_glossary(self, mode="general"):
         return resp["customized_glossary"]
 
 
-def get_metadata(self, format="markdown", export_path=None):
+def get_metadata(self, format="markdown", export_path=None, dev=False):
     """
     Gets the metadata on the defog servers.
     """
     r = requests.post(
         f"{self.base_url}/get_metadata",
-        json={"api_key": self.api_key},
+        json={"api_key": self.api_key, "dev": dev},
     )
     resp = r.json()
     items = []

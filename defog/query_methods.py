@@ -11,6 +11,7 @@ def get_query(
     glossary: str = "",
     language: str = None,
     debug: bool = False,
+    dev: bool = False,
 ):
     """
     Sends the query to the defog servers, and return the response.
@@ -26,6 +27,7 @@ def get_query(
             "glossary": glossary,
             "language": language,
             "hard_filters": hard_filters,
+            "dev": dev,
         }
         if schema != {}:
             data["schema"] = schema
@@ -68,6 +70,7 @@ def run_query(
     language: str = None,
     query: dict = None,
     retries: int = 3,
+    dev: bool = False,
 ):
     """
     Sends the question to the defog servers, executes the generated SQL,
@@ -84,6 +87,7 @@ def run_query(
             schema=schema,
             glossary=glossary,
             language=language,
+            dev=dev,
         )
     if query["ran_successfully"]:
         try:
