@@ -2,6 +2,7 @@ import requests
 from defog.query import execute_query
 from datetime import datetime
 
+
 def get_query(
     self,
     question: str,
@@ -33,7 +34,7 @@ def get_query(
         if schema != {}:
             data["schema"] = schema
             data["is_direct"] = True
-        
+
         t_start = datetime.now()
         r = requests.post(
             self.generate_query_url,
@@ -57,7 +58,7 @@ def get_query(
         }
         if profile:
             resp["time_taken"] = time_taken
-        
+
         return resp
     except Exception as e:
         if debug:
