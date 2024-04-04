@@ -1,6 +1,6 @@
 import requests
 from defog.query import execute_query
-
+from datetime import datetime
 
 def get_query(
     self,
@@ -12,6 +12,7 @@ def get_query(
     language: str = None,
     debug: bool = False,
     dev: bool = False,
+    profile: bool = False,
 ):
     """
     Sends the query to the defog servers, and return the response.
@@ -32,17 +33,21 @@ def get_query(
         if schema != {}:
             data["schema"] = schema
             data["is_direct"] = True
+        
+        t_start = datetime.now()
         r = requests.post(
             self.generate_query_url,
             json=data,
             timeout=300,
         )
         resp = r.json()
+        t_end = datetime.now()
+        time_taken = (t_end - t_start).total_seconds()
         query_generated = resp.get("sql", resp.get("query_generated"))
         ran_successfully = resp.get("ran_successfully")
         error_message = resp.get("error_message")
         query_db = self.db_type
-        return {
+        resp = {
             "query_generated": query_generated,
             "ran_successfully": ran_successfully,
             "error_message": error_message,
@@ -50,6 +55,10 @@ def get_query(
             "previous_context": resp.get("previous_context"),
             "reason_for_query": resp.get("reason_for_query"),
         }
+        if profile:
+            resp["time_taken"] = time_taken
+        
+        return resp
     except Exception as e:
         if debug:
             print(e)
@@ -71,6 +80,7 @@ def run_query(
     query: dict = None,
     retries: int = 3,
     dev: bool = False,
+    profile: bool = False,
 ):
     """
     Sends the question to the defog servers, executes the generated SQL,
@@ -88,10 +98,12 @@ def run_query(
             glossary=glossary,
             language=language,
             dev=dev,
+            profile=profile,
         )
     if query["ran_successfully"]:
         try:
             print("Query generated, now running it on your database...")
+            tstart = datetime.now()
             colnames, result, executed_query = execute_query(
                 query["query_generated"],
                 self.api_key,
@@ -101,7 +113,9 @@ def run_query(
                 hard_filters,
                 retries,
             )
-            return {
+            tend = datetime.now()
+            time_taken = (tend - tstart).total_seconds()
+            resp = {
                 "columns": colnames,
                 "data": result,
                 "query_generated": executed_query,
@@ -109,6 +123,10 @@ def run_query(
                 "reason_for_query": query.get("reason_for_query"),
                 "previous_context": query.get("previous_context"),
             }
+            if profile:
+                resp["execution_time_taken"] = time_taken
+                resp["generation_time_taken"] = query.get("time_taken")
+            return resp
         except Exception as e:
             return {
                 "ran_successfully": False,
