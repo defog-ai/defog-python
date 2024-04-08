@@ -178,7 +178,7 @@ def get_feedback(
                 "error": feedback_text,
             }
             print(
-                "Thank you for the feedback, let us see how can we improve this for you...\n"
+                "Thank you for the feedback, let us see how can we improve this for you...\n\nGenerating an automated assessment for improving the metadata and glossary. This can take up to 60 seconds. Please be patient...\n"
             )
             response = requests.post(
                 f"{base_url}/reflect_on_error",
@@ -197,7 +197,7 @@ def get_feedback(
                         f"We came up with the following additions for improving your glossary:\n{instruction_set}"
                     )
                     add_to_glossary = prompt(
-                        "If you would like to add these suggestions to your glossary, please enter 'y'. If you would like to amend it, just type in your edits and hit enter. Otherwise, enter 'n'.\n"
+                        "If you would like to add these suggestions to your glossary, please enter 'y'. If you would like to amend it, just type in the new glossary and hit enter. Otherwise, enter 'n'.\n"
                     )
                     if add_to_glossary == "y":
                         md_resp = requests.post(
