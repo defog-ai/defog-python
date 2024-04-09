@@ -113,6 +113,7 @@ def run_query(
                 question,
                 hard_filters,
                 retries,
+                dev=dev,
             )
             tend = datetime.now()
             time_taken = (tend - tstart).total_seconds()
