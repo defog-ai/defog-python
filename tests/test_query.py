@@ -112,6 +112,7 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
         question = "your_question"
         hard_filters = "your_hard_filters"
         retries = 3
+        dev = False
         colnames = (["col1", "col2"],)
         results = [("data1", "data2"), ("data3", "data4")]
 
@@ -151,6 +152,7 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
             "db_type": db_type,
             "hard_filters": hard_filters,
             "question": question,
+            "dev": dev,
         }
         mock_requests_post.assert_called_with(
             "https://api.defog.ai/retry_query_after_error",
