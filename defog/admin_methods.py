@@ -206,11 +206,7 @@ def delete_golden_queries(
     if all:
         r = requests.post(
             f"{self.base_url}/delete_golden_queries",
-            json={
-                "api_key": self.api_key,
-                "all": True,
-                "dev": dev
-            },
+            json={"api_key": self.api_key, "all": True, "dev": dev},
         )
         resp = r.json()
         print("All golden queries have now been deleted.")
@@ -231,13 +227,18 @@ def delete_golden_queries(
     return resp
 
 
-def get_golden_queries(self, format: str="csv", export_path: str=None, dev: bool=False):
+def get_golden_queries(
+    self, format: str = "csv", export_path: str = None, dev: bool = False
+):
     """
     Gets the golden queries on the defog servers.
     """
     r = requests.post(
         f"{self.base_url}/get_golden_queries",
-        json={"api_key": self.api_key, "dev": dev,},
+        json={
+            "api_key": self.api_key,
+            "dev": dev,
+        },
     )
     resp = r.json()
     golden_queries = resp["golden_queries"]
