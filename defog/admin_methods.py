@@ -150,6 +150,7 @@ def update_golden_queries(
     golden_queries: List[Dict] = None,
     golden_queries_path: str = None,
     scrub: bool = True,
+    dev: bool = False,
 ):
     """
     Updates the golden queries on the defog servers.
@@ -171,6 +172,7 @@ def update_golden_queries(
             "api_key": self.api_key,
             "golden_queries": golden_queries,
             "scrub": scrub,
+            "dev": dev,
         },
     )
     resp = r.json()
@@ -188,6 +190,7 @@ def delete_golden_queries(
     golden_queries: dict = None,
     golden_queries_path: str = None,
     all: bool = False,
+    dev: bool = False,
 ):
     """
     Updates the golden queries on the defog servers.
@@ -206,6 +209,7 @@ def delete_golden_queries(
             json={
                 "api_key": self.api_key,
                 "all": True,
+                "dev": dev
             },
         )
         resp = r.json()
@@ -227,13 +231,13 @@ def delete_golden_queries(
     return resp
 
 
-def get_golden_queries(self, format="csv", export_path=None):
+def get_golden_queries(self, format: str="csv", export_path: str=None, dev: bool=False):
     """
     Gets the golden queries on the defog servers.
     """
     r = requests.post(
         f"{self.base_url}/get_golden_queries",
-        json={"api_key": self.api_key},
+        json={"api_key": self.api_key, "dev": dev,},
     )
     resp = r.json()
     golden_queries = resp["golden_queries"]
