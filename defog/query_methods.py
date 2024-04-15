@@ -14,6 +14,7 @@ def get_query(
     debug: bool = False,
     dev: bool = False,
     profile: bool = False,
+    ignore_cache: bool = False,
 ):
     """
     Sends the query to the defog servers, and return the response.
@@ -30,6 +31,7 @@ def get_query(
             "language": language,
             "hard_filters": hard_filters,
             "dev": dev,
+            "ignore_cache": ignore_cache,
         }
         if schema != {}:
             data["schema"] = schema
@@ -82,6 +84,7 @@ def run_query(
     retries: int = 3,
     dev: bool = False,
     profile: bool = False,
+    ignore_cache: bool = False,
 ):
     """
     Sends the question to the defog servers, executes the generated SQL,
@@ -100,6 +103,7 @@ def run_query(
             language=language,
             dev=dev,
             profile=profile,
+            ignore_cache=ignore_cache,
         )
     if query["ran_successfully"]:
         try:
