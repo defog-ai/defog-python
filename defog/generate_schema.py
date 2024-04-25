@@ -91,7 +91,7 @@ def generate_postgres_schema(
                 f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
             )
     else:
-        return schemas
+        return table_columns
 
 
 def generate_redshift_schema(
