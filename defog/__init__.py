@@ -2,7 +2,7 @@ import base64
 import json
 import os
 from importlib.metadata import version
-from defog import generate_schema, query_methods, admin_methods
+from defog import generate_schema, query_methods, admin_methods, health_methods
 
 try:
     __version__ = version("defog")
@@ -211,6 +211,13 @@ for name in dir(query_methods):
 # Add all methods from admin_methods to Defog
 for name in dir(admin_methods):
     attr = getattr(admin_methods, name)
+    if callable(attr):
+        # Add the method to Defog
+        setattr(Defog, name, attr)
+
+# Add all methods from health_methods to Defog
+for name in dir(health_methods):
+    attr = getattr(health_methods, name)
     if callable(attr):
         # Add the method to Defog
         setattr(Defog, name, attr)
