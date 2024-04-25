@@ -30,6 +30,7 @@ def check_md_valid(self, dev: bool = False):
     except Exception as e:
         return {"error": str(e)}
 
+
 def check_gold_queries_valid(self, dev: bool = False):
     """
     Check if the golden queries are valid, and can actually be executed on a given database without errors
@@ -41,6 +42,7 @@ def check_gold_queries_valid(self, dev: bool = False):
     resp = r.json()
     return resp
 
+
 def check_glossary_valid(self, dev: bool = False):
     """
     Check if glossary is valid by verifying if all schema, table and column names referenced are present in the metadata.
@@ -51,6 +53,7 @@ def check_glossary_valid(self, dev: bool = False):
     )
     resp = r.json()
     return resp
+
 
 def check_glossary_consistency(self, dev: bool = False):
     """
