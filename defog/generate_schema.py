@@ -49,6 +49,8 @@ def generate_postgres_schema(
     # get the columns for each table
     for schema in schemas:
         for table_name in tables:
+            if "." in table_name:
+                _, table_name = table_name.split(".", 1)
             cur.execute(
                 "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s AND table_schema = %s;",
                 (
