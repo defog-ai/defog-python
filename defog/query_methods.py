@@ -28,14 +28,10 @@ def get_query(
             "previous_context": previous_context,
             "db_type": self.db_type if self.db_type != "databricks" else "postgres",
             "glossary": glossary,
-            "language": language,
             "hard_filters": hard_filters,
             "dev": dev,
             "ignore_cache": ignore_cache,
         }
-        if schema != {}:
-            data["schema"] = schema
-            data["is_direct"] = True
 
         t_start = datetime.now()
         r = requests.post(
