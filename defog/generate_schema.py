@@ -31,7 +31,8 @@ def generate_postgres_schema(
         # get all tables
         for schema in schemas:
             cur.execute(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;", (schema,)
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
+                (schema,),
             )
             if schema == "public":
                 tables += [row[0] for row in cur.fetchall()]
@@ -42,15 +43,18 @@ def generate_postgres_schema(
         return tables
 
     print("Getting schema for each table that you selected...")
-    
+
     table_columns = {}
-    
+
     # get the columns for each table
     for schema in schemas:
         for table_name in tables:
             cur.execute(
                 "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s AND table_schema = %s;",
-                (table_name, schema,),
+                (
+                    table_name,
+                    schema,
+                ),
             )
             rows = cur.fetchall()
             rows = [row for row in rows]
