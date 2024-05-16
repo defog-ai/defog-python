@@ -43,9 +43,12 @@ def execute_query_once(db_type: str, db_creds, query: str):
 
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
-        
+
         # if there are any column names that are the same, we need to deduplicate them
-        colnames = [f"{col}_{i}" if colnames.count(col) > 1 else col for i, col in enumerate(colnames)]
+        colnames = [
+            f"{col}_{i}" if colnames.count(col) > 1 else col
+            for i, col in enumerate(colnames)
+        ]
 
         results = cur.fetchall()
         cur.close()
