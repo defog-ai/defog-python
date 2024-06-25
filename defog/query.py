@@ -113,6 +113,19 @@ def execute_query_once(db_type: str, db_creds, query: str):
             colnames = [desc[0] for desc in cursor.description]
             results = cursor.fetchall()
         return colnames, results
+    elif db_type == "sqlserver":
+        try:
+            import pyodbc
+        except:
+            raise Exception("pyodbc not installed.")
+        conn = pyodbc.connect(**db_creds)
+        cur = conn.cursor()
+        cur.execute(query)
+        colnames = [desc[0] for desc in cur.description]
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        return colnames, results
     else:
         raise Exception(f"Database type {db_type} not yet supported.")
 

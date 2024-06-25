@@ -16,6 +16,7 @@ SUPPORTED_DB_TYPES = [
     "bigquery",
     "snowflake",
     "databricks",
+    "sqlserver",
 ]
 
 
