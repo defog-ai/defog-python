@@ -24,6 +24,9 @@ For a BigQuery installation, use
 For a Databricks installation, use
 `pip install --upgrade 'defog[databricks]'`
 
+For a SQLServer installation, use
+`pip install --upgrade 'defog[sqlserver]'`
+
 ## API Key
 You can get your API key by going to [https://defog.ai/signup](https://defog.ai/signup) and creating an account. If you fail to verify your email, you can email us at support(at)defog.ai
 

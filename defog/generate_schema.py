@@ -61,12 +61,13 @@ def generate_postgres_schema(
             rows = cur.fetchall()
             rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-            if scan:
-                rows = identify_categorical_columns(cur, table_name, rows)
-            if schema == "public":
-                table_columns[table_name] = rows
-            else:
-                table_columns[schema + table_name] = rows
+            if len(rows) > 0:
+                if scan:
+                    rows = identify_categorical_columns(cur, table_name, rows)
+                if schema == "public":
+                    table_columns[table_name] = rows
+                else:
+                    table_columns[schema + table_name] = rows
     conn.close()
 
     print(
@@ -152,11 +153,12 @@ def generate_redshift_schema(
         rows = cur.fetchall()
         rows = [row for row in rows]
         rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-        if scan:
-            cur.execute(f"SET search_path TO {schema}")
-            rows = identify_categorical_columns(cur, table_name, rows)
-            cur.close()
-        schemas[table_name] = rows
+        if len(rows) > 0:
+            if scan:
+                cur.execute(f"SET search_path TO {schema}")
+                rows = identify_categorical_columns(cur, table_name, rows)
+                cur.close()
+            schemas[table_name] = rows
 
     if upload:
         print(
@@ -231,7 +233,8 @@ def generate_mysql_schema(
         rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
         if scan:
             rows = identify_categorical_columns(cur, table_name, rows)
-        schemas[table_name] = rows
+        if len(rows) > 0:
+            schemas[table_name] = rows
 
     conn.close()
 
@@ -303,7 +306,8 @@ def generate_databricks_schema(
             ]
             if scan:
                 rows = identify_categorical_columns(cur, table_name, rows)
-            schemas[table_name] = rows
+            if len(rows) > 0:
+                schemas[table_name] = rows
 
     conn.close()
 
@@ -391,7 +395,8 @@ def generate_snowflake_schema(
         if scan:
             rows = identify_categorical_columns(cur, table_name, rows)
         cur.close()
-        schemas[table_name] = rows
+        if len(rows) > 0:
+            schemas[table_name] = rows
 
     conn.close()
 
@@ -449,10 +454,88 @@ def generate_bigquery_schema(
         table = client.get_table(table_name)
         rows = table.schema
         rows = [{"column_name": i.name, "data_type": i.field_type} for i in rows]
-        schemas[table_name] = rows
+        if len(rows) > 0:
+            schemas[table_name] = rows
 
     client.close()
 
+    if upload:
+        print(
+            "Sending the schema to Defog servers and generating column descriptions. This might take up to 2 minutes..."
+        )
+        r = requests.post(
+            f"{self.base_url}/get_schema_csv",
+            json={
+                "api_key": self.api_key,
+                "schemas": schemas,
+                "foreign_keys": [],
+                "indexes": [],
+            },
+        )
+        resp = r.json()
+        if "csv" in resp:
+            csv = resp["csv"]
+            if return_format == "csv":
+                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                return "defog_metadata.csv"
+            else:
+                return csv
+        else:
+            print(f"We got an error!")
+            if "message" in resp:
+                print(f"Error message: {resp['message']}")
+            print(
+                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+            )
+    else:
+        return schemas
+
+
+def generate_sqlserver_schema(
+    self,
+    tables: list,
+    upload: bool = True,
+    return_format: str = "csv",
+    return_tables_only: bool = False,
+) -> str:
+    try:
+        import pyodbc
+    except:
+        raise Exception("pyodbc not installed.")
+
+    connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
+    conn = pyodbc.connect(connection_string)
+    cur = conn.cursor()
+    schemas = {}
+    schema = self.db_creds.get("schema", "dbo")
+
+    if len(tables) == 0:
+        # get all tables
+        cur.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
+            (schema,),
+        )
+        if schema == "dbo":
+            tables += [row[0] for row in cur.fetchall()]
+        else:
+            tables += [schema + "." + row[0] for row in cur.fetchall()]
+
+    if return_tables_only:
+        return tables
+
+    print("Getting schema for each table in your database...")
+    # get the schema for each table
+    for table_name in tables:
+        cur.execute(
+            f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table_name}';"
+        )
+        rows = cur.fetchall()
+        rows = [row for row in rows]
+        rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
+        if len(rows) > 0:
+            schemas[table_name] = rows
+
+    conn.close()
     if upload:
         print(
             "Sending the schema to Defog servers and generating column descriptions. This might take up to 2 minutes..."
@@ -538,6 +621,13 @@ def generate_db_schema(
             tables,
             return_format=return_format,
             scan=scan,
+            upload=upload,
+            return_tables_only=return_tables_only,
+        )
+    elif self.db_type == "sqlserver":
+        return self.generate_sqlserver_schema(
+            tables,
+            return_format=return_format,
             upload=upload,
             return_tables_only=return_tables_only,
         )

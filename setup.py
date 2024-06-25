@@ -8,6 +8,7 @@ extras = {
     "bigquery": ["google-cloud-bigquery"],
     "redshift": ["psycopg2-binary"],
     "databricks": ["databricks-sql-connector"],
+    "sqlserver": ["pyodbc"],
 }
 
 
@@ -25,7 +26,7 @@ setup(
     name="defog",
     packages=find_packages(),
     package_data={"defog": ["gcp/*", "aws/*"] + next_static_files},
-    version="0.64.2",
+    version="0.65.0",
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
     license="MIT",
