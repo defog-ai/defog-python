@@ -497,7 +497,8 @@ def generate_sqlserver_schema(
     except:
         raise Exception("pyodbc not installed.")
 
-    conn = pyodbc.connect(self.db_creds["connection_string"])
+    connection_string = f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']}"
+    conn = pyodbc.connect(connection_string)
     cur = conn.cursor()
     schemas = {}
     schema = self.db_creds.get("schema", "dbo")

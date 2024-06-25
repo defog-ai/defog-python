@@ -164,7 +164,16 @@ class Defog:
                 raise KeyError("db_creds must contain a 'access_token' key.")
             if "http_path" not in db_creds:
                 raise KeyError("db_creds must contain a 'http_path' key.")
-        elif db_type == "mongo" or db_type == "sqlserver":
+        elif db_type == "sqlserver":
+            if "server" not in db_creds:
+                raise KeyError("db_creds must contain a 'server' key.")
+            if "database" not in db_creds:
+                raise KeyError("db_creds must contain a 'database' key.")
+            if "user" not in db_creds:
+                raise KeyError("db_creds must contain a 'user' key.")
+            if "password" not in db_creds:
+                raise KeyError("db_creds must contain a 'password' key.")
+        elif db_type == "mongo":
             if "connection_string" not in db_creds:
                 raise KeyError("db_creds must contain a 'connection_string' key.")
         elif db_type == "bigquery":

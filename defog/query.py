@@ -118,7 +118,8 @@ def execute_query_once(db_type: str, db_creds, query: str):
             import pyodbc
         except:
             raise Exception("pyodbc not installed.")
-        conn = pyodbc.connect(**db_creds)
+        connection_string = f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={db_creds['server']};DATABASE={db_creds['database']};UID={db_creds['user']};PWD={db_creds['password']}"
+        conn = pyodbc.connect(connection_string)
         cur = conn.cursor()
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
