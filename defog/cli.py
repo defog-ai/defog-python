@@ -195,16 +195,15 @@ def init():
             "json_key_path": json_key_path,
         }
     elif db_type == "sqlserver":
-        server = prompt("Please enter your database server host").strip()
-        database = prompt("Please enter your database name").strip()
-        user = prompt("Please enter your database user").strip()
-        password = pwinput.pwinput("Please enter your database password")
+        server = prompt("Please enter your database server host\n").strip()
+        database = prompt("Please enter your database name\n").strip()
+        user = prompt("Please enter your database user\n").strip()
+        password = pwinput.pwinput("Please enter your database password\n")
         db_creds = {
             "server": server,
             "database": database,
             "user": user,
             "password": password,
-            "schema": schema,
         }
 
     # write to filepath and print confirmation
