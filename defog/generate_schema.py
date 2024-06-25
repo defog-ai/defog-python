@@ -61,12 +61,13 @@ def generate_postgres_schema(
             rows = cur.fetchall()
             rows = [row for row in rows]
             rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-            if scan:
-                rows = identify_categorical_columns(cur, table_name, rows)
-            if schema == "public":
-                table_columns[table_name] = rows
-            else:
-                table_columns[schema + table_name] = rows
+            if len(rows) > 0:
+                if scan:
+                    rows = identify_categorical_columns(cur, table_name, rows)
+                if schema == "public":
+                    table_columns[table_name] = rows
+                else:
+                    table_columns[schema + table_name] = rows
     conn.close()
 
     print(
@@ -152,11 +153,12 @@ def generate_redshift_schema(
         rows = cur.fetchall()
         rows = [row for row in rows]
         rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-        if scan:
-            cur.execute(f"SET search_path TO {schema}")
-            rows = identify_categorical_columns(cur, table_name, rows)
-            cur.close()
-        schemas[table_name] = rows
+        if len(rows) > 0:
+            if scan:
+                cur.execute(f"SET search_path TO {schema}")
+                rows = identify_categorical_columns(cur, table_name, rows)
+                cur.close()
+            schemas[table_name] = rows
 
     if upload:
         print(
@@ -231,7 +233,8 @@ def generate_mysql_schema(
         rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
         if scan:
             rows = identify_categorical_columns(cur, table_name, rows)
-        schemas[table_name] = rows
+        if len(rows) > 0:
+            schemas[table_name] = rows
 
     conn.close()
 
@@ -303,7 +306,8 @@ def generate_databricks_schema(
             ]
             if scan:
                 rows = identify_categorical_columns(cur, table_name, rows)
-            schemas[table_name] = rows
+            if len(rows) > 0:
+                schemas[table_name] = rows
 
     conn.close()
 
@@ -391,7 +395,8 @@ def generate_snowflake_schema(
         if scan:
             rows = identify_categorical_columns(cur, table_name, rows)
         cur.close()
-        schemas[table_name] = rows
+        if len(rows) > 0:
+            schemas[table_name] = rows
 
     conn.close()
 
@@ -449,7 +454,8 @@ def generate_bigquery_schema(
         table = client.get_table(table_name)
         rows = table.schema
         rows = [{"column_name": i.name, "data_type": i.field_type} for i in rows]
-        schemas[table_name] = rows
+        if len(rows) > 0:
+            schemas[table_name] = rows
 
     client.close()
 
@@ -497,7 +503,7 @@ def generate_sqlserver_schema(
     except:
         raise Exception("pyodbc not installed.")
 
-    connection_string = f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']}"
+    connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
     conn = pyodbc.connect(connection_string)
     cur = conn.cursor()
     schemas = {}
@@ -526,7 +532,8 @@ def generate_sqlserver_schema(
         rows = cur.fetchall()
         rows = [row for row in rows]
         rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-        schemas[table_name] = rows
+        if len(rows) > 0:
+            schemas[table_name] = rows
 
     conn.close()
     if upload:
