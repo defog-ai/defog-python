@@ -199,7 +199,12 @@ class TestDefog(unittest.TestCase):
             Defog.check_db_creds("mongo", {"account": "some_account"})
 
     def test_check_db_creds_sqlserver(self):
-        db_creds = {"connection_string": "some_connection_string"}
+        db_creds = {
+            "server": "some_server",
+            "database": "some_database",
+            "user": "some_user",
+            "password": "some_password",
+        }
         Defog.check_db_creds("sqlserver", db_creds)
         Defog.check_db_creds("sqlserver", {})
         with self.assertRaises(KeyError):
