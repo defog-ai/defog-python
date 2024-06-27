@@ -67,7 +67,7 @@ def generate_postgres_schema(
                 if schema == "public":
                     table_columns[table_name] = rows
                 else:
-                    table_columns[schema + table_name] = rows
+                    table_columns[schema + "." + table_name] = rows
     conn.close()
 
     print(
