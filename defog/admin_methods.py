@@ -345,6 +345,8 @@ def create_empty_tables(self, dev: bool = False):
 
         con = sql.connect(**self.db_creds)
         con.execute(ddl)
+        conn.commit()
+        conn.close()
         return True
     elif self.db_type == "snowflake":
         import snowflake.connector
