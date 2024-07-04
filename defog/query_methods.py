@@ -13,6 +13,7 @@ def get_query(
     language: str = None,
     debug: bool = False,
     dev: bool = False,
+    temp: bool = False,
     profile: bool = False,
     ignore_cache: bool = False,
 ):
@@ -30,6 +31,7 @@ def get_query(
             "glossary": glossary,
             "hard_filters": hard_filters,
             "dev": dev,
+            "temp": temp,
             "ignore_cache": ignore_cache,
         }
 
@@ -79,6 +81,7 @@ def run_query(
     query: dict = None,
     retries: int = 3,
     dev: bool = False,
+    temp: bool = False,
     profile: bool = False,
     ignore_cache: bool = False,
 ):
@@ -98,6 +101,7 @@ def run_query(
             glossary=glossary,
             language=language,
             dev=dev,
+            temp=temp,
             profile=profile,
             ignore_cache=ignore_cache,
         )
@@ -114,6 +118,7 @@ def run_query(
                 hard_filters,
                 retries,
                 dev=dev,
+                temp=temp,
             )
             tend = datetime.now()
             time_taken = (tend - tstart).total_seconds()

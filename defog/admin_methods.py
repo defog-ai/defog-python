@@ -4,7 +4,7 @@ import requests
 import pandas as pd
 
 
-def update_db_schema(self, path_to_csv, dev=False):
+def update_db_schema(self, path_to_csv, dev=False, temp=False):
     """
     Update the DB schema via a CSV
     """
@@ -30,6 +30,7 @@ def update_db_schema(self, path_to_csv, dev=False):
             "table_metadata": schema,
             "db_type": self.db_type,
             "dev": dev,
+            "temp": temp,
         },
     )
     resp = r.json()
