@@ -142,6 +142,7 @@ def execute_query(
     retries: int = 3,
     schema: dict = None,
     dev: bool = False,
+    temp: bool = False,
 ):
     """
     Execute the query and retry with adaptive learning if there is an error.
@@ -168,6 +169,7 @@ def execute_query(
                     "question": question,
                     "query": query,
                     "dev": dev,
+                    "temp": temp,
                 },
                 timeout=1,
             )
@@ -187,6 +189,7 @@ def execute_query(
                     "hard_filters": hard_filters,
                     "question": question,
                     "dev": dev,
+                    "temp": temp,
                 }
                 if schema is not None:
                     retry["schema"] = schema

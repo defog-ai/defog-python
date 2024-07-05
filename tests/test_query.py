@@ -113,6 +113,7 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
         hard_filters = "your_hard_filters"
         retries = 3
         dev = False
+        temp = False
         colnames = (["col1", "col2"],)
         results = [("data1", "data2"), ("data3", "data4")]
 
@@ -138,7 +139,13 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
 
         # Call the function being tested
         ret = execute_query(
-            query1, api_key, db_type, db_creds, question, hard_filters, retries
+            query=query1,
+            api_key=api_key,
+            db_type=db_type,
+            db_creds=db_creds,
+            question=question,
+            hard_filters=hard_filters,
+            retries=retries,
         )
         # should return new query2 instead of query1
         self.assertEqual(ret, (colnames, results, query2))
@@ -153,6 +160,7 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
             "hard_filters": hard_filters,
             "question": question,
             "dev": dev,
+            "temp": temp,
         }
         mock_requests_post.assert_called_with(
             "https://api.defog.ai/retry_query_after_error",
