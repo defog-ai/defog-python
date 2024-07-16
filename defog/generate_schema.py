@@ -5,6 +5,7 @@ import pandas as pd
 import json
 from typing import List
 
+
 def generate_postgres_schema(
     self,
     tables: list,
