@@ -3,7 +3,7 @@ from defog.util import identify_categorical_columns
 from io import StringIO
 import pandas as pd
 import json
-
+from typing import List
 
 def generate_postgres_schema(
     self,
@@ -12,7 +12,7 @@ def generate_postgres_schema(
     return_format: str = "csv",
     scan: bool = True,
     return_tables_only: bool = False,
-    schemas: list[str] = ["public"],
+    schemas: List[str] = ["public"],
 ) -> str:
     # when upload is True, we send the schema to the defog servers and generate a CSV
     # when its false, we return the schema as a dict
