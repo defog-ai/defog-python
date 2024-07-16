@@ -38,7 +38,12 @@ def update_db_schema(self, path_to_csv, dev=False, temp=False):
 
 
 def update_glossary(
-    self, glossary: str = "", customized_glossary: dict = None, dev: bool = False
+    self,
+    glossary: str = "",
+    customized_glossary: dict = None,
+    glossary_compulsory: str = "",
+    glossary_prunable_units: List[str] = [],
+    dev: bool = False,
 ):
     """
     Updates the glossary on the defog servers.
@@ -48,6 +53,8 @@ def update_glossary(
         "api_key": self.api_key,
         "glossary": glossary,
         "dev": dev,
+        "glossary_compulsory": glossary_compulsory,
+        "glossary_prunable_units": glossary_prunable_units,
     }
     if customized_glossary:
         data["customized_glossary"] = customized_glossary
