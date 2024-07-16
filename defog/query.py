@@ -125,6 +125,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
         results = cur.fetchall()
+        results = [list(row) for row in results]
         cur.close()
         conn.close()
         return colnames, results
