@@ -119,7 +119,10 @@ def execute_query_once(db_type: str, db_creds, query: str):
         except:
             raise Exception("pyodbc not installed.")
 
-        connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};DATABASE={db_creds['database']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
+        if db_creds["database"] != "":
+            connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};DATABASE={db_creds['database']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
+        else:
+            connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
         conn = pyodbc.connect(connection_string)
         cur = conn.cursor()
         cur.execute(query)
