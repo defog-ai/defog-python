@@ -447,7 +447,21 @@ def generate_bigquery_schema(
         raise Exception("google-cloud-bigquery not installed.")
 
     client = bigquery.Client.from_service_account_json(self.db_creds["json_key_path"])
+    project_id = [p.project_id for p in client.list_projects()][0]
+    datasets = [dataset.dataset_id for dataset in client.list_datasets()]
     schemas = {}
+
+    if len(tables) == 0:
+        # get all tables
+        tables = []
+        for dataset in datasets:
+            tables += [
+                f"{project_id}.{dataset}.{table.table_id}"
+                for table in client.list_tables(dataset=dataset)
+            ]
+
+    if return_tables_only:
+        return tables
 
     print("Getting the schema for each table that you selected...")
     # get the schema for each table
