@@ -5,7 +5,7 @@
 Defog converts your natural language text queries into SQL and other machine readable code. This library allows you to easily integrate Defog into your python application, and has a CLI to help you get started.
 
 ## Important
-We not recommend using [defog-desktop](https://github.com/defog-ai/defog-desktop) instead of using this repo directly.
+We now recommend using [defog-desktop](https://github.com/defog-ai/defog-desktop) instead of using this repo directly.
 
 https://user-images.githubusercontent.com/4327467/236758074-042bc5d7-4452-46ce-bb26-e2da2a0223c6.mp4
 
