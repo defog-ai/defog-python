@@ -139,15 +139,16 @@ def run_query(
             print("Query generated, now running it on your database...")
             tstart = datetime.now()
             colnames, result, executed_query = execute_query(
-                query["query_generated"],
-                self.api_key,
-                self.db_type,
-                self.db_creds,
-                question,
-                hard_filters,
-                retries,
+                query=query["query_generated"],
+                api_key=self.api_key,
+                db_type=self.db_type,
+                db_creds=self.db_creds,
+                question=question,
+                hard_filters=hard_filters,
+                retries=retries,
                 dev=dev,
                 temp=temp,
+                base_url=self.base_url,
             )
             tend = datetime.now()
             time_taken = (tend - tstart).total_seconds()
