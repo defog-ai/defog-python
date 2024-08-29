@@ -2,6 +2,7 @@ import json
 import re
 import requests
 from defog.util import write_logs
+import os
 
 
 # execute query for given db_type and return column names and data
@@ -147,12 +148,18 @@ def execute_query(
     schema: dict = None,
     dev: bool = False,
     temp: bool = False,
+    base_url: str = None,
 ):
     """
     Execute the query and retry with adaptive learning if there is an error.
     Raises an Exception if there are no retries left, or if the error is a connection error.
     """
     err_msg = None
+    # if base_url is not explicitly defined, check if DEFOG_BASE_URL is set in the environment
+    # if not, then use "https://api.defog.ai" as the default
+    if base_url is None:
+        base_url = os.environ.get("DEFOG_BASE_URL", "https://api.defog.ai")
+
     try:
         return execute_query_once(db_type, db_creds, query) + (query,)
     except Exception as e:
@@ -164,7 +171,7 @@ def execute_query(
         # log this error to our feedback system first (this is a 1-way side-effect)
         try:
             requests.post(
-                "https://api.defog.ai/feedback",
+                f"{base_url}/feedback",
                 json={
                     "api_key": api_key,
                     "feedback": "bad",
@@ -199,7 +206,7 @@ def execute_query(
                     retry["schema"] = schema
                 write_logs(json.dumps(retry))
                 r = requests.post(
-                    "https://api.defog.ai/retry_query_after_error",
+                    f"{base_url}/retry_query_after_error",
                     json=retry,
                 )
                 response = r.json()
