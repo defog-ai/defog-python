@@ -1,64 +1,48 @@
-import requests
-from defog.util import identify_categorical_columns
+from defog.util import async_identify_categorical_columns, make_async_post_request
+import asyncio
 from io import StringIO
 import pandas as pd
 import json
 from typing import List
 
 
-def generate_postgres_schema(
+async def generate_postgres_schema(
     self,
     tables: list,
     upload: bool = True,
     return_format: str = "csv",
     scan: bool = True,
     return_tables_only: bool = False,
-    schemas: List[str] = [],
+    schemas: List[str] = ["public"],
 ) -> str:
     # when upload is True, we send the schema to the defog servers and generate a CSV
     # when its false, we return the schema as a dict
     try:
-        import psycopg2
+        import asyncpg
     except ImportError:
         raise ImportError(
-            "psycopg2 not installed. Please install it with `pip install psycopg2-binary`."
+            "asyncpg not installed. Please install it with `pip install psycopg2-binary`."
         )
 
-    conn = psycopg2.connect(**self.db_creds)
-    cur = conn.cursor()
+    conn = await asyncpg.connect(**self.db_creds)
+    schemas = tuple(schemas)
 
     if len(tables) == 0:
         # get all tables
-        if len(schemas) > 0:
-            for schema in schemas:
-                cur.execute(
-                    "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
-                    (schema,),
-                )
-                if schema == "public":
-                    tables += [row[0] for row in cur.fetchall()]
-                else:
-                    tables += [schema + "." + row[0] for row in cur.fetchall()]
-        else:
-            excluded_schemas = (
-                "information_schema",
-                "pg_catalog",
-                "pg_toast",
-                "pg_temp_1",
-                "pg_toast_temp_1",
-            )
-            cur.execute(
-                "SELECT table_name, table_schema FROM information_schema.tables WHERE table_schema NOT IN %s;",
-                (excluded_schemas,),
-            )
-            for row in cur.fetchall():
-                if row[1] == "public":
-                    tables.append(row[0])
-                else:
-                    tables.append(f"{row[1]}.{row[0]}")
+        for schema in schemas:
+            query = """
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = $1;
+            """
+            rows = await conn.fetch(query, schema)
+            if schema == "public":
+                tables += [row[0] for row in rows]
+            else:
+                tables += [schema + "." + row[0] for row in rows]
 
     if return_tables_only:
-        conn.close()
+        await conn.close()
         return tables
 
     print("Getting schema for each table that you selected...")
@@ -70,38 +54,37 @@ def generate_postgres_schema(
         for table_name in tables:
             if "." in table_name:
                 _, table_name = table_name.split(".", 1)
-            cur.execute(
-                "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s AND table_schema = %s;",
-                (
-                    table_name,
-                    schema,
-                ),
-            )
-            rows = cur.fetchall()
+            query = """
+                SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT)
+                FROM information_schema.columns
+                WHERE table_name = $1 AND table_schema = $2;
+            """
+            rows = await conn.fetch(query, table_name, schema)
             rows = [row for row in rows]
-            rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
+            rows = [{"column_name": row[0], "data_type": row[1]} for row in rows]
             if len(rows) > 0:
                 if scan:
-                    rows = identify_categorical_columns(cur, table_name, rows)
+                    rows = await async_identify_categorical_columns(
+                        conn=conn, cur=None, table_name=table_name, rows=rows
+                    )
                 if schema == "public":
                     table_columns[table_name] = rows
                 else:
                     table_columns[schema + "." + table_name] = rows
-    conn.close()
+    await conn.close()
 
     print(
         "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
     )
     if upload:
         # send the schemas dict to the defog servers
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
+        resp = await make_async_post_request(
+            url=f"{self.base_url}/get_schema_csv",
+            payload={
                 "api_key": self.api_key,
                 "schemas": table_columns,
             },
         )
-        resp = r.json()
         if "csv" in resp:
             csv = resp["csv"]
             if return_format == "csv":
@@ -120,7 +103,7 @@ def generate_postgres_schema(
         return table_columns
 
 
-def generate_redshift_schema(
+async def generate_redshift_schema(
     self,
     tables: list,
     upload: bool = True,
@@ -131,70 +114,65 @@ def generate_redshift_schema(
     # when upload is True, we send the schema to the defog servers and generate a CSV
     # when its false, we return the schema as a dict
     try:
-        import psycopg2
+        import asyncpg
     except ImportError:
         raise ImportError(
-            "psycopg2 not installed. Please install it with `pip install psycopg2-binary`."
+            "asyncpg not installed. Please install it with `pip install psycopg2-binary`."
         )
 
     if "schema" not in self.db_creds:
         schema = "public"
-        conn = psycopg2.connect(**self.db_creds)
+        conn = await asyncpg.connect(**self.db_creds)
     else:
         schema = self.db_creds["schema"]
         del self.db_creds["schema"]
-        conn = psycopg2.connect(**self.db_creds)
-    cur = conn.cursor()
+        conn = await asyncpg.connect(**self.db_creds)
 
     schemas = {}
 
     if len(tables) == 0:
-        # get all tables
-        cur.execute(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
-            (schema,),
+        table_names_query = (
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = $1;"
         )
-        tables = [row[0] for row in cur.fetchall()]
+        results = await conn.fetch(table_names_query, schema)
+        tables = [row[0] for row in results]
 
     if return_tables_only:
-        conn.close()
+        await conn.close()
         return tables
 
     print("Getting schema for each table that you selected...")
     # get the schema for each table
     for table_name in tables:
-        cur.execute(
-            "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s AND table_schema= %s;",
-            (
-                table_name,
-                schema,
-            ),
-        )
-        rows = cur.fetchall()
+        table_schema_query = "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = $1 AND table_schema= $2;"
+        rows = await conn.fetch(table_schema_query, table_name, schema)
         rows = [row for row in rows]
         rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
         if len(rows) > 0:
             if scan:
-                cur.execute(f"SET search_path TO {schema}")
-                rows = identify_categorical_columns(cur, table_name, rows)
-                cur.close()
+                await conn.execute(f"SET search_path TO {schema}")
+                rows = await async_identify_categorical_columns(
+                    conn=conn, cur=None, table_name=table_name, rows=rows
+                )
+
             schemas[table_name] = rows
+
+    await conn.close()
 
     if upload:
         print(
             "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
         )
         # send the schemas dict to the defog servers
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
+        resp = await make_async_post_request(
+            url=f"{self.base_url}/get_schema_csv",
+            payload={
                 "api_key": self.api_key,
                 "schemas": schemas,
                 "foreign_keys": [],
                 "indexes": [],
             },
         )
-        resp = r.json()
         if "csv" in resp:
             csv = resp["csv"]
             if return_format == "csv":
@@ -213,7 +191,7 @@ def generate_redshift_schema(
         return schemas
 
 
-def generate_mysql_schema(
+async def generate_mysql_schema(
     self,
     tables: list,
     upload: bool = True,
@@ -222,54 +200,59 @@ def generate_mysql_schema(
     return_tables_only: bool = False,
 ) -> str:
     try:
-        import mysql.connector
+        import aiomysql
     except:
-        raise Exception("mysql-connector not installed.")
+        raise Exception("aiomysql not installed.")
 
-    conn = mysql.connector.connect(**self.db_creds)
-    cur = conn.cursor()
+    conn = await aiomysql.connect(**self.db_creds)
+    cur = await conn.cursor()
     schemas = {}
 
     if len(tables) == 0:
         # get all tables
         db_name = self.db_creds.get("database", "")
-        cur.execute(
+        await cur.execute(
             f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{db_name}';"
         )
-        tables = [row[0] for row in cur.fetchall()]
+        tables = [row[0] for row in await cur.fetchall()]
 
     if return_tables_only:
-        conn.close()
+        await conn.close()
         return tables
 
     print("Getting schema for the relevant table in your database...")
     # get the schema for each table
     for table_name in tables:
-        cur.execute(
+        await cur.execute(
             "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s;",
             (table_name,),
         )
-        rows = cur.fetchall()
+        rows = await cur.fetchall()
         rows = [row for row in rows]
         rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
         if scan:
-            rows = identify_categorical_columns(cur, table_name, rows)
+            rows = await async_identify_categorical_columns(
+                conn=None,
+                cur=cur,
+                table_name=table_name,
+                rows=rows,
+                is_cursor_async=True,
+            )
         if len(rows) > 0:
             schemas[table_name] = rows
 
-    conn.close()
+    await conn.ensure_closed()
 
     if upload:
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
+        resp = await make_async_post_request(
+            url=f"{self.base_url}/get_schema_csv",
+            payload={
                 "api_key": self.api_key,
                 "schemas": schemas,
                 "foreign_keys": [],
                 "indexes": [],
             },
         )
-        resp = r.json()
         if "csv" in resp:
             csv = resp["csv"]
             if return_format == "csv":
@@ -288,7 +271,7 @@ def generate_mysql_schema(
         return schemas
 
 
-def generate_databricks_schema(
+async def generate_databricks_schema(
     self,
     tables: list,
     upload: bool = True,
@@ -301,49 +284,57 @@ def generate_databricks_schema(
     except:
         raise Exception("databricks-sql-connector not installed.")
 
-    conn = sql.connect(**self.db_creds)
+    conn = await asyncio.to_thread(sql.connect, **self.db_creds)
     schemas = {}
-    with conn.cursor() as cur:
+    async with await asyncio.to_thread(conn.cursor) as cur:
         print("Getting schema for each table that you selected...")
         # get the schema for each table
 
         if len(tables) == 0:
             # get all tables from databricks
-            cur.tables(schema_name=self.db_creds.get("schema", "default"))
-            tables = [row.TABLE_NAME for row in cur.fetchall()]
+            await asyncio.to_thread(
+                cur.tables, schema_name=self.db_creds.get("schema", "default")
+            )
+            tables = [row.TABLE_NAME for row in await asyncio.to_thread(cur.fetchall())]
 
         if return_tables_only:
-            conn.close()
+            await asyncio.to_thread(conn.close)
             return tables
 
         for table_name in tables:
-            cur.columns(
+            await asyncio.to_thread(
+                cur.columns,
                 schema_name=self.db_creds.get("schema", "default"),
                 table_name=table_name,
             )
-            rows = cur.fetchall()
+            rows = await asyncio.to_thread(cur.fetchall)
             rows = [row for row in rows]
             rows = [
                 {"column_name": i.COLUMN_NAME, "data_type": i.TYPE_NAME} for i in rows
             ]
             if scan:
-                rows = identify_categorical_columns(cur, table_name, rows)
+                rows = await async_identify_categorical_columns(
+                    conn=None,
+                    cur=cur,
+                    table_name=table_name,
+                    rows=rows,
+                    is_cursor_async=False,
+                )
             if len(rows) > 0:
                 schemas[table_name] = rows
 
-    conn.close()
+    await asyncio.to_thread(conn.close)
 
     if upload:
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
+        resp = await make_async_post_request(
+            url=f"{self.base_url}/get_schema_csv",
+            payload={
                 "api_key": self.api_key,
                 "schemas": schemas,
                 "foreign_keys": [],
                 "indexes": [],
             },
         )
-        resp = r.json()
         if "csv" in resp:
             csv = resp["csv"]
             if return_format == "csv":
@@ -362,7 +353,7 @@ def generate_databricks_schema(
         return schemas
 
 
-def generate_snowflake_schema(
+async def generate_snowflake_schema(
     self,
     tables: list,
     upload: bool = True,
@@ -375,13 +366,15 @@ def generate_snowflake_schema(
     except:
         raise Exception("snowflake-connector not installed.")
 
-    conn = snowflake.connector.connect(
+    conn = await asyncio.to_thread(
+        snowflake.connector.connect,
         user=self.db_creds["user"],
         password=self.db_creds["password"],
         account=self.db_creds["account"],
     )
-    conn.cursor().execute(
-        f"USE WAREHOUSE {self.db_creds['warehouse']}"
+
+    await asyncio.to_thread(
+        conn.cursor().execute, f"USE WAREHOUSE {self.db_creds['warehouse']}"
     )  # set the warehouse
 
     schemas = {}
@@ -390,16 +383,21 @@ def generate_snowflake_schema(
     # get the schema for each table
     if len(tables) == 0:
         # get all tables from Snowflake database
-        cur = conn.cursor().execute("SHOW TERSE TABLES;")
-        res = cur.fetchall()
+        cur = await asyncio.to_thread(conn.cursor().execute, "SHOW TERSE TABLES;")
+        res = await asyncio.to_thread(cur.fetchall)
         tables = [f"{row[3]}.{row[4]}.{row[1]}" for row in res]
 
     if return_tables_only:
+        await asyncio.to_thread(conn.close)
         return tables
 
     for table_name in tables:
         rows = []
-        for row in conn.cursor().execute(f"SHOW COLUMNS IN {table_name};"):
+        cur = await asyncio.to_thread(conn.cursor)
+        fetched_rows = await asyncio.to_thread(
+            cur.execute, f"SHOW COLUMNS IN {table_name};"
+        )
+        for row in fetched_rows:
             rows.append(row)
         rows = [
             {
@@ -413,29 +411,35 @@ def generate_snowflake_schema(
             if row["data_type"] in alt_types:
                 row["data_type"] = alt_types[row["data_type"]]
             rows[idx] = row
-        cur = conn.cursor()
+
+        cur = await asyncio.to_thread(conn.cursor)
         if scan:
-            rows = identify_categorical_columns(cur, table_name, rows)
-        cur.close()
+            rows = await async_identify_categorical_columns(
+                conn=None,
+                cur=cur,
+                table_name=table_name,
+                rows=rows,
+                is_cursor_async=False,
+            )
+        await asyncio.to_thread(cur.close)
         if len(rows) > 0:
             schemas[table_name] = rows
 
-    conn.close()
+    await asyncio.to_thread(conn.close)
 
     if upload:
         print(
             "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
         )
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
+        resp = await make_async_post_request(
+            url=f"{self.base_url}/get_schema_csv",
+            payload={
                 "api_key": self.api_key,
                 "schemas": schemas,
                 "foreign_keys": [],
                 "indexes": [],
             },
         )
-        resp = r.json()
         if "csv" in resp:
             csv = resp["csv"]
             if return_format == "csv":
@@ -454,7 +458,7 @@ def generate_snowflake_schema(
         return schemas
 
 
-def generate_bigquery_schema(
+async def generate_bigquery_schema(
     self,
     tables: list,
     upload: bool = True,
@@ -467,48 +471,50 @@ def generate_bigquery_schema(
     except:
         raise Exception("google-cloud-bigquery not installed.")
 
-    client = bigquery.Client.from_service_account_json(self.db_creds["json_key_path"])
-    project_id = [p.project_id for p in client.list_projects()][0]
-    datasets = [dataset.dataset_id for dataset in client.list_datasets()]
+    client = await asyncio.to_thread(
+        bigquery.Client.from_service_account_json, self.db_creds["json_key_path"]
+    )
+    project_id = [p.project_id for p in await asyncio.to_thread(client.list_projects)][
+        0
+    ]
+    datasets = [
+        dataset.dataset_id for dataset in await asyncio.to_thread(client.list_datasets)
+    ]
     schemas = {}
 
     if len(tables) == 0:
         # get all tables
         tables = []
         for dataset in datasets:
+            table_list = await asyncio.to_thread(client.list_tables, dataset)
             tables += [
-                f"{project_id}.{dataset}.{table.table_id}"
-                for table in client.list_tables(dataset=dataset)
+                f"{project_id}.{dataset}.{table.table_id}" for table in table_list
             ]
-
-    if return_tables_only:
-        return tables
 
     print("Getting the schema for each table that you selected...")
     # get the schema for each table
     for table_name in tables:
-        table = client.get_table(table_name)
+        table = await asyncio.to_thread(client.get_table, table_name)
         rows = table.schema
         rows = [{"column_name": i.name, "data_type": i.field_type} for i in rows]
         if len(rows) > 0:
             schemas[table_name] = rows
 
-    client.close()
+    await asyncio.to_thread(client.close)
 
     if upload:
         print(
             "Sending the schema to Defog servers and generating column descriptions. This might take up to 2 minutes..."
         )
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
+        resp = await make_async_post_request(
+            url=f"{self.base_url}/get_schema_csv",
+            payload={
                 "api_key": self.api_key,
                 "schemas": schemas,
                 "foreign_keys": [],
                 "indexes": [],
             },
         )
-        resp = r.json()
         if "csv" in resp:
             csv = resp["csv"]
             if return_format == "csv":
@@ -527,7 +533,7 @@ def generate_bigquery_schema(
         return schemas
 
 
-def generate_sqlserver_schema(
+async def generate_sqlserver_schema(
     self,
     tables: list,
     upload: bool = True,
@@ -543,52 +549,54 @@ def generate_sqlserver_schema(
         connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
     else:
         connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
-    conn = pyodbc.connect(connection_string)
-    cur = conn.cursor()
+    conn = await asyncio.to_thread(pyodbc.connect, connection_string)
+    cur = await asyncio.to_thread(conn.cursor)
     schemas = {}
     schema = self.db_creds.get("schema", "dbo")
 
     if len(tables) == 0:
-        # get all tables
-        cur.execute(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
-            (schema,),
+        table_names_query = (
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;"
         )
+        await asyncio.to_thread(cur.execute, table_names_query, (schema,))
         if schema == "dbo":
-            tables += [row[0] for row in cur.fetchall()]
+            tables += [row[0] for row in await asyncio.to_thread(cur.fetchall)]
         else:
-            tables += [schema + "." + row[0] for row in cur.fetchall()]
+            tables += [
+                schema + "." + row[0] for row in await asyncio.to_thread(cur.fetchall)
+            ]
 
     if return_tables_only:
+        await asyncio.to_thread(conn.close)
         return tables
 
     print("Getting schema for each table in your database...")
     # get the schema for each table
     for table_name in tables:
-        cur.execute(
-            f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table_name}';"
+        await asyncio.to_thread(
+            cur.execute,
+            f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table_name}';",
         )
-        rows = cur.fetchall()
+        rows = await asyncio.to_thread(cur.fetchall)
         rows = [row for row in rows]
         rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
         if len(rows) > 0:
             schemas[table_name] = rows
 
-    conn.close()
+    await asyncio.to_thread(conn.close)
     if upload:
         print(
             "Sending the schema to Defog servers and generating column descriptions. This might take up to 2 minutes..."
         )
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
+        resp = await make_async_post_request(
+            url=f"{self.base_url}/get_schema_csv",
+            payload={
                 "api_key": self.api_key,
                 "schemas": schemas,
                 "foreign_keys": [],
                 "indexes": [],
             },
         )
-        resp = r.json()
         if "csv" in resp:
             csv = resp["csv"]
             if return_format == "csv":
@@ -607,7 +615,7 @@ def generate_sqlserver_schema(
         return schemas
 
 
-def generate_db_schema(
+async def generate_db_schema(
     self,
     tables: list,
     scan: bool = True,
@@ -616,7 +624,7 @@ def generate_db_schema(
     return_format: str = "csv",
 ) -> str:
     if self.db_type == "postgres":
-        return self.generate_postgres_schema(
+        return await self.generate_postgres_schema(
             tables,
             return_format=return_format,
             scan=scan,
@@ -624,7 +632,7 @@ def generate_db_schema(
             return_tables_only=return_tables_only,
         )
     elif self.db_type == "mysql":
-        return self.generate_mysql_schema(
+        return await self.generate_mysql_schema(
             tables,
             return_format=return_format,
             scan=scan,
@@ -632,7 +640,7 @@ def generate_db_schema(
             return_tables_only=return_tables_only,
         )
     elif self.db_type == "bigquery":
-        return self.generate_bigquery_schema(
+        return await self.generate_bigquery_schema(
             tables,
             return_format=return_format,
             scan=scan,
@@ -640,7 +648,7 @@ def generate_db_schema(
             return_tables_only=return_tables_only,
         )
     elif self.db_type == "redshift":
-        return self.generate_redshift_schema(
+        return await self.generate_redshift_schema(
             tables,
             return_format=return_format,
             scan=scan,
@@ -648,7 +656,7 @@ def generate_db_schema(
             return_tables_only=return_tables_only,
         )
     elif self.db_type == "snowflake":
-        return self.generate_snowflake_schema(
+        return await self.generate_snowflake_schema(
             tables,
             return_format=return_format,
             scan=scan,
@@ -656,7 +664,7 @@ def generate_db_schema(
             return_tables_only=return_tables_only,
         )
     elif self.db_type == "databricks":
-        return self.generate_databricks_schema(
+        return await self.generate_databricks_schema(
             tables,
             return_format=return_format,
             scan=scan,
@@ -664,7 +672,7 @@ def generate_db_schema(
             return_tables_only=return_tables_only,
         )
     elif self.db_type == "sqlserver":
-        return self.generate_sqlserver_schema(
+        return await self.generate_sqlserver_schema(
             tables,
             return_format=return_format,
             upload=upload,
