@@ -2,7 +2,16 @@ import base64
 import json
 import os
 from importlib.metadata import version
-from defog import generate_schema, query_methods, admin_methods, health_methods
+from defog import (
+    generate_schema,
+    async_generate_schema,
+    query_methods,
+    async_query_methods,
+    admin_methods,
+    async_admin_methods,
+    health_methods,
+    async_health_methods,
+)
 
 try:
     __version__ = version("defog")
@@ -20,9 +29,9 @@ SUPPORTED_DB_TYPES = [
 ]
 
 
-class Defog:
+class BaseDefog:
     """
-    The main class for Defog
+    The base class for Defog and AsyncDefog
     """
 
     def __init__(
@@ -37,7 +46,7 @@ class Defog:
         verbose: bool = False,
     ):
         """
-        Initializes the Defog class.
+        Initializes the Base Defog class.
         We have the possible scenarios detailed below:
         1) no config file, no/incomplete params -> success if only db_creds missing, error otherwise
         2) no config file, wrong params -> error
@@ -204,12 +213,77 @@ class Defog:
         self.db_creds = creds["db_creds"]
 
 
+class Defog(BaseDefog):
+    """
+    The main class for Defog (Synchronous)
+    """
+
+    def __init__(
+        self,
+        api_key: str = "",
+        db_type: str = "",
+        db_creds: dict = {},
+        base64creds: str = "",
+        save_json: bool = True,
+        base_url: str = "https://api.defog.ai",
+        generate_query_url: str = "https://api.defog.ai/generate_query_chat",
+        verbose: bool = False,
+    ):
+        """Initializes the synchronous version of the Defog class"""
+        super().__init__(
+            api_key=api_key,
+            db_type=db_type,
+            db_creds=db_creds,
+            base64creds=base64creds,
+            save_json=save_json,
+            base_url=base_url,
+            generate_query_url=generate_query_url,
+            verbose=verbose,
+        )
+
+
+class AsyncDefog(BaseDefog):
+    """
+    The main class for Defog (Asynchronous)
+    """
+
+    def __init__(
+        self,
+        api_key: str = "",
+        db_type: str = "",
+        db_creds: dict = {},
+        base64creds: str = "",
+        save_json: bool = True,
+        base_url: str = "https://api.defog.ai",
+        generate_query_url: str = "https://api.defog.ai/generate_query_chat",
+        verbose: bool = False,
+    ):
+        """Initializes the asynchronous version of the Defog class"""
+        super().__init__(
+            api_key=api_key,
+            db_type=db_type,
+            db_creds=db_creds,
+            base64creds=base64creds,
+            save_json=save_json,
+            base_url=base_url,
+            generate_query_url=generate_query_url,
+            verbose=verbose,
+        )
+
+
 # Add all methods from generate_schema to Defog
 for name in dir(generate_schema):
     attr = getattr(generate_schema, name)
     if callable(attr):
         # Add the method to Defog
         setattr(Defog, name, attr)
+
+# Add all methods from async_generate_schema to AsyncDefog
+for name in dir(async_generate_schema):
+    attr = getattr(async_generate_schema, name)
+    if callable(attr):
+        # Add the method to AsyncDefog
+        setattr(AsyncDefog, name, attr)
 
 # Add all methods from query_methods to Defog
 for name in dir(query_methods):
@@ -218,6 +292,13 @@ for name in dir(query_methods):
         # Add the method to Defog
         setattr(Defog, name, attr)
 
+# Add all methods from async_query_methods to AsyncDefog
+for name in dir(async_query_methods):
+    attr = getattr(async_query_methods, name)
+    if callable(attr):
+        # Add the method to AsyncDefog
+        setattr(AsyncDefog, name, attr)
+
 # Add all methods from admin_methods to Defog
 for name in dir(admin_methods):
     attr = getattr(admin_methods, name)
@@ -225,9 +306,23 @@ for name in dir(admin_methods):
         # Add the method to Defog
         setattr(Defog, name, attr)
 
+# Add all methods from async_admin_methods to AsyncDefog
+for name in dir(async_admin_methods):
+    attr = getattr(async_admin_methods, name)
+    if callable(attr):
+        # Add the method to AsyncDefog
+        setattr(AsyncDefog, name, attr)
+
 # Add all methods from health_methods to Defog
 for name in dir(health_methods):
     attr = getattr(health_methods, name)
     if callable(attr):
         # Add the method to Defog
         setattr(Defog, name, attr)
+
+# Add all methods from async_health_methods to AsyncDefog
+for name in dir(async_health_methods):
+    attr = getattr(async_health_methods, name)
+    if callable(attr):
+        # Add the method to AsyncDefog
+        setattr(AsyncDefog, name, attr)
