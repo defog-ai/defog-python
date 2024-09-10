@@ -68,3 +68,8 @@ defog_metadata.csv
 golden_queries.csv
 golden_queries.json
 glossary.txt
+
+# Ignore virtual environment directories
+.virtual/
+myenv/
+venv/
