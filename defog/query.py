@@ -5,6 +5,7 @@ from defog.util import write_logs, async_write_logs, make_async_post_request
 import asyncio
 import os
 
+
 # execute query for given db_type and return column names and data
 def execute_query_once(db_type: str, db_creds, query: str):
     """
