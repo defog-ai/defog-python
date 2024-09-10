@@ -266,7 +266,7 @@ async def get_golden_queries(
         raise ValueError("format must be either 'csv' or 'json'.")
 
 
-def create_table_ddl(
+async def create_table_ddl(
     table_name: str, columns: List[Dict[str, str]], add_exists=True
 ) -> str:
     """
@@ -296,7 +296,7 @@ def create_table_ddl(
     return md_create
 
 
-def create_ddl_from_metadata(
+async def create_ddl_from_metadata(
     metadata: Dict[str, List[Dict[str, str]]], add_exists=True
 ) -> str:
     """
