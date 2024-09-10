@@ -156,7 +156,7 @@ def identify_categorical_columns(
 
 
 async def async_identify_categorical_columns(
-    conn=None,
+    conn=None,  # a connection object for any database
     cur=None,  # a cursor object for any database
     table_name: str = "",
     rows: list = [],
@@ -168,25 +168,22 @@ async def async_identify_categorical_columns(
     Identify categorical columns in the table and return the top distinct values for each column.
 
     Args:
-        conn (connection): A connection object for any database.
-        cur (cursor): A cursor object for any database. This cursor should support the following methods:
-            - execute(sql, params)
-            - fetchone()
-            - fetchall()
-        table_name (str): The name of the table.
-        rows (list): A list of dictionaries containing the column names and data types.a
-        distinct_threshold (int): The threshold for the number of distinct values in a column to be considered categorical.
-        character_length_threshold (int): The threshold for the maximum length of a string column to be considered categorical.
+        conn (optional): Async connection for databases (e.g., asyncpg).
+        cur (optional): Sync/async cursor object for database queries.
+        table_name (str): The name of the table to analyze.
+        rows (list): List of column info dictionaries (with keys like "column_name", "data_type").
+        is_cursor_async (bool): Set True if using an async cursor.
+        distinct_threshold (int): Max distinct values to classify a column as categorical.
+        character_length_threshold (int): Max length of a string column to be considered categorical.
         This is a heuristic for pruning columns that might contain arbitrarily long strings like json / configs.
+
+    Note:
+        - The function requires one of conn or cur to be provided.
 
     Returns:
         rows (list): The updated list of dictionaries containing the column names, data types and top distinct values.
         The list is modified in-place.
     """
-    # loop through each column, look at whether it is a string column, and then determine if it might be a categorical variable
-    # if it is a categorical variable, then we want to get the distinct values and their counts
-    # we will then send this to the defog servers so that we can generate a column description
-    # for each categorical variable
     print(
         f"Identifying categorical columns in {table_name}. This might take a while if you have many rows in your table."
     )
