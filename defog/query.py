@@ -1,9 +1,9 @@
 import json
 import re
 import requests
-from defog.util import write_logs
+from defog.util import write_logs, async_write_logs, make_async_post_request
+import asyncio
 import os
-
 
 # execute query for given db_type and return column names and data
 def execute_query_once(db_type: str, db_creds, query: str):
@@ -19,10 +19,11 @@ def execute_query_once(db_type: str, db_creds, query: str):
         cur = conn.cursor()
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
-        results = cur.fetchall()
+        rows = cur.fetchall()
         cur.close()
         conn.close()
-        return colnames, results
+        return colnames, rows
+
     elif db_type == "redshift":
         try:
             import psycopg2
@@ -51,10 +52,11 @@ def execute_query_once(db_type: str, db_creds, query: str):
             for i, col in enumerate(colnames)
         ]
 
-        results = cur.fetchall()
+        rows = cur.fetchall()
         cur.close()
         conn.close()
-        return colnames, results
+        return colnames, rows
+
     elif db_type == "mysql":
         try:
             import mysql.connector
@@ -64,10 +66,11 @@ def execute_query_once(db_type: str, db_creds, query: str):
         cur = conn.cursor()
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
-        results = cur.fetchall()
+        rows = cur.fetchall()
         cur.close()
         conn.close()
-        return colnames, results
+        return colnames, rows
+
     elif db_type == "bigquery":
         try:
             from google.cloud import bigquery
@@ -83,6 +86,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
         for row in results:
             rows.append([row[i] for i in range(len(row))])
         return colnames, rows
+
     elif db_type == "snowflake":
         try:
             import snowflake.connector
@@ -99,10 +103,11 @@ def execute_query_once(db_type: str, db_creds, query: str):
             cur.execute(f"USE DATABASE {db_creds['database']}")
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
-        results = cur.fetchall()
+        rows = cur.fetchall()
         cur.close()
         conn.close()
-        return colnames, results
+        return colnames, rows
+
     elif db_type == "databricks":
         try:
             from databricks import sql
@@ -112,8 +117,9 @@ def execute_query_once(db_type: str, db_creds, query: str):
         with conn.cursor() as cursor:
             cursor.execute(query)
             colnames = [desc[0] for desc in cursor.description]
-            results = cursor.fetchall()
-        return colnames, results
+            rows = cursor.fetchall()
+        return colnames, rows
+
     elif db_type == "sqlserver":
         try:
             import pyodbc
@@ -129,10 +135,155 @@ def execute_query_once(db_type: str, db_creds, query: str):
         cur.execute(query)
         colnames = [desc[0] for desc in cur.description]
         results = cur.fetchall()
-        results = [list(row) for row in results]
+        rows = [list(row) for row in results]
         cur.close()
         conn.close()
-        return colnames, results
+        return colnames, rows
+
+    else:
+        raise Exception(f"Database type {db_type} not yet supported.")
+
+
+async def async_execute_query_once(db_type: str, db_creds, query: str):
+    """
+    Asynchrnously  executes the query once and returns the column names and results.
+    """
+    if db_type == "postgres":
+        try:
+            import asyncpg
+        except:
+            raise Exception("asyncpg not installed.")
+
+        conn = await asyncpg.connect(**db_creds)
+        results = await conn.fetch(query)
+
+        colnames = list(results[0].keys())
+        if colnames is None:
+            colnames = []
+
+        await conn.close()
+        # get the results in a list of lists format
+        rows = [list(row.values()) for row in results]
+        return colnames, rows
+
+    elif db_type == "redshift":
+        try:
+            import asyncpg
+        except:
+            raise Exception("asyncpg not installed.")
+
+        if "schema" not in db_creds:
+            schema = "public"
+            conn = await asyncpg.connect(**db_creds)
+        else:
+            schema = db_creds["schema"]
+            del db_creds["schema"]
+            conn = await asyncpg.connect(**db_creds)
+
+        if schema is not None and schema != "public":
+            await conn.execute(f"SET search_path TO {schema}")
+
+        results = await conn.fetch(query)
+        colnames = list(results[0].keys())
+
+        # deduplicate the column names
+        colnames = [
+            f"{col}_{i}" if colnames.count(col) > 1 else col
+            for i, col in enumerate(colnames)
+        ]
+        rows = [list(row.values()) for row in results]
+
+        await conn.close()
+        return colnames, rows
+
+    elif db_type == "mysql":
+        try:
+            import aiomysql
+        except:
+            raise Exception("aiomysql not installed.")
+        conn = await aiomysql.connect(**db_creds)
+        cur = await conn.cursor()
+        await cur.execute(query)
+        colnames = [desc[0] for desc in cur.description]
+        rows = await cur.fetchall()
+        await cur.close()
+        await conn.ensure_closed()
+        return colnames, rows
+
+    elif db_type == "bigquery":
+        try:
+            from google.cloud import bigquery
+        except:
+            raise Exception("google.cloud.bigquery not installed.")
+        # using asynico.to_thread since google-cloud-bigquery is synchronous
+        json_key = db_creds["json_key_path"]
+        client = await asyncio.to_thread(
+            bigquery.Client.from_service_account_json, json_key
+        )
+        query_job = await asyncio.to_thread(client.query, query)
+        results = await asyncio.to_thread(query_job.result)
+        colnames = [i.name for i in results.schema]
+        rows = []
+        for row in results:
+            rows.append([row[i] for i in range(len(row))])
+        return colnames, rows
+
+    elif db_type == "snowflake":
+        try:
+            import snowflake.connector
+        except:
+            raise Exception("snowflake.connector not installed.")
+        conn = await asyncio.to_thread(
+            snowflake.connector.connect,
+            user=db_creds["user"],
+            password=db_creds["password"],
+            account=db_creds["account"],
+        )
+        cur = await asyncio.to_thread(conn.cursor)
+        await asyncio.to_thread(
+            cur.execute, f"USE WAREHOUSE {db_creds['warehouse']}"
+        )  # set the warehouse
+        if "database" in db_creds:
+            await asyncio.to_thread(cur.execute, f"USE DATABASE {db_creds['database']}")
+        await asyncio.to_thread(cur.execute, query)
+        colnames = [desc[0] for desc in cur.description]
+        rows = await asyncio.to_thread(cur.fetchall)
+        await asyncio.to_thread(cur.close)
+        await asyncio.to_thread(conn.close)
+        return colnames, rows
+
+    elif db_type == "databricks":
+        try:
+            from databricks import sql
+        except:
+            raise Exception("databricks-sql-connector not installed.")
+        conn = await asyncio.to_thread(sql.connect, **db_creds)
+        cursor = await asyncio.to_thread(conn.cursor)
+
+        await asyncio.to_thread(cursor.execute, query)
+        colnames = [desc[0] for desc in cursor.description]
+        rows = await asyncio.to_thread(cursor.fetchall)
+        return colnames, rows
+
+    elif db_type == "sqlserver":
+        try:
+            import pyodbc
+        except:
+            raise Exception("pyodbc not installed.")
+
+        if db_creds["database"] != "":
+            connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};DATABASE={db_creds['database']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
+        else:
+            connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
+        conn = await asyncio.to_thread(pyodbc.connect, connection_string)
+        cur = await asyncio.to_thread(conn.cursor)
+        await asyncio.to_thread(cursor.execute, query)
+        colnames = [desc[0] for desc in cursor.description]
+        results = await asyncio.to_thread(cursor.fetchall)
+        rows = [list(row) for row in results]
+        await asyncio.to_thread(cursor.close)
+        await asyncio.to_thread(conn.close)
+        return colnames, rows
     else:
         raise Exception(f"Database type {db_type} not yet supported.")
 
@@ -213,6 +364,97 @@ def execute_query(
                 new_query = response["new_query"]
                 write_logs(f"New query: \n{new_query}")
                 return execute_query_once(db_type, db_creds, new_query) + (new_query,)
+            except Exception as e:
+                err_msg = str(e)
+                print(
+                    "There was an error when running the previous query. Retrying with adaptive learning..."
+                )
+                write_logs(str(e))
+                retries -= 1
+        raise Exception(err_msg)
+
+
+async def async_execute_query(
+    query: str,
+    api_key: str,
+    db_type: str,
+    db_creds,
+    question: str = "",
+    hard_filters: str = "",
+    retries: int = 3,
+    schema: dict = None,
+    dev: bool = False,
+    temp: bool = False,
+    base_url: str = None,
+):
+    """
+    Execute the query asynchronously and retry with adaptive learning if there is an error.
+    Raises an Exception if there are no retries left, or if the error is a connection error.
+    """
+    err_msg = None
+    # if base_url is not explicitly defined, check if DEFOG_BASE_URL is set in the environment
+    # if not, then use "https://api.defog.ai" as the default
+    if base_url is None:
+        base_url = os.environ.get("DEFOG_BASE_URL", "https://api.defog.ai")
+
+    try:
+        return await async_execute_query_once(
+            db_type=db_type, db_creds=db_creds, query=query
+        ) + (query,)
+    except Exception as e:
+        err_msg = str(e)
+        if is_connection_error(err_msg):
+            raise Exception(
+                f"There was a connection issue to your database:\n{err_msg}\n\nPlease check your database credentials and try again."
+            )
+        # log this error to our feedback system first (this is a 1-way side-effect)
+        try:
+            await make_async_post_request(
+                url=f"{base_url}/feedback",
+                payload={
+                    "api_key": api_key,
+                    "feedback": "bad",
+                    "text": err_msg,
+                    "db_type": db_type,
+                    "question": question,
+                    "query": query,
+                    "dev": dev,
+                    "temp": temp,
+                },
+                timeout=1,
+            )
+        except:
+            pass
+        # log locally
+        await async_write_logs(str(e))
+        # retry with adaptive learning
+        while retries > 0:
+            await async_write_logs(f"Retries left: {retries}")
+            try:
+                retry = {
+                    "api_key": api_key,
+                    "previous_query": query,
+                    "error": err_msg,
+                    "db_type": db_type,
+                    "hard_filters": hard_filters,
+                    "question": question,
+                    "dev": dev,
+                    "temp": temp,
+                }
+                if schema is not None:
+                    retry["schema"] = schema
+
+                await async_write_logs(json.dumps(retry))
+
+                response = await make_async_post_request(
+                    url=f"{base_url}/retry_query_after_error",
+                    payload=retry,
+                )
+                new_query = response["new_query"]
+                await async_write_logs(f"New query: \n{new_query}")
+                return await async_execute_query_once(db_type, db_creds, new_query) + (
+                    new_query,
+                )
             except Exception as e:
                 err_msg = str(e)
                 print(
