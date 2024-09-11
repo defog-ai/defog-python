@@ -353,6 +353,7 @@ async def generate_databricks_schema(
         return schemas
 
 
+
 async def generate_snowflake_schema(
     self,
     tables: list,
@@ -366,39 +367,46 @@ async def generate_snowflake_schema(
     except:
         raise Exception("snowflake-connector not installed.")
 
-    conn = await asyncio.to_thread(
-        snowflake.connector.connect,
+    conn = snowflake.connector.connect(
         user=self.db_creds["user"],
         password=self.db_creds["password"],
         account=self.db_creds["account"],
     )
 
-    await asyncio.to_thread(
-        conn.cursor().execute, f"USE WAREHOUSE {self.db_creds['warehouse']}"
-    )  # set the warehouse
+    cur = conn.cursor()
+    cur.execute_async(f"USE WAREHOUSE {self.db_creds['warehouse']}")  # set the warehouse
+    query_id = cur.sfqid  # Get the query ID after execution
+
+    # Check the status of the query
+    while conn.is_still_running(conn.get_query_status(query_id)):
+        await asyncio.sleep(1)  # Sleep while the query is still running
 
     schemas = {}
     alt_types = {"DATE": "TIMESTAMP", "TEXT": "VARCHAR", "FIXED": "NUMERIC"}
     print("Getting schema for each table that you selected...")
     # get the schema for each table
     if len(tables) == 0:
+        cur = conn.cursor()
         # get all tables from Snowflake database
-        cur = await asyncio.to_thread(conn.cursor().execute, "SHOW TERSE TABLES;")
-        res = await asyncio.to_thread(cur.fetchall)
+        cur.execute_async("SHOW TERSE TABLES;")
+        query_id = cur.sfqid
+        while conn.is_still_running(conn.get_query_status(query_id)):
+            await asyncio.sleep(1)
+        res = cur.fetchall()
         tables = [f"{row[3]}.{row[4]}.{row[1]}" for row in res]
 
     if return_tables_only:
-        await asyncio.to_thread(conn.close)
+        conn.close()
         return tables
 
     for table_name in tables:
         rows = []
-        cur = await asyncio.to_thread(conn.cursor)
-        fetched_rows = await asyncio.to_thread(
-            cur.execute, f"SHOW COLUMNS IN {table_name};"
-        )
-        for row in fetched_rows:
-            rows.append(row)
+        cur = conn.cursor()
+        cur.execute_async(f"SHOW COLUMNS IN {table_name};")
+        query_id = cur.sfqid
+        while conn.is_still_running(conn.get_query_status(query_id)):
+            await asyncio.sleep(1)
+        rows = cur.fetchall()
         rows = [
             {
                 "column_name": i[2],
@@ -411,21 +419,14 @@ async def generate_snowflake_schema(
             if row["data_type"] in alt_types:
                 row["data_type"] = alt_types[row["data_type"]]
             rows[idx] = row
-
-        cur = await asyncio.to_thread(conn.cursor)
+        cur = conn.cursor()
         if scan:
-            rows = await async_identify_categorical_columns(
-                conn=None,
-                cur=cur,
-                table_name=table_name,
-                rows=rows,
-                is_cursor_async=False,
-            )
-        await asyncio.to_thread(cur.close)
+            rows = async_identify_categorical_columns(conn=conn, cur=cur, table_name=table_name, rows=rows, is_cursor_async=False, db_type="snowflake")
+        cur.close()
         if len(rows) > 0:
             schemas[table_name] = rows
 
-    await asyncio.to_thread(conn.close)
+    conn.close()
 
     if upload:
         print(
