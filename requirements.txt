@@ -3,6 +3,7 @@ prompt_toolkit
 psycopg2-binary>=2.9.5
 asyncpg
 aiomysql
+aioodbc
 pwinput
 requests>=2.28.2
 aiohttp
