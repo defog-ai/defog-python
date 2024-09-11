@@ -161,6 +161,7 @@ async def async_identify_categorical_columns(
     table_name: str = "",
     rows: list = [],
     is_cursor_async: bool = False,
+    db_type="",
     distinct_threshold: int = 10,
     character_length_threshold: int = 50,
 ):
@@ -189,6 +190,16 @@ async def async_identify_categorical_columns(
     )
 
     async def run_query(query, params=None):
+        if db_type == "snowflake":
+            if params is not None:
+                cur.execute_async(query, params)
+            else:
+                cur.execute_async(query)
+            query_id = cur.sfqid
+            while conn.is_still_running(conn.get_query_status(query_id)):
+                await asyncio.sleep(1)
+            return cur.fetchall()
+
         if conn:
             # If using an async connection like asyncpg
             return await conn.fetch(query, *params if params else ())
