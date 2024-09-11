@@ -360,20 +360,22 @@ async def create_empty_tables(self, dev: bool = False):
         elif self.db_type == "snowflake":
             import snowflake.connector
 
-            conn = await asyncio.to_thread(
-                snowflake.connector.connect,
+            conn = snowflake.connector.connect(
                 user=self.db_creds["user"],
                 password=self.db_creds["password"],
                 account=self.db_creds["account"],
             )
-            cur = await asyncio.to_thread(conn.cursor)
-            await asyncio.to_thread(
-                cur.execute, f"USE WAREHOUSE {self.db_creds['warehouse']}"
-            )
+            cur = conn.cursor()
+            cur.execute(
+                f"USE WAREHOUSE {self.db_creds['warehouse']}"
+            )  # set the warehouse
             for statement in ddl.split(";"):
-                await asyncio.to_thread(cur.execute, statement)
-            await asyncio.to_thread(conn.commit)
-            await asyncio.to_thread(conn.close)
+                cur.execute_async(statement)
+                query_id = cur.sfqid
+                while conn.is_still_running(conn.get_query_status(query_id)):
+                    await asyncio.sleep(1)
+            cur.close()
+            conn.close()
             return True
 
         elif self.db_type == "bigquery":
@@ -388,18 +390,19 @@ async def create_empty_tables(self, dev: bool = False):
             return True
 
         elif self.db_type == "sqlserver":
-            import pyodbc
+            import aioodbc
 
             if self.db_creds["database"] != "":
                 connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
             else:
                 connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
-            conn = await asyncio.to_thread(pyodbc.connect, connection_string)
-            cur = await asyncio.to_thread(conn.cursor)
+            conn = await aioodbc.connect(dsn=connection_string)
+            cur = await conn.cursor()
             for statement in ddl.split(";"):
-                await asyncio.to_thread(cur.execute, statement)
-            await asyncio.to_thread(conn.commit)
-            await asyncio.to_thread(conn.close)
+                await cur.execute(statement)
+            await conn.commit()
+            await cur.close()
+            await conn.close()
             return True
 
         else:
