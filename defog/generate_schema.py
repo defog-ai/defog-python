@@ -544,6 +544,7 @@ def generate_sqlserver_schema(
             tables += [schema + "." + row[0] for row in cur.fetchall()]
 
     if return_tables_only:
+        conn.close()
         return tables
 
     print("Getting schema for each table in your database...")
