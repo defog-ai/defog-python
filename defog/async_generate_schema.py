@@ -353,7 +353,6 @@ async def generate_databricks_schema(
         return schemas
 
 
-
 async def generate_snowflake_schema(
     self,
     tables: list,
@@ -384,8 +383,8 @@ async def generate_snowflake_schema(
     if len(tables) == 0:
         cur = conn.cursor()
         # get all tables from Snowflake database
-        cur.execute_async("SHOW TERSE TABLES;") # execute asynchrnously
-        query_id = cur.sfqid # get the query id to check the status
+        cur.execute_async("SHOW TERSE TABLES;")  # execute asynchrnously
+        query_id = cur.sfqid  # get the query id to check the status
         while conn.is_still_running(conn.get_query_status(query_id)):
             await asyncio.sleep(1)
         res = cur.fetchall()
@@ -536,6 +535,7 @@ async def generate_bigquery_schema(
     else:
         return schemas
 
+
 async def generate_sqlserver_schema(
     self,
     tables: list,
@@ -553,7 +553,7 @@ async def generate_sqlserver_schema(
         connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
     else:
         connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
-    
+
     conn = await aioodbc.connect(dsn=connection_string)
     cur = await conn.cursor()
     schemas = {}
@@ -569,7 +569,7 @@ async def generate_sqlserver_schema(
             tables = [row[0] for row in await cur.fetchall()]
         else:
             tables = [schema + "." + row[0] for row in await cur.fetchall()]
-    
+
     if return_tables_only:
         await conn.close()
         return tables
