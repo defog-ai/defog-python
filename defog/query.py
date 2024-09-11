@@ -249,7 +249,7 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
         query_id = cur.sfqid
         while conn.is_still_running(conn.get_query_status(query_id)):
             await asyncio.sleep(1)
-        
+
         colnames = [desc[0] for desc in cur.description]
         rows = cur.fetchall()
         cur.close()
