@@ -378,6 +378,7 @@ def generate_snowflake_schema(
         tables = [f"{row[3]}.{row[4]}.{row[1]}" for row in res]
 
     if return_tables_only:
+        conn.close()
         return tables
 
     for table_name in tables:
