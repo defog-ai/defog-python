@@ -13,7 +13,7 @@ def generate_postgres_schema(
     return_format: str = "csv",
     scan: bool = True,
     return_tables_only: bool = False,
-    schemas: List[str] = ["public"],
+    schemas: List[str] = [],
 ) -> str:
     # when upload is True, we send the schema to the defog servers and generate a CSV
     # when its false, we return the schema as a dict
@@ -26,19 +26,36 @@ def generate_postgres_schema(
 
     conn = psycopg2.connect(**self.db_creds)
     cur = conn.cursor()
-    schemas = tuple(schemas)
 
     if len(tables) == 0:
         # get all tables
-        for schema in schemas:
-            cur.execute(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
-                (schema,),
+        if len(schemas) > 0:
+            for schema in schemas:
+                cur.execute(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
+                    (schema,),
+                )
+                if schema == "public":
+                    tables += [row[0] for row in cur.fetchall()]
+                else:
+                    tables += [schema + "." + row[0] for row in cur.fetchall()]
+        else:
+            excluded_schemas = (
+                "information_schema",
+                "pg_catalog",
+                "pg_toast",
+                "pg_temp_1",
+                "pg_toast_temp_1",
             )
-            if schema == "public":
-                tables += [row[0] for row in cur.fetchall()]
-            else:
-                tables += [schema + "." + row[0] for row in cur.fetchall()]
+            cur.execute(
+                "SELECT table_name, table_schema FROM information_schema.tables WHERE table_schema NOT IN %s;",
+                (excluded_schemas,),
+            )
+            for row in cur.fetchall():
+                if row[1] == "public":
+                    tables.append(row[0])
+                else:
+                    tables.append(f"{row[1]}.{row[0]}")
 
     if return_tables_only:
         return tables
