@@ -234,23 +234,26 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
             import snowflake.connector
         except:
             raise Exception("snowflake.connector not installed.")
-        conn = await asyncio.to_thread(
-            snowflake.connector.connect,
+        conn = snowflake.connector.connect(
             user=db_creds["user"],
             password=db_creds["password"],
             account=db_creds["account"],
         )
-        cur = await asyncio.to_thread(conn.cursor)
-        await asyncio.to_thread(
-            cur.execute, f"USE WAREHOUSE {db_creds['warehouse']}"
-        )  # set the warehouse
+        cur = conn.cursor()
+        cur.execute(f"USE WAREHOUSE {db_creds['warehouse']}")  # set the warehouse
+
         if "database" in db_creds:
-            await asyncio.to_thread(cur.execute, f"USE DATABASE {db_creds['database']}")
-        await asyncio.to_thread(cur.execute, query)
+            cur.execute(f"USE DATABASE {db_creds['database']}")  # set the database
+
+        cur.execute_async(query)
+        query_id = cur.sfqid
+        while conn.is_still_running(conn.get_query_status(query_id)):
+            await asyncio.sleep(1)
+        
         colnames = [desc[0] for desc in cur.description]
-        rows = await asyncio.to_thread(cur.fetchall)
-        await asyncio.to_thread(cur.close)
-        await asyncio.to_thread(conn.close)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
         return colnames, rows
 
     elif db_type == "databricks":
@@ -268,22 +271,23 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
 
     elif db_type == "sqlserver":
         try:
-            import pyodbc
+            import aioodbc
         except:
-            raise Exception("pyodbc not installed.")
+            raise Exception("aioodbc not installed.")
 
         if db_creds["database"] != "":
             connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};DATABASE={db_creds['database']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
         else:
             connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
-        conn = await asyncio.to_thread(pyodbc.connect, connection_string)
-        cur = await asyncio.to_thread(conn.cursor)
-        await asyncio.to_thread(cursor.execute, query)
-        colnames = [desc[0] for desc in cursor.description]
-        results = await asyncio.to_thread(cursor.fetchall)
+        conn = await aioodbc.connect(dsn=connection_string)
+        cur = await conn.cursor()
+
+        await cur.execute(query)
+        colnames = [desc[0] for desc in cur.description]
+        results = await cur.fetchall()
         rows = [list(row) for row in results]
-        await asyncio.to_thread(cursor.close)
-        await asyncio.to_thread(conn.close)
+        await cur.close()
+        await conn.close()
         return colnames, rows
     else:
         raise Exception(f"Database type {db_type} not yet supported.")

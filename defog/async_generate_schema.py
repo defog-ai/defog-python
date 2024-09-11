@@ -373,13 +373,9 @@ async def generate_snowflake_schema(
         account=self.db_creds["account"],
     )
 
-    cur = conn.cursor()
-    cur.execute_async(f"USE WAREHOUSE {self.db_creds['warehouse']}")  # set the warehouse
-    query_id = cur.sfqid  # Get the query ID after execution
-
-    # Check the status of the query
-    while conn.is_still_running(conn.get_query_status(query_id)):
-        await asyncio.sleep(1)  # Sleep while the query is still running
+    conn.cursor().execute(
+        f"USE WAREHOUSE {self.db_creds['warehouse']}"
+    )  # set the warehouse
 
     schemas = {}
     alt_types = {"DATE": "TIMESTAMP", "TEXT": "VARCHAR", "FIXED": "NUMERIC"}
@@ -388,8 +384,8 @@ async def generate_snowflake_schema(
     if len(tables) == 0:
         cur = conn.cursor()
         # get all tables from Snowflake database
-        cur.execute_async("SHOW TERSE TABLES;")
-        query_id = cur.sfqid
+        cur.execute_async("SHOW TERSE TABLES;") # execute asynchrnously
+        query_id = cur.sfqid # get the query id to check the status
         while conn.is_still_running(conn.get_query_status(query_id)):
             await asyncio.sleep(1)
         res = cur.fetchall()
@@ -421,7 +417,14 @@ async def generate_snowflake_schema(
             rows[idx] = row
         cur = conn.cursor()
         if scan:
-            rows = async_identify_categorical_columns(conn=conn, cur=cur, table_name=table_name, rows=rows, is_cursor_async=False, db_type="snowflake")
+            rows = await async_identify_categorical_columns(
+                conn=conn,
+                cur=cur,
+                table_name=table_name,
+                rows=rows,
+                is_cursor_async=False,
+                db_type="snowflake",
+            )
         cur.close()
         if len(rows) > 0:
             schemas[table_name] = rows
@@ -533,7 +536,6 @@ async def generate_bigquery_schema(
     else:
         return schemas
 
-
 async def generate_sqlserver_schema(
     self,
     tables: list,
@@ -542,49 +544,49 @@ async def generate_sqlserver_schema(
     return_tables_only: bool = False,
 ) -> str:
     try:
-        import pyodbc
-    except:
-        raise Exception("pyodbc not installed.")
-
+        import aioodbc
+    except Exception as e:
+        raise Exception(
+            "aioodbc not installed. Please install it with `pip install aioodbc`."
+        )
     if self.db_creds["database"] != "":
         connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
     else:
         connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
-    conn = await asyncio.to_thread(pyodbc.connect, connection_string)
-    cur = await asyncio.to_thread(conn.cursor)
+    
+    conn = await aioodbc.connect(dsn=connection_string)
+    cur = await conn.cursor()
     schemas = {}
     schema = self.db_creds.get("schema", "dbo")
 
     if len(tables) == 0:
-        table_names_query = (
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;"
+        # get all tables
+        await cur.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
+            (schema,),
         )
-        await asyncio.to_thread(cur.execute, table_names_query, (schema,))
         if schema == "dbo":
-            tables += [row[0] for row in await asyncio.to_thread(cur.fetchall)]
+            tables = [row[0] for row in await cur.fetchall()]
         else:
-            tables += [
-                schema + "." + row[0] for row in await asyncio.to_thread(cur.fetchall)
-            ]
-
+            tables = [schema + "." + row[0] for row in await cur.fetchall()]
+    
     if return_tables_only:
-        await asyncio.to_thread(conn.close)
+        await conn.close()
         return tables
 
-    print("Getting schema for each table in your database...")
+    print("Getting schema for the relevant table in your database...")
     # get the schema for each table
     for table_name in tables:
-        await asyncio.to_thread(
-            cur.execute,
-            f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table_name}';",
+        await cur.execute(
+            "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s;",
+            (table_name,),
         )
-        rows = await asyncio.to_thread(cur.fetchall)
+        rows = await cur.fetchall()
         rows = [row for row in rows]
         rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
         if len(rows) > 0:
             schemas[table_name] = rows
-
-    await asyncio.to_thread(conn.close)
+    await conn.close()
     if upload:
         print(
             "Sending the schema to Defog servers and generating column descriptions. This might take up to 2 minutes..."
