@@ -273,6 +273,7 @@ def get_feedback(
             f"{base_url}/feedback",
             json=data,
             timeout=1,
+            verify=False,
         )
         if feedback == "y":
             print("Thank you for the feedback!")
@@ -289,6 +290,7 @@ def get_feedback(
             response = requests.post(
                 f"{base_url}/reflect_on_error",
                 json=data,
+                verify=False,
             )
 
             if response.status_code == 200:
@@ -309,6 +311,7 @@ def get_feedback(
                         md_resp = requests.post(
                             f"{base_url}/get_metadata",
                             json={"api_key": api_key},
+                            verify=False,
                         )
                         md_resp_dict = md_resp.json()
                         glossary_current = md_resp_dict.get("glossary", "")
@@ -319,12 +322,14 @@ def get_feedback(
                                 "api_key": api_key,
                                 "glossary": glossary_updated,
                             },
+                            verify=False,
                         )
                         print("Glossary updated successfully.\n")
                     elif add_to_glossary != "n":
                         md_resp = requests.post(
                             f"{base_url}/get_metadata",
                             json={"api_key": api_key},
+                            verify=False,
                         )
                         md_resp_dict = md_resp.json()
                         glossary_current = md_resp_dict.get("glossary", "")
@@ -335,6 +340,7 @@ def get_feedback(
                                 "api_key": api_key,
                                 "glossary": glossary_updated,
                             },
+                            verify=False,
                         )
                         print("Glossary updated successfully.\n")
                     else:
@@ -350,6 +356,7 @@ def get_feedback(
                     r = requests.post(
                         f"{base_url}/get_metadata",
                         json={"api_key": api_key},
+                        verify=False,
                     )
                     resp = r.json()
                     md = resp.get("table_metadata", {})
@@ -392,6 +399,7 @@ def get_feedback(
                                 "table_metadata": new_column_description,
                                 "db_type": db_type,
                             },
+                            verify=False,
                         )
                         print("Metadata updated successfully.\n")
                     else:
@@ -423,6 +431,7 @@ def get_feedback(
                                 "golden_queries": reference_queries_to_add,
                                 "scrub": True,
                             },
+                            verify=False,
                         )
                         if r.status_code == 200:
                             print(

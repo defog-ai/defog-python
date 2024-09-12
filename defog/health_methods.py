@@ -9,6 +9,7 @@ def check_golden_queries_coverage(self, dev: bool = False):
         r = requests.post(
             f"{self.base_url}/get_golden_queries_coverage",
             json={"api_key": self.api_key, "dev": dev},
+            verify=False,
         )
         resp = r.json()
         return resp
@@ -24,6 +25,7 @@ def check_md_valid(self, dev: bool = False):
         r = requests.post(
             f"{self.base_url}/check_md_valid",
             json={"api_key": self.api_key, "db_type": self.db_type, "dev": dev},
+            verify=False,
         )
         resp = r.json()
         return resp
@@ -38,6 +40,7 @@ def check_gold_queries_valid(self, dev: bool = False):
     r = requests.post(
         f"{self.base_url}/check_gold_queries_valid",
         json={"api_key": self.api_key, "db_type": self.db_type, "dev": dev},
+        verify=False,
     )
     resp = r.json()
     return resp
@@ -50,6 +53,7 @@ def check_glossary_valid(self, dev: bool = False):
     r = requests.post(
         f"{self.base_url}/check_glossary_valid",
         json={"api_key": self.api_key, "dev": dev},
+        verify=False,
     )
     resp = r.json()
     return resp
@@ -62,6 +66,7 @@ def check_glossary_consistency(self, dev: bool = False):
     r = requests.post(
         f"{self.base_url}/check_glossary_consistency",
         json={"api_key": self.api_key, "dev": dev},
+        verify=False,
     )
     resp = r.json()
     return resp

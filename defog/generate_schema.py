@@ -100,6 +100,7 @@ def generate_postgres_schema(
                 "api_key": self.api_key,
                 "schemas": table_columns,
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -193,6 +194,7 @@ def generate_redshift_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -268,6 +270,7 @@ def generate_mysql_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -342,6 +345,7 @@ def generate_databricks_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -435,6 +439,7 @@ def generate_snowflake_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -508,6 +513,7 @@ def generate_bigquery_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -589,6 +595,7 @@ def generate_sqlserver_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
