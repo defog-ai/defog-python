@@ -316,7 +316,7 @@ def create_ddl_from_metadata(
     md_create = ""
     for table_name, columns in metadata.items():
         if "." in table_name:
-            table_name = table_name.split(".", 1)[1]
+            # table_name = table_name.split(".", 1)[1]
             schema_name = table_name.split(".")[0]
 
             md_create += f"CREATE SCHEMA IF NOT EXISTS {schema_name};\n"
