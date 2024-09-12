@@ -26,7 +26,7 @@ setup(
     name="defog",
     packages=find_packages(),
     package_data={"defog": ["gcp/*", "aws/*"] + next_static_files},
-    version="0.65.13",
+    version="0.65.14",
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
     license="MIT",
@@ -38,6 +38,7 @@ setup(
         "uvicorn",
         "tqdm",
         "pwinput",
+        "aiohttp",
     ],
     entry_points={
         "console_scripts": [

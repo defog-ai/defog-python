@@ -5,7 +5,6 @@ from prompt_toolkit import prompt
 import requests
 
 import aiohttp
-import aiofiles
 import asyncio
 
 
@@ -70,7 +69,7 @@ async def async_write_logs(msg: str) -> None:
     try:
         if not os.path.exists(log_file_path):
             os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-        async with aiofiles.open(log_file_path, "a") as file:
+        async with open(log_file_path, "a") as file:
             await file.write(msg + "\n")
     except Exception as e:
         pass
