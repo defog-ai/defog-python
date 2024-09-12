@@ -3,7 +3,6 @@ from typing import Dict, List, Optional
 from defog.util import make_async_post_request
 import pandas as pd
 import asyncio
-import aiofiles
 
 
 async def update_db_schema(self, path_to_csv, dev=False, temp=False):
@@ -258,7 +257,7 @@ async def get_golden_queries(
         if export_path is None:
             export_path = "golden_queries.json"
         # Writing JSON asynchronously
-        async with aiofiles.open(export_path, "w") as f:
+        async with open(export_path, "w") as f:
             await f.write(json.dumps(resp, indent=4))
         print(f"{len(golden_queries)} golden queries exported to {export_path}")
         return golden_queries
