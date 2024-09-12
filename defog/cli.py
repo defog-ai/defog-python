@@ -368,6 +368,7 @@ def vet_metadata():
                     "column_name": column_name,
                     "column_description": column_description,
                 },
+                verify=False,
             )
             resp = r.json()
             new_column_description = resp["column_description"]
