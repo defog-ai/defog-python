@@ -443,7 +443,7 @@ def get_feedback(
 
 
 async def make_async_post_request(
-    url: str, payload: dict, timeout=None, return_response_object=False
+    url: str, payload: dict, timeout=300, return_response_object=False
 ):
     """
     Helper function to make async POST requests and defaults to return the JSON response. Optionally allows returning the response object itself.

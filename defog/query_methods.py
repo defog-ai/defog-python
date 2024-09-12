@@ -56,6 +56,7 @@ def get_query(
             self.generate_query_url,
             json=data,
             timeout=300,
+            verify=False,
         )
         resp = r.json()
         t_end = datetime.now()
