@@ -1,7 +1,7 @@
 import json
 import re
 import requests
-from defog.util import write_logs, async_write_logs, make_async_post_request
+from defog.util import write_logs, make_async_post_request
 import asyncio
 import os
 
@@ -433,10 +433,10 @@ async def async_execute_query(
         except:
             pass
         # log locally
-        await async_write_logs(str(e))
+        write_logs(str(e))
         # retry with adaptive learning
         while retries > 0:
-            await async_write_logs(f"Retries left: {retries}")
+            write_logs(f"Retries left: {retries}")
             try:
                 retry = {
                     "api_key": api_key,
@@ -451,14 +451,14 @@ async def async_execute_query(
                 if schema is not None:
                     retry["schema"] = schema
 
-                await async_write_logs(json.dumps(retry))
+                write_logs(json.dumps(retry))
 
                 response = await make_async_post_request(
                     url=f"{base_url}/retry_query_after_error",
                     payload=retry,
                 )
                 new_query = response["new_query"]
-                await async_write_logs(f"New query: \n{new_query}")
+                write_logs(f"New query: \n{new_query}")
                 return await async_execute_query_once(db_type, db_creds, new_query) + (
                     new_query,
                 )

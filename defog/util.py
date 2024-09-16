@@ -56,25 +56,6 @@ def write_logs(msg: str) -> None:
         pass
 
 
-async def async_write_logs(msg: str) -> None:
-    """
-    Asynchronously write out log messages to ~/.defog/logs to avoid bloating cli output,
-    while still preserving more verbose error messages when debugging.
-
-    Args:
-        msg (str): The message to write.
-    """
-    log_file_path = os.path.expanduser("~/.defog/logs")
-
-    try:
-        if not os.path.exists(log_file_path):
-            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-        async with open(log_file_path, "a") as file:
-            await file.write(msg + "\n")
-    except Exception as e:
-        pass
-
-
 def is_str_type(data_type: str) -> bool:
     """
     Check if the given data_type is a string type.
