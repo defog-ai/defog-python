@@ -201,7 +201,6 @@ class TestDefog(unittest.TestCase):
     def test_check_db_creds_sqlserver(self):
         db_creds = {
             "server": "some_server",
-            "database": "some_database",
             "user": "some_user",
             "password": "some_password",
         }

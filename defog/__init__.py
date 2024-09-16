@@ -176,8 +176,6 @@ class BaseDefog:
         elif db_type == "sqlserver":
             if "server" not in db_creds:
                 raise KeyError("db_creds must contain a 'server' key.")
-            if "database" not in db_creds:
-                raise KeyError("db_creds must contain a 'database' key.")
             if "user" not in db_creds:
                 raise KeyError("db_creds must contain a 'user' key.")
             if "password" not in db_creds:

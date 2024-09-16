@@ -127,7 +127,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
         except:
             raise Exception("pyodbc not installed.")
 
-        if db_creds["database"] != "":
+        if "database" in db_creds and db_creds["database"] != "":
             connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};DATABASE={db_creds['database']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
         else:
             connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
