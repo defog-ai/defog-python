@@ -547,25 +547,54 @@ def generate_sqlserver_schema(
     except:
         raise Exception("pyodbc not installed.")
 
-    if self.db_creds["database"] != "":
+    if "database" in self.db_creds and self.db_creds["database"] not in ["", None]:
         connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
     else:
         connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
     conn = pyodbc.connect(connection_string)
-    cur = conn.cursor()
+
     schemas = {}
-    schema = self.db_creds.get("schema", "dbo")
+    cur = conn.cursor()
+
+    SYSTEM_SCHEMAS = ["sys", "information_schema", "guest", "INFORMATION_SCHEMA"]
+    DEFAULT_TABLES = [
+        "spt_fallback_db",
+        "spt_fallback_dev",
+        "spt_fallback_usg",
+        "spt_monitor",
+        "spt_values",
+        "MSreplication_options",
+    ]
 
     if len(tables) == 0:
         # get all tables
         cur.execute(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
-            (schema,),
+            "SELECT table_catalog, table_schema, table_name FROM information_schema.tables;"
         )
-        if schema == "dbo":
-            tables += [row[0] for row in cur.fetchall()]
-        else:
-            tables += [schema + "." + row[0] for row in cur.fetchall()]
+
+        # remove all system tables
+        tables = []
+        for row in cur.fetchall():
+            if (
+                row.table_schema not in SYSTEM_SCHEMAS
+                and row.table_name not in DEFAULT_TABLES
+            ):
+                if not self.db_creds["database"]:
+                    # if database is not specified, we return the table catalog + table schema + table name
+                    tables.append(
+                        row.table_catalog
+                        + "."
+                        + row.table_schema
+                        + "."
+                        + row.table_name
+                    )
+                else:
+                    # if database is specified, we return only the table schema + table name
+                    # if the table schema is dbo, we return only the table name
+                    if row.table_schema == "dbo":
+                        tables.append(row.table_name)
+                    else:
+                        tables.append(row.table_schema + "." + row.table_name)
 
     if return_tables_only:
         conn.close()
@@ -574,8 +603,20 @@ def generate_sqlserver_schema(
     print("Getting schema for each table in your database...")
     # get the schema for each table
     for table_name in tables:
+        # if there are two dots, we have the database name and the schema name
+        if table_name.count(".") == 2:
+            db_name, schema, table_name = table_name.split(".", 2)
+        elif table_name.count(".") == 1:
+            schema, table_name = table_name.split(".", 1)
+            db_name = self.db_creds["database"]
+        else:
+            schema = "dbo"
+            db_name = self.db_creds["database"]
         cur.execute(
-            f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table_name}';"
+            "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ? AND table_schema = ? AND table_catalog = ?;",
+            table_name,
+            schema,
+            db_name,
         )
         rows = cur.fetchall()
         rows = [row for row in rows]
