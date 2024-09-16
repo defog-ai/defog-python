@@ -32,6 +32,7 @@ def update_db_schema(self, path_to_csv, dev=False, temp=False):
             "dev": dev,
             "temp": temp,
         },
+        verify=False,
     )
     resp = r.json()
     return resp
@@ -58,7 +59,7 @@ def update_glossary(
     }
     if customized_glossary:
         data["customized_glossary"] = customized_glossary
-    r = requests.post(f"{self.base_url}/update_glossary", json=data)
+    r = requests.post(f"{self.base_url}/update_glossary", json=data, verify=False)
     resp = r.json()
     return resp
 
@@ -73,7 +74,7 @@ def delete_glossary(self, user_type=None, dev=False):
     }
     if user_type:
         data["key"] = user_type
-    r = requests.post(f"{self.base_url}/delete_glossary", json=data)
+    r = requests.post(f"{self.base_url}/delete_glossary", json=data, verify=False)
     if r.status_code == 200:
         print("Glossary deleted successfully.")
     else:
@@ -88,6 +89,7 @@ def get_glossary(self, mode="general", dev=False):
     r = requests.post(
         f"{self.base_url}/get_metadata",
         json={"api_key": self.api_key, "dev": dev},
+        verify=False,
     )
     resp = r.json()
     if mode == "general":
@@ -103,6 +105,7 @@ def get_metadata(self, format="markdown", export_path=None, dev=False):
     r = requests.post(
         f"{self.base_url}/get_metadata",
         json={"api_key": self.api_key, "dev": dev},
+        verify=False,
     )
     resp = r.json()
     items = []
@@ -131,8 +134,7 @@ def get_feedback(self, n_rows: int = 50, start_from: int = 0):
     Gets the feedback on the defog servers.
     """
     r = requests.post(
-        f"{self.base_url}/get_feedback",
-        json={"api_key": self.api_key},
+        f"{self.base_url}/get_feedback", json={"api_key": self.api_key}, verify=False
     )
     resp = r.json()
     df = pd.DataFrame(resp["data"], columns=resp["columns"])
@@ -149,8 +151,7 @@ def get_quota(self) -> Optional[Dict]:
     """
     api_key = self.api_key
     response = requests.post(
-        f"{self.base_url}/check_api_usage",
-        json={"api_key": api_key},
+        f"{self.base_url}/check_api_usage", json={"api_key": api_key}, verify=False
     )
     # get status code and return None if not 200
     if response.status_code != 200:
@@ -187,6 +188,7 @@ def update_golden_queries(
             "scrub": scrub,
             "dev": dev,
         },
+        verify=False,
     )
     resp = r.json()
     print(
@@ -220,6 +222,7 @@ def delete_golden_queries(
         r = requests.post(
             f"{self.base_url}/delete_golden_queries",
             json={"api_key": self.api_key, "all": True, "dev": dev},
+            verify=False,
         )
         resp = r.json()
         print("All golden queries have now been deleted.")
@@ -235,6 +238,7 @@ def delete_golden_queries(
                 "api_key": self.api_key,
                 "golden_queries": golden_queries,
             },
+            verify=False,
         )
         resp = r.json()
     return resp
@@ -252,6 +256,7 @@ def get_golden_queries(
             "api_key": self.api_key,
             "dev": dev,
         },
+        verify=False,
     )
     resp = r.json()
     golden_queries = resp["golden_queries"]

@@ -171,6 +171,7 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
         mock_requests_post.assert_called_with(
             "https://api.defog.ai/retry_query_after_error",
             json=json_req,
+            verify=False,
         )
 
         # check that err logs are populated
@@ -362,9 +363,7 @@ class ExecuteAsyncQueryOnceTestCase(unittest.IsolatedAsyncioTestCase):
 
         # Assert aiohttp post was called with the correct arguments
         mock_aiohttp_post.assert_called_with(
-            "https://api.defog.ai/retry_query_after_error",
-            json=json_req,
-            timeout=None,
+            "https://api.defog.ai/retry_query_after_error", json=json_req, timeout=300
         )
 
         # check that error logs are populated

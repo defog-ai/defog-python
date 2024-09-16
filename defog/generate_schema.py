@@ -66,27 +66,28 @@ def generate_postgres_schema(
     table_columns = {}
 
     # get the columns for each table
-    for schema in schemas:
-        for table_name in tables:
-            if "." in table_name:
-                _, table_name = table_name.split(".", 1)
-            cur.execute(
-                "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s AND table_schema = %s;",
-                (
-                    table_name,
-                    schema,
-                ),
-            )
-            rows = cur.fetchall()
-            rows = [row for row in rows]
-            rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
-            if len(rows) > 0:
-                if scan:
-                    rows = identify_categorical_columns(cur, table_name, rows)
-                if schema == "public":
-                    table_columns[table_name] = rows
-                else:
-                    table_columns[schema + "." + table_name] = rows
+    for table_name in tables:
+        if "." in table_name:
+            schema, table_name = table_name.split(".", 1)
+        else:
+            schema = "public"
+        cur.execute(
+            "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s AND table_schema = %s;",
+            (
+                table_name,
+                schema,
+            ),
+        )
+        rows = cur.fetchall()
+        rows = [row for row in rows]
+        rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
+        if len(rows) > 0:
+            if scan:
+                rows = identify_categorical_columns(cur, table_name, rows)
+            if schema == "public":
+                table_columns[table_name] = rows
+            else:
+                table_columns[schema + "." + table_name] = rows
     conn.close()
 
     print(
@@ -100,6 +101,7 @@ def generate_postgres_schema(
                 "api_key": self.api_key,
                 "schemas": table_columns,
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -193,6 +195,7 @@ def generate_redshift_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -268,6 +271,7 @@ def generate_mysql_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -342,6 +346,7 @@ def generate_databricks_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -435,6 +440,7 @@ def generate_snowflake_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -508,6 +514,7 @@ def generate_bigquery_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
@@ -589,6 +596,7 @@ def generate_sqlserver_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
+            verify=False,
         )
         resp = r.json()
         if "csv" in resp:
