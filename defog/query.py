@@ -416,20 +416,21 @@ async def async_execute_query(
             )
         # log this error to our feedback system first (this is a 1-way side-effect)
         try:
-            await make_async_post_request(
-                url=f"{base_url}/feedback",
-                payload={
-                    "api_key": api_key,
-                    "feedback": "bad",
-                    "text": err_msg,
-                    "db_type": db_type,
-                    "question": question,
-                    "query": query,
-                    "dev": dev,
-                    "temp": temp,
-                },
-                timeout=1,
-            )
+            if os.environ.get("LOG_ERROR_TO_DEFOG") != "no":
+                await make_async_post_request(
+                    url=f"{base_url}/feedback",
+                    payload={
+                        "api_key": api_key,
+                        "feedback": "bad",
+                        "text": err_msg,
+                        "db_type": db_type,
+                        "question": question,
+                        "query": query,
+                        "dev": dev,
+                        "temp": temp,
+                    },
+                    timeout=1,
+                )
         except:
             pass
         # log locally
