@@ -1,5 +1,5 @@
 from defog.util import make_async_post_request
-from defog.query import execute_query
+from defog.query import async_execute_query
 from datetime import datetime
 
 
@@ -137,7 +137,7 @@ async def run_query(
         try:
             print("Query generated, now running it on your database...")
             tstart = datetime.now()
-            colnames, result, executed_query = await execute_query(
+            colnames, result, executed_query = await async_execute_query(
                 query=query["query_generated"],
                 api_key=self.api_key,
                 db_type=self.db_type,
