@@ -72,7 +72,11 @@ def generate_postgres_schema(
         else:
             schema = "public"
         cur.execute(
-            "SELECT CAST(column_name AS TEXT), CAST(data_type AS TEXT) FROM information_schema.columns WHERE table_name::text = %s AND table_schema = %s;",
+            """SELECT
+                CAST(column_name AS TEXT),
+                CAST(data_type AS TEXT),
+                col_descripton(format('%s.%s', table_schema, table_name)::regclass::oid, ordinal_position) AS column_description
+            FROM information_schema.columns WHERE table_name::text = %s AND table_schema = %s;""",
             (
                 table_name,
                 schema,
@@ -80,7 +84,7 @@ def generate_postgres_schema(
         )
         rows = cur.fetchall()
         rows = [row for row in rows]
-        rows = [{"column_name": i[0], "data_type": i[1]} for i in rows]
+        rows = [{"column_name": i[0], "data_type": i[1], "column_description": i[2] or ""} for i in rows]
         if len(rows) > 0:
             if scan:
                 rows = identify_categorical_columns(cur, table_name, rows)
