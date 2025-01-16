@@ -91,7 +91,10 @@ def generate_postgres_schema(
         )
         rows = cur.fetchall()
         rows = [row for row in rows]
-        rows = [{"column_name": i[0], "data_type": i[1], "column_description": i[2] or ""} for i in rows]
+        rows = [
+            {"column_name": i[0], "data_type": i[1], "column_description": i[2] or ""}
+            for i in rows
+        ]
         if len(rows) > 0:
             if scan:
                 rows = identify_categorical_columns(cur, table_name, rows)
