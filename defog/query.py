@@ -157,12 +157,13 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
 
         conn = await asyncpg.connect(**db_creds)
         results = await conn.fetch(query)
+        await conn.close()
 
-        colnames = list(results[0].keys())
-        if colnames is None:
+        if results and len(results) > 0:
+            colnames = list(results[0].keys())
+        else:
             colnames = []
 
-        await conn.close()
         # get the results in a list of lists format
         rows = [list(row.values()) for row in results]
         return colnames, rows
@@ -185,7 +186,10 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
             await conn.execute(f"SET search_path TO {schema}")
 
         results = await conn.fetch(query)
-        colnames = list(results[0].keys())
+        if results and len(results) > 0:
+            colnames = list(results[0].keys())
+        else:
+            colnames = []
 
         # deduplicate the column names
         colnames = [
