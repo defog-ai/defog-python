@@ -148,6 +148,91 @@ def generate_postgres_schema(
         return table_columns
 
 
+def get_postgres_functions(
+    self, schemas: List[str] = []
+) -> Dict[str, List[Dict[str, str]]]:
+    """
+    Returns the custom functions and their definitions of the mentioned schemas in the database.
+    """
+    try:
+        import psycopg2
+    except ImportError:
+        raise ImportError(
+            "psycopg2 not installed. Please install it with `pip install psycopg2-binary`."
+        )
+
+    conn = psycopg2.connect(**self.db_creds)
+    cur = conn.cursor()
+    functions = {}
+
+    if len(schemas) == 0:
+        schemas = ["public"]
+
+    for schema in schemas:
+        cur.execute(
+            """
+            SELECT
+                CAST(p.proname AS TEXT) AS function_name,
+                pg_get_functiondef(p.oid) AS function_definition
+            FROM pg_proc p
+            JOIN pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname = %s;
+            """,
+            (schema,),
+        )
+        rows = [
+            {"function_name": row[0], "function_definition": row[1]}
+            for row in cur.fetchall()
+            if row[1] is not None
+        ]
+        if rows:
+            functions[schema] = rows
+    conn.close()
+    return functions
+
+
+def get_postgres_triggers(
+    self, schemas: List[str] = []
+) -> Dict[str, List[Dict[str, str]]]:
+    try:
+        import psycopg2
+    except ImportError:
+        raise ImportError(
+            "psycopg2 not installed. Please install it with `pip install psycopg2-binary`."
+        )
+
+    conn = psycopg2.connect(**self.db_creds)
+    cur = conn.cursor()
+    triggers = {}
+
+    if len(schemas) == 0:
+        schemas = ["public"]
+
+    for schema in schemas:
+        cur.execute(
+            """
+            SELECT
+                CAST(t.tgname AS TEXT) AS trigger_name,
+                pg_get_triggerdef(t.oid) AS trigger_definition
+            FROM pg_trigger t
+            JOIN pg_class c ON t.tgrelid = c.oid
+            JOIN pg_namespace n ON c.relnamespace = n.oid
+            WHERE n.nspname = %s
+            """,
+            (schema,),
+        )
+        rows = [
+            {"trigger_name": row[0], "trigger_definition": row[1]}
+            for row in cur.fetchall()
+            if row[1] is not None
+        ]
+        if rows:
+            triggers[schema] = rows
+
+    conn.close()
+    return triggers
+
+
 def generate_redshift_schema(
     self,
     tables: list,
