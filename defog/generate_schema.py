@@ -3,7 +3,7 @@ from defog.util import identify_categorical_columns
 from io import StringIO
 import pandas as pd
 import json
-from typing import List
+from typing import List, Dict
 
 
 def generate_postgres_schema(
@@ -15,8 +15,15 @@ def generate_postgres_schema(
     return_tables_only: bool = False,
     schemas: List[str] = [],
 ) -> str:
-    # when upload is True, we send the schema to the defog servers and generate a CSV
-    # when its false, we return the schema as a dict
+    """
+    Returns the schema of the tables in the database.
+    If tables is non-empty, we only generate the schema for the mentioned tables in the list.
+    If schemas is non-empty, we only generate the schema for the mentioned schemas in the list.
+    If return_tables_only is True, we return only the table names as a list.
+    If upload is True, we send the schema to the defog servers and generate a CSV.
+    If upload is False, we return the schema as a dict.
+    If scan is True, we also scan the tables for categorical columns to enhance the column description.
+    """
     try:
         import psycopg2
     except ImportError:
@@ -75,7 +82,12 @@ def generate_postgres_schema(
             """
             SELECT 
                 CAST(column_name AS TEXT), 
-                CAST(data_type AS TEXT), 
+                CAST(
+                    CASE 
+                        WHEN data_type = 'USER-DEFINED' THEN udt_name
+                        ELSE data_type 
+                    END AS TEXT
+                ) AS data_type,
                 col_description(
                     FORMAT('%%s.%%s', table_schema, table_name)::regclass::oid, 
                     ordinal_position
