@@ -3,7 +3,7 @@ import asyncio
 from io import StringIO
 import pandas as pd
 import json
-from typing import List
+from typing import List, Dict, Union
 
 
 async def generate_postgres_schema(
@@ -14,9 +14,9 @@ async def generate_postgres_schema(
     scan: bool = True,
     return_tables_only: bool = False,
     schemas: List[str] = ["public"],
-) -> str:
+) -> Union[Dict, List, str]:
     """
-    Returns the schema of the tables in the database.
+    Returns the schema of the tables in the database. Keys: column_name, data_type, column_description, custom_type_labels
     If tables is non-empty, we only generate the schema for the mentioned tables in the list.
     If schemas is non-empty, we only generate the schema for the mentioned schemas in the list.
     If return_tables_only is True, we return only the table names as a list.
