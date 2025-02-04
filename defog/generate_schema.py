@@ -87,11 +87,23 @@ def generate_postgres_schema(
                         WHEN data_type = 'USER-DEFINED' THEN udt_name
                         ELSE data_type 
                     END AS TEXT
-                ) AS data_type,
+                ) AS type,
                 col_description(
                     FORMAT('%%s.%%s', table_schema, table_name)::regclass::oid, 
                     ordinal_position
-                ) AS column_description 
+                ) AS column_description,
+                CASE
+                    WHEN data_type = 'USER-DEFINED' THEN (
+                        SELECT string_agg(enumlabel, ', ')
+                        FROM pg_enum
+                        WHERE enumtypid = (
+                            SELECT oid
+                            FROM pg_type
+                            WHERE typname = udt_name
+                        )
+                    )
+                    ELSE NULL
+                END AS custom_type_labels
             FROM information_schema.columns 
             WHERE table_name::text = %s 
             AND table_schema = %s;
@@ -104,7 +116,12 @@ def generate_postgres_schema(
         rows = cur.fetchall()
         rows = [row for row in rows]
         rows = [
-            {"column_name": i[0], "data_type": i[1], "column_description": i[2] or ""}
+            {
+                "column_name": i[0],
+                "data_type": i[1],
+                "column_description": i[2] or "",
+                "custom_type_labels": i[3].split(", ") if i[3] else [],
+            }
             for i in rows
         ]
         if len(rows) > 0:

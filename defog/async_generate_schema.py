@@ -62,18 +62,45 @@ async def generate_postgres_schema(
             if "." in table_name:
                 _, table_name = table_name.split(".", 1)
             query = """
-                SELECT CAST(column_name AS TEXT), CAST(
-                    CASE 
-                        WHEN data_type = 'USER-DEFINED' THEN udt_name
-                        ELSE data_type 
-                    END AS TEXT
-                ) AS data_type
+                SELECT 
+                    CAST(column_name AS TEXT), 
+                    CAST(
+                        CASE 
+                            WHEN data_type = 'USER-DEFINED' THEN udt_name
+                            ELSE data_type 
+                        END AS TEXT
+                    ) AS data_type,
+                    col_description(
+                        (quote_ident($2) || '.' || quote_ident($1))::regclass::oid, 
+                        ordinal_position
+                    ) AS column_description,
+                    CASE
+                        WHEN data_type = 'USER-DEFINED' THEN (
+                            SELECT string_agg(enumlabel, ', ')
+                            FROM pg_enum
+                            WHERE enumtypid = (
+                                SELECT oid
+                                FROM pg_type
+                                WHERE typname = udt_name
+                            )
+                        )
+                        ELSE NULL
+                    END AS custom_type_labels
                 FROM information_schema.columns
                 WHERE table_name = $1 AND table_schema = $2;
             """
+            print(f"Schema for {schema}.{table_name}")
             rows = await conn.fetch(query, table_name, schema)
             rows = [row for row in rows]
-            rows = [{"column_name": row[0], "data_type": row[1]} for row in rows]
+            rows = [
+                {
+                    "column_name": row[0],
+                    "data_type": row[1],
+                    "column_description": row[2] or "",
+                    "custom_type_labels": row[3].split(", ") if row[3] else [],
+                }
+                for row in rows
+            ]
             if len(rows) > 0:
                 if scan:
                     rows = await async_identify_categorical_columns(
