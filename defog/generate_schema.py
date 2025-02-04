@@ -119,7 +119,7 @@ def generate_postgres_schema(
             {
                 "column_name": i[0],
                 "data_type": i[1],
-                "column_description": i[2] or "",
+                "column_description": i[2] or "" + (" This is an enum column with the possible values: " + i[3] if i[3] else ""),
                 "custom_type_labels": i[3].split(", ") if i[3] else [],
             }
             for i in rows
