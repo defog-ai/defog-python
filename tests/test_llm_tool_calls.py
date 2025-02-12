@@ -4,9 +4,11 @@ from defog.llm.utils import chat_async
 from pydantic import BaseModel
 import aiohttp
 
+
 class WeatherInput(BaseModel):
     latitude: float
     longitude: float
+
 
 async def get_weather(input: WeatherInput):
     """
@@ -18,6 +20,7 @@ async def get_weather(input: WeatherInput):
         )
         return_object = await r.json()
         return return_object["current"]["temperature_2m"]
+
 
 class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
@@ -45,11 +48,12 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             messages=[
                 {
                     "role": "user",
-                    "content": "What is the product of 31283 and 2323, added to 5? Return only the final answer, nothing else.",},
+                    "content": "What is the product of 31283 and 2323, added to 5? Return only the final answer, nothing else.",
+                },
             ],
             tools=tools,
         )
-        self.assertEqual(result.content, '72670414')
+        self.assertEqual(result.content, "72670414")
 
     @pytest.mark.asyncio
     async def test_tool_use_async_weather(self):
@@ -59,7 +63,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             messages=[
                 {
                     "role": "user",
-                    "content": "What is the current temperature in Singapore? Return the answer as just a number.",},
+                    "content": "What is the current temperature in Singapore? Return the answer as just a number.",
+                },
             ],
             tools=tools,
             max_retries=1,

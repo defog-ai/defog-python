@@ -40,9 +40,11 @@ acceptable_sql = [
     "select count(order_id) as total_orders from orders",
 ]
 
-class ResponseFormat (BaseModel):
+
+class ResponseFormat(BaseModel):
     reasoning: str
     sql: str
+
 
 messages_sql_structured = [
     {
@@ -148,15 +150,10 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             )
             self.check_sql(response.content)
             self.assertIsInstance(response.time, float)
-    
+
     @pytest.mark.asyncio
     async def test_sql_chat_structured_reasoning_effort_async(self):
-        reasoning_effort = [
-            "low",
-            "medium",
-            "high",
-            None
-        ]
+        reasoning_effort = ["low", "medium", "high", None]
         for effort in reasoning_effort:
             response = await chat_async(
                 model="o1",
@@ -171,7 +168,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             )
             self.check_sql(response.content.sql)
             self.assertIsInstance(response.content.reasoning, str)
-    
+
     @pytest.mark.asyncio
     async def test_sql_chat_structured_async(self):
         models = [
