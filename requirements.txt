@@ -11,3 +11,4 @@ tabulate
 uvicorn
 tqdm
 setuptools
+pydantic
