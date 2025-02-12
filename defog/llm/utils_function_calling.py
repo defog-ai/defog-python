@@ -3,6 +3,7 @@ from typing import Callable, List, Dict, Any
 from pydantic import BaseModel
 from defog.llm.models import OpenAIFunction
 
+
 def get_function_specs(functions: List[Callable]) -> List[OpenAIFunction]:
     """Return a list of dictionaries describing each function's name, docstring, and input schema."""
     function_specs = []
@@ -17,28 +18,35 @@ def get_function_specs(functions: List[Callable]) -> List[OpenAIFunction]:
 
         # We assume each function has exactly one parameter that is a Pydantic model
         if len(params) != 1:
-            raise ValueError(f"Function {func.__name__} does not have exactly one parameter.")
+            raise ValueError(
+                f"Function {func.__name__} does not have exactly one parameter."
+            )
 
         param = params[0]
         model_class = param.annotation  # The Pydantic model
 
         # Safety check to ensure param.annotation is indeed a Pydantic BaseModel
         if not (isinstance(model_class, type) and issubclass(model_class, BaseModel)):
-            raise ValueError(f"Parameter for function {func.__name__} is not a Pydantic model.")
+            raise ValueError(
+                f"Parameter for function {func.__name__} is not a Pydantic model."
+            )
 
         # Get the JSON schema from the model
         input_schema = model_class.model_json_schema()
 
-        function_specs.append({
-            "type": "function",
-            "function": {
-                "name": func.__name__,
-                "description": docstring,
-                "parameters": input_schema,
+        function_specs.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": func.__name__,
+                    "description": docstring,
+                    "parameters": input_schema,
+                },
             }
-        })
+        )
 
     return function_specs
+
 
 def execute_tool(tool: Callable, inputs: Dict[str, Any]):
     """
@@ -55,6 +63,7 @@ def execute_tool(tool: Callable, inputs: Dict[str, Any]):
     model = model_class.model_validate(inputs)
     # Call the tool function with the Pydantic model
     return tool(model)
+
 
 async def execute_tool_async(tool: Callable, inputs: Dict[str, Any]):
     """
