@@ -39,6 +39,7 @@ setup(
         "tqdm",
         "pwinput",
         "aiohttp",
+        "pydantic",
     ],
     entry_points={
         "console_scripts": [
