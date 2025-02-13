@@ -4,16 +4,15 @@ import json
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Union, Callable
 
-from defog.llm.models import OpenAIToolChoice, OpenAIFunction, OpenAIForcedFunction
-from defog.llm.utils_function_calling import (
-    get_function_specs,
-    execute_tool,
-    execute_tool_async,
+from defog.llm.models import (
+    OpenAIToolChoice,
+    OpenAIForcedFunction,
+    AnthropicToolChoice,
+    AnthropicForcedFunction,
 )
-import re
+from defog.llm.utils_function_calling import get_function_specs, execute_tool, execute_tool_async
 import inspect
 import asyncio
-import traceback
 
 LLM_COSTS_PER_TOKEN = {
     "chatgpt-4o": {"input_cost_per1k": 0.0025, "output_cost_per1k": 0.01},
@@ -60,6 +59,7 @@ class LLMResponse:
     output_tokens: int
     output_tokens_details: Optional[Dict[str, int]] = None
     cost_in_cents: Optional[float] = None
+    tools_used: Optional[List[str]] = None
 
     def __post_init__(self):
         if self.model in LLM_COSTS_PER_TOKEN:
@@ -82,8 +82,7 @@ class LLMResponse:
                 + self.output_tokens
                 / 1000
                 * LLM_COSTS_PER_TOKEN[model_name]["output_cost_per1k"]
-                * 100
-            )
+            ) * 100
 
 
 #
@@ -99,8 +98,8 @@ def _build_anthropic_params(
     max_completion_tokens: int,
     temperature: float,
     stop: List[str],
-    tools: List[Dict[str, str]] = None,
-    tool_choice: Union[str, dict] = None,
+    tools: List[Callable] = None,
+    tool_choice: Union[AnthropicToolChoice, AnthropicForcedFunction] = None,
     timeout=100,
 ):
     """Create the parameter dict for Anthropic's .messages.create()."""
@@ -120,42 +119,163 @@ def _build_anthropic_params(
         "timeout": timeout,
     }
     if tools:
-        params["tools"] = tools
+        function_specs = get_function_specs(tools, model)
+        params["tools"] = function_specs
     if tool_choice:
+        if tool_choice == AnthropicToolChoice.REQUIRED:
+            tool_choice = "any"
         params["tool_choice"] = tool_choice
 
     return params, messages  # returning updated messages in case we want them
 
 
-def _process_anthropic_response(response):
-    """Extract content (including any tool calls) and usage info from Anthropic response."""
-    from anthropic.types import ToolUseBlock, TextBlock
+async def _process_anthropic_response(
+    client,
+    response,
+    request_params,
+    tools,
+    tool_dict,
+    is_async,
+):
+    """
+    Extract content (including any tool calls) and usage info from Anthropic response.
+    Handles chaining of tool calls.
+    """
+    from anthropic.types import ToolUseBlock
 
     if response.stop_reason == "max_tokens":
         raise Exception("Max tokens reached")
     if len(response.content) == 0:
         raise Exception("Max tokens reached")
 
-    tool_calls = []
-    message_text = ""
-    for block in response.content:
-        if isinstance(block, ToolUseBlock):
-            tool_calls.append(
-                {
-                    "tool_name": block.name,
-                    "tool_arguments": block.input,
-                    "tool_id": block.id,
-                }
+    # If we have tools, handle dynamic chaining:
+    tools_used = []
+    if tools and len(tools) > 0:
+        while True:
+            # Check if the response contains a tool call
+            tool_call_block = next(
+                (
+                    block
+                    for block in response.content
+                    if isinstance(block, ToolUseBlock)
+                ),
+                None,
             )
-        elif isinstance(block, TextBlock):
-            message_text = block.text
+            if tool_call_block:
+                try:
+                    func_name = tool_call_block.name
+                    args = tool_call_block.input
+                    tool_id = tool_call_block.id
+                except Exception as e:
+                    raise Exception(f"Error parsing tool call: {e}")
 
-    if tool_calls != []:
-        content = {"tool_calls": tool_calls, "message_text": message_text}
+                try:
+                    tool_to_call = tool_dict[func_name]
+                except KeyError:
+                    raise Exception(f"Tool `{func_name}` not found.")
+
+                # Execute tool depending on whether it is async
+                try:
+                    if inspect.iscoroutinefunction(tool_to_call):
+                        result = await execute_tool_async(tool_to_call, args)
+                    else:
+                        result = execute_tool(tool_to_call, args)
+                except Exception as e:
+                    raise Exception(f"Error executing tool `{func_name}`: {e}")
+                tools_used.append(func_name)
+
+                # Append the tool call as an assistant response
+                request_params["messages"].append(
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": tool_id,
+                                "name": func_name,
+                                "input": args,
+                            }
+                        ],
+                    }
+                )
+
+                # Append the tool result as a user response
+                request_params["messages"].append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": str(result),
+                            }
+                        ],
+                    }
+                )
+
+                # Make next call
+                if is_async:
+                    response = await client.messages.create(**request_params)
+                else:
+                    response = client.messages.create(**request_params)
+            else:
+                content = response.content[0].text
+                break
     else:
-        content = message_text
+        # No tools provided
+        content = response.content[0].text
 
-    return content, response.usage.input_tokens, response.usage.output_tokens
+    usage = response.usage
+    return content, tools_used, usage.input_tokens, usage.output_tokens
+
+
+def _process_anthropic_response_handler(
+    client,
+    response,
+    request_params: Dict[str, Any],
+    tools: List[Callable],
+    tool_dict: Dict[str, Callable],
+    is_async=False,
+):
+    """
+    Processes Anthropic's response by determining whether to execute the response handling
+    synchronously or asynchronously. This function acts as a wrapper around _process_anthropic_response,
+    deciding the execution mode based on the is_async parameter.
+
+    Parameters:
+    - client: The client instance used for communication.
+    - response: The response object from Anthropic.
+    - request_params: A dictionary of request parameters that resulted in the response.
+    - tools: A list of callable tools available for function calling.
+    - tool_dict: A dictionary mapping tool names to their callable functions.
+    - is_async: A boolean flag indicating whether to execute asynchronously.
+
+    Returns:
+    - The processed response content, input tokens, and output tokens from the response.
+    """
+    try:
+        if is_async:
+            return _process_anthropic_response(
+                client=client,
+                response=response,
+                request_params=request_params,
+                tools=tools,
+                tool_dict=tool_dict,
+                is_async=is_async,
+            )  # Caller must await this
+        else:
+            return asyncio.run(
+                _process_anthropic_response(
+                    client=client,
+                    response=response,
+                    request_params=request_params,
+                    tools=tools,
+                    tool_dict=tool_dict,
+                    is_async=is_async,
+                )
+            )
+    except Exception as e:
+        raise Exception("Error processing Anthropic response:", e)
 
 
 def chat_anthropic(
@@ -166,15 +286,15 @@ def chat_anthropic(
     stop: List[str] = [],
     response_format=None,
     seed: int = 0,
-    tools: List[Dict[str, str]] = None,
-    tool_choice: Union[str, dict] = None,
+    tools: List[Callable] = None,
+    tool_choice: Union[AnthropicToolChoice, AnthropicForcedFunction] = None,
 ):
     """Synchronous Anthropic chat."""
     from anthropic import Anthropic
 
     t = time.time()
     client = Anthropic()
-    params, _ = _build_anthropic_params(
+    request_params, _ = _build_anthropic_params(
         messages=messages,
         model=model,
         max_completion_tokens=max_completion_tokens,
@@ -183,8 +303,21 @@ def chat_anthropic(
         tools=tools,
         tool_choice=tool_choice,
     )
-    response = client.messages.create(**params)
-    content, input_toks, output_toks = _process_anthropic_response(response)
+
+    # Construct a tool dict if needed
+    tool_dict = {}
+    if tools and len(tools) > 0 and "tools" in request_params:
+        tool_dict = {tool.__name__: tool for tool in tools}
+
+    response = client.messages.create(**request_params)
+    content, tools_used, input_toks, output_toks = _process_anthropic_response_handler(
+        client=client,
+        response=response,
+        request_params=request_params,
+        tools=tools,
+        tool_dict=tool_dict,
+        is_async=False,
+    )
 
     return LLMResponse(
         model=model,
@@ -192,6 +325,7 @@ def chat_anthropic(
         time=round(time.time() - t, 3),
         input_tokens=input_toks,
         output_tokens=output_toks,
+        tools_used=tools_used,
     )
 
 
@@ -203,8 +337,8 @@ async def chat_anthropic_async(
     stop: List[str] = [],
     response_format=None,
     seed: int = 0,
-    tools: List[Dict[str, str]] = None,
-    tool_choice: Union[str, dict] = None,
+    tools: List[Callable] = None,
+    tool_choice: Union[AnthropicToolChoice, AnthropicForcedFunction] = None,
     store=True,
     metadata=None,
     timeout=100,
@@ -225,8 +359,23 @@ async def chat_anthropic_async(
         tools=tools,
         tool_choice=tool_choice,
     )
+
+    # Construct a tool dict if needed
+    tool_dict = {}
+    if tools and len(tools) > 0 and "tools" in params:
+        tool_dict = {tool.__name__: tool for tool in tools}
+
     response = await client.messages.create(**params)
-    content, input_toks, output_toks = _process_anthropic_response(response)
+    content, tools_used, input_toks, output_toks = (
+        await _process_anthropic_response_handler(
+            client=client,
+            response=response,
+            request_params=params,
+            tools=tools,
+            tool_dict=tool_dict,
+            is_async=True,
+        )
+    )
 
     return LLMResponse(
         model=model,
@@ -234,6 +383,7 @@ async def chat_anthropic_async(
         time=round(time.time() - t, 3),
         input_tokens=input_toks,
         output_tokens=output_toks,
+        tools_used=tools_used,
     )
 
 
@@ -308,7 +458,7 @@ def _build_openai_params(
             "deepseek-reasoner",
         ]
     ):
-        function_specs = get_function_specs(tools)
+        function_specs = get_function_specs(tools, model)
         request_params["tools"] = function_specs
         if tool_choice:
             request_params["tool_choice"] = tool_choice
@@ -339,19 +489,19 @@ def _build_openai_params(
     return request_params
 
 
-def _process_openai_response_sync(
+async def _process_openai_response(
     client,
     response,
     request_params,
-    tools: List[Callable] = None,
-    tool_dict: Dict[str, Callable] = None,
-    response_format=None,
-    model=None,
+    tools,
+    tool_dict,
+    response_format,
+    model,
+    is_async,
 ):
     """
-    For sync calls:
-      - Possibly chain tool calls in a loop
-      - Return final content
+    Extract content (including any tool calls) and usage info from OpenAI response.
+    Handles chaining of tool calls.
     """
     if len(response.choices) == 0:
         raise Exception("No response from OpenAI.")
@@ -359,6 +509,7 @@ def _process_openai_response_sync(
         raise Exception("Max tokens reached")
 
     # If we have tools, handle dynamic chaining:
+    tools_used = []
     if tools and len(tools) > 0:
         while True:
             message = response.choices[0].message
@@ -370,17 +521,20 @@ def _process_openai_response_sync(
                 except json.JSONDecodeError:
                     args = {}
 
-                tool_to_call = tool_dict[func_name]
+                try:
+                    tool_to_call = tool_dict[func_name]
+                except KeyError:
+                    raise Exception(f"Tool `{func_name}` not found")
 
-                # check if tool_to_call is async, by seeing if it has `await ` anywhere in its code
-                tool_source = inspect.getsource(tool_to_call)
-                # Define the regex pattern
-                pattern = r"\s+await\s+"
-                matches = re.findall(pattern, tool_source)
-                if any(match for match in matches):
-                    result = asyncio.run(execute_tool_async(tool_to_call, args))
-                else:
-                    result = execute_tool(tool_to_call, args)
+                # Execute tool depending on whether it is async
+                try:
+                    if inspect.iscoroutinefunction(tool_to_call):
+                        result = await execute_tool_async(tool_to_call, args)
+                    else:
+                        result = execute_tool(tool_to_call, args)
+                except Exception as e:
+                    raise Exception(f"Error executing tool `{func_name}`: {e}")
+                tools_used.append(func_name)
 
                 # Append the tool calls as an assistant response
                 request_params["messages"].append(
@@ -399,12 +553,15 @@ def _process_openai_response_sync(
                     }
                 )
                 # Make next call
-                response = client.chat.completions.create(**request_params)
+                if is_async:
+                    response = await client.chat.completions.create(**request_params)
+                else:
+                    response = client.chat.completions.create(**request_params)
             else:
                 content = message.content
                 break
     else:
-        # No tool chaining
+        # No tools provided
         if response_format and model not in ["o1-mini", "o1-preview"]:
             content = response.choices[0].message.parsed
         else:
@@ -413,89 +570,67 @@ def _process_openai_response_sync(
     usage = response.usage
     return (
         content,
+        tools_used,
         usage.prompt_tokens,
         usage.completion_tokens,
         usage.completion_tokens_details,
     )
 
 
-async def _process_openai_response_async(
+def _process_openai_response_handler(
     client,
     response,
-    request_params,
-    tools: List[Callable] = None,
-    tool_dict: Dict[str, Callable] = None,
-    response_format=None,
-    model=None,
+    request_params: Dict[str, Any],
+    tools: List[Callable],
+    tool_dict: Dict[str, Callable],
+    response_format,
+    model: str,
+    is_async=False,
 ):
     """
-    For sync calls:
-      - Possibly chain tool calls in a loop
-      - Return final content
+    Processes OpenAI's response by determining whether to execute the response handling
+    synchronously or asynchronously. This function acts as a wrapper around _process_openai_response,
+    deciding the execution mode based on the is_async parameter.
+
+    Parameters:
+    - client: The client instance used for communication.
+    - response: The response object from OpenAI.
+    - request_params: A dictionary of request parameters that resulted in the response.
+    - tools: A list of callable tools available for function calling.
+    - tool_dict: A dictionary mapping tool names to their callable functions.
+    - is_async: A boolean flag indicating whether to execute asynchronously.
+
+    Returns:
+    - The processed response content, input tokens, and output tokens from the response.
     """
-    if len(response.choices) == 0:
-        raise Exception("No response from OpenAI.")
-    if response.choices[0].finish_reason == "length":
-        raise Exception("Max tokens reached")
-
-    # If we have tools, handle dynamic chaining:
-    if tools and len(tools) > 0:
-        while True:
-            message = response.choices[0].message
-            if message.tool_calls:
-                tool_call = message.tool_calls[0]
-                func_name = tool_call.function.name
-                try:
-                    args = json.loads(tool_call.function.arguments)
-                except json.JSONDecodeError:
-                    args = {}
-
-                tool_to_call = tool_dict[func_name]
-                # check if tool_to_call is async, by seeing if it has `await ` anywhere in its code
-                tool_source = inspect.getsource(tool_to_call)
-                # Define the regex pattern
-                pattern = r"\s+await\s+"
-                matches = re.findall(pattern, tool_source)
-                if any(match for match in matches):
-                    result = await execute_tool_async(tool_to_call, args)
-                else:
-                    result = execute_tool(tool_to_call, args)
-
-                # Append the tool calls as an assistant response
-                request_params["messages"].append(
-                    {
-                        "role": "assistant",
-                        "tool_calls": message.tool_calls,
-                    }
-                )
-
-                # Append the tool message
-                request_params["messages"].append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": str(result),
-                    }
-                )
-                # Make next call
-                response = await client.chat.completions.create(**request_params)
-            else:
-                content = message.content
-                break
-    else:
-        # No tool chaining
-        if response_format and model not in ["o1-mini", "o1-preview"]:
-            content = response.choices[0].message.parsed
+    try:
+        if is_async:
+            return _process_openai_response(
+                client=client,
+                response=response,
+                request_params=request_params,
+                tools=tools,
+                tool_dict=tool_dict,
+                response_format=response_format,
+                model=model,
+                is_async=is_async,
+            )  # Caller must await this
         else:
-            content = response.choices[0].message.content
+            return asyncio.run(
+                _process_openai_response(
+                    client=client,
+                    response=response,
+                    request_params=request_params,
+                    tools=tools,
+                    tool_dict=tool_dict,
+                    response_format=response_format,
+                    model=model,
+                    is_async=is_async,
+                )
+            )
 
-    usage = response.usage
-    return (
-        content,
-        usage.prompt_tokens,
-        usage.completion_tokens,
-        usage.completion_tokens_details,
-    )
+    except Exception as e:
+        raise Exception("Error processing OpenAI response:", e)
 
 
 def chat_openai(
@@ -549,8 +684,8 @@ def chat_openai(
     else:
         response = client_openai.chat.completions.create(**request_params)
 
-    content, prompt_tokens, output_tokens, completion_token_details = (
-        _process_openai_response_sync(
+    content, tools_used, prompt_tokens, output_tokens, completion_token_details = (
+        _process_openai_response_handler(
             client=client_openai,
             response=response,
             request_params=request_params,
@@ -558,6 +693,7 @@ def chat_openai(
             tool_dict=tool_dict,
             response_format=response_format,
             model=model,
+            is_async=False,
         )
     )
 
@@ -568,6 +704,7 @@ def chat_openai(
         input_tokens=prompt_tokens,
         output_tokens=output_tokens,
         output_tokens_details=completion_token_details,
+        tools_used=tools_used,
     )
 
 
@@ -579,7 +716,7 @@ async def chat_openai_async(
     stop: List[str] = [],
     response_format=None,
     seed: int = 0,
-    tools: List[OpenAIFunction] = None,
+    tools: List[Callable] = None,
     tool_choice: Union[OpenAIToolChoice, OpenAIForcedFunction] = None,
     store=True,
     metadata=None,
@@ -622,8 +759,8 @@ async def chat_openai_async(
     else:
         response = await client_openai.chat.completions.create(**request_params)
 
-    content, prompt_tokens, output_tokens, completion_token_details = (
-        await _process_openai_response_async(
+    content, tools_used, prompt_tokens, output_tokens, completion_token_details = (
+        await _process_openai_response_handler(
             client=client_openai,
             response=response,
             request_params=request_params,
@@ -631,6 +768,7 @@ async def chat_openai_async(
             tool_dict=tool_dict,
             response_format=response_format,
             model=model,
+            is_async=True,
         )
     )
 
@@ -641,6 +779,7 @@ async def chat_openai_async(
         input_tokens=prompt_tokens,
         output_tokens=output_tokens,
         output_tokens_details=completion_token_details,
+        tools_used=tools_used,
     )
 
 
@@ -698,7 +837,12 @@ def chat_together(
     t = time.time()
     client_together = Together()
     params = _build_together_params(
-        messages, model, max_completion_tokens, temperature, stop, seed
+        messages=messages,
+        model=model,
+        max_completion_tokens=max_completion_tokens,
+        temperature=temperature,
+        stop=stop,
+        seed=seed,
     )
     response = client_together.chat.completions.create(**params)
 
@@ -734,7 +878,12 @@ async def chat_together_async(
     t = time.time()
     client_together = AsyncTogether(timeout=timeout)
     params = _build_together_params(
-        messages, model, max_completion_tokens, temperature, stop, seed
+        messages=messages,
+        model=model,
+        max_completion_tokens=max_completion_tokens,
+        temperature=temperature,
+        stop=stop,
+        seed=seed,
     )
     response = await client_together.chat.completions.create(**params)
 
@@ -821,15 +970,15 @@ def chat_gemini(
     t = time.time()
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
     message, generation_cfg = _build_gemini_params(
-        messages,
-        model,
-        max_completion_tokens,
-        temperature,
-        stop,
-        response_format,
-        seed,
-        store,
-        metadata,
+        messages=messages,
+        model=model,
+        max_completion_tokens=max_completion_tokens,
+        temperature=temperature,
+        stop=stop,
+        response_format=response_format,
+        seed=seed,
+        store=store,
+        metadata=metadata,
     )
 
     try:
@@ -876,15 +1025,15 @@ async def chat_gemini_async(
     t = time.time()
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
     message, generation_cfg = _build_gemini_params(
-        messages,
-        model,
-        max_completion_tokens,
-        temperature,
-        stop,
-        response_format,
-        seed,
-        store,
-        metadata,
+        messages=messages,
+        model=model,
+        max_completion_tokens=max_completion_tokens,
+        temperature=temperature,
+        stop=stop,
+        response_format=response_format,
+        seed=seed,
+        store=store,
+        metadata=metadata,
     )
 
     try:

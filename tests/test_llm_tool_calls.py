@@ -43,32 +43,34 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
 
         tools = [numsum, numprod]
 
-        result = await chat_async(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": "What is the product of 31283 and 2323, added to 5? Return only the final answer, nothing else.",
-                },
-            ],
-            tools=tools,
-        )
-        self.assertEqual(result.content, "72670414")
+        for model in ["gpt-4o", "claude-3-5-sonnet-latest"]:
+            result = await chat_async(
+                model=model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": "What is the product of 31283 and 2323, added to 5? Return only the final answer, nothing else.",
+                    },
+                ],
+                tools=tools,
+            )
+            self.assertEqual(result.content, "72670414")
 
     @pytest.mark.asyncio
     async def test_tool_use_async_weather(self):
         tools = [get_weather]
-        result = await chat_async(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": "What is the current temperature in Singapore? Return the answer as just a number.",
-                },
-            ],
-            tools=tools,
-            max_retries=1,
-        )
-        # assert that the temperature is between 21 and 38
-        self.assertGreaterEqual(float(result.content), 21)
-        self.assertLessEqual(float(result.content), 38)
+        for model in ["gpt-4o", "claude-3-5-sonnet-latest"]:
+            result = await chat_async(
+                model=model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": "What is the current temperature in Singapore? Return the answer as just a number.",
+                    },
+                ],
+                tools=tools,
+                max_retries=1,
+            )
+            # assert that the temperature is between 21 and 38
+            self.assertGreaterEqual(float(result.content), 21)
+            self.assertLessEqual(float(result.content), 38)
