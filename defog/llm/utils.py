@@ -10,7 +10,11 @@ from defog.llm.models import (
     AnthropicToolChoice,
     AnthropicForcedFunction,
 )
-from defog.llm.utils_function_calling import get_function_specs, execute_tool, execute_tool_async
+from defog.llm.utils_function_calling import (
+    get_function_specs,
+    execute_tool,
+    execute_tool_async,
+)
 import inspect
 import asyncio
 
@@ -462,7 +466,7 @@ def _build_openai_params(
         request_params["tools"] = function_specs
         if tool_choice:
             request_params["tool_choice"] = tool_choice
-        
+
         # only set parallel_tool_calls for gpt-4o based models
         # not supported in o models
         if model in ["gpt-4o", "gpt-4o-mini"]:
