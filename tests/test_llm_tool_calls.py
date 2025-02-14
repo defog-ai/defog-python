@@ -194,6 +194,10 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
 
         self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Return only the final answer, nothing else."
         self.arithmetic_answer = "72670414"
+        self.arithmetic_expected_tool_outputs = [
+            {"name": "numprod", "args": {"a": 31283, "b": 2323}, "result": 72670409},
+            {"name": "numsum", "args": {"a": 72670409, "b": 5}, "result": 72670414},
+        ]
 
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_openai(self):
@@ -210,6 +214,12 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tools=tools,
         )
         self.assertEqual(result.content, self.arithmetic_answer)
+        for expected, actual in zip(
+            self.arithmetic_expected_tool_outputs, result.tool_outputs
+        ):
+            self.assertEqual(expected["name"], actual["name"])
+            self.assertEqual(expected["args"], actual["args"])
+            self.assertEqual(expected["result"], actual["result"])
         self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
 
     @pytest.mark.asyncio
@@ -227,6 +237,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             max_retries=1,
         )
         self.assertSetEqual(set(result.tools_used), {"search"})
+        self.assertEqual(result.tool_outputs[0]["name"], "search")
         self.assertIn(self.search_answer, result.content.lower())
 
     @pytest.mark.asyncio
@@ -244,6 +255,12 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tools=tools,
         )
         self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+        for expected, actual in zip(
+            self.arithmetic_expected_tool_outputs, result.tool_outputs
+        ):
+            self.assertEqual(expected["name"], actual["name"])
+            self.assertEqual(expected["args"], actual["args"])
+            self.assertEqual(expected["result"], actual["result"])
         self.assertEqual(result.content, self.arithmetic_answer)
 
     @pytest.mark.asyncio
@@ -261,6 +278,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             max_retries=1,
         )
         self.assertSetEqual(set(result.tools_used), {"search"})
+        self.assertEqual(result.tool_outputs[0]["name"], "search")
         self.assertIn(self.search_answer, result.content.lower())
 
     def test_async_tool_in_sync_function_openai(self):
@@ -276,6 +294,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tools=tools,
         )
         self.assertSetEqual(set(result_openai.tools_used), {"search"})
+        self.assertEqual(result_openai.tool_outputs[0]["name"], "search")
         self.assertIn(self.search_answer, result_openai.content.lower())
 
     def test_async_tool_in_sync_function_anthropic(self):
@@ -291,4 +310,5 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tools=tools,
         )
         self.assertSetEqual(set(result_anthropic.tools_used), {"search"})
+        self.assertEqual(result_anthropic.tool_outputs[0]["name"], "search")
         self.assertIn(self.search_answer, result_anthropic.content.lower())
