@@ -66,6 +66,46 @@ def get_function_specs(
     return function_specs
 
 
+def convert_tool_choice(tool_choice: str, tool_name_list: List[str], model: str):
+    """
+    Convert a tool choice to a function calling tool choice that is compatible with the model.
+    """
+    model_map = {
+        "openai": {
+            "prefixes": ["gpt", "o1", "chatgpt", "o3"],
+            "choices": {
+                "auto": "auto",
+                "required": "required",
+                "any": "required",
+                "none": "none",
+            },
+            "custom": {"type": "function", "function": {"name": tool_choice}},
+        },
+        "anthropic": {
+            "prefixes": ["claude"],
+            "choices": {
+                "auto": {"type": "auto"},
+                "required": {"type": "any"},
+                "any": {"type": "any"},
+            },
+            "custom": {"type": "tool", "name": tool_choice},
+        },
+    }
+
+    for model_type, config in model_map.items():
+        if any(model.startswith(prefix) for prefix in config["prefixes"]):
+            if tool_choice not in config["choices"]:
+                # Validate custom tool_choice
+                if tool_choice not in tool_name_list:
+                    raise ValueError(
+                        f"Forced function `{tool_choice}` is not in the list of provided tools"
+                    )
+                return config["custom"]
+            return config["choices"][tool_choice]
+
+    raise ValueError(f"Model `{model}` does not support tools and function calling")
+
+
 def execute_tool(tool: Callable, inputs: Dict[str, Any]):
     """
     Execute a tool function with the given inputs.

@@ -4,14 +4,9 @@ import json
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Union, Callable
 
-from defog.llm.models import (
-    OpenAIToolChoice,
-    OpenAIForcedFunction,
-    AnthropicToolChoice,
-    AnthropicForcedFunction,
-)
 from defog.llm.utils_function_calling import (
     get_function_specs,
+    convert_tool_choice,
     execute_tool,
     execute_tool_async,
 )
@@ -104,7 +99,7 @@ def _build_anthropic_params(
     temperature: float,
     stop: List[str],
     tools: List[Callable] = None,
-    tool_choice: Union[AnthropicToolChoice, AnthropicForcedFunction] = None,
+    tool_choice: str = None,
     timeout=100,
 ):
     """Create the parameter dict for Anthropic's .messages.create()."""
@@ -127,8 +122,8 @@ def _build_anthropic_params(
         function_specs = get_function_specs(tools, model)
         params["tools"] = function_specs
     if tool_choice:
-        if tool_choice == AnthropicToolChoice.REQUIRED:
-            tool_choice = "any"
+        tool_names_list = [func.__name__ for func in tools]
+        tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
         params["tool_choice"] = tool_choice
 
     return params, messages  # returning updated messages in case we want them
@@ -232,6 +227,9 @@ async def _process_anthropic_response(
                         ],
                     }
                 )
+                
+                # Set tool_choice to "auto" so that the next message will be generated normally
+                request_params["tool_choice"] = {"type": "auto"} if request_params["tool_choice"] != "auto" else None
 
                 # Make next call
                 if is_async:
@@ -307,9 +305,28 @@ def chat_anthropic(
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
-    tool_choice: Union[AnthropicToolChoice, AnthropicForcedFunction] = None,
+    tool_choice: str = None,
 ):
-    """Synchronous Anthropic chat."""
+    """
+    Synchronous Anthropic chat.
+
+    Parameters:
+    - messages: A list of dictionaries representing the conversation so far.
+    - model: The anthropic model to use for the chat.
+    - max_completion_tokens: The maximum number of tokens for the completion.
+    - temperature: Ranges from 0.0 to 1.0. Defaults to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
+    - stop: Custom text sequences that will cause the model to stop generating.
+    - response_format: NA
+    - seed: NA
+    - tools: The list of tools the model may call.
+    - tool_choice: Controls which (if any) tool is called by the model.
+        "auto": calls 0, 1, or multiple functions, 
+        "required": calls at least one function, 
+        "<function_name>": calls only the specified function
+
+    Returns:
+    - LLMResponse which contains the response content, input tokens, output tokens, tools used, and tool outputs
+    """
     from anthropic import Anthropic
 
     t = time.time()
@@ -361,14 +378,38 @@ async def chat_anthropic_async(
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
-    tool_choice: Union[AnthropicToolChoice, AnthropicForcedFunction] = None,
+    tool_choice: str = None,
     store=True,
     metadata=None,
     timeout=100,
     prediction=None,
     reasoning_effort=None,
 ):
-    """Asynchronous Anthropic chat."""
+    """
+    Asynchronous Anthropic chat.
+
+    Parameters:
+    - messages: A list of dictionaries representing the conversation so far.
+    - model: The anthropic model to use for the chat.
+    - max_completion_tokens: The maximum number of tokens for the completion.
+    - temperature: Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
+    - stop: Custom text sequences that will cause the model to stop generating.
+    - response_format: NA
+    - seed: NA
+    - tools: The list of tools the model may call.
+    - tool_choice: Controls which (if any) tool is called by the model.
+        "auto": calls 0, 1, or multiple functions, 
+        "required": calls at least one function, 
+        "<function_name>": calls only the specified function
+    - store: NA
+    - metadata: NA
+    - timeout: NA
+    - prediction: NA
+    - reasoning_effort: NA
+
+    Returns:
+    - LLMResponse which contains the response content, input tokens, output tokens, tools used, and tool outputs
+    """
     from anthropic import AsyncAnthropic
 
     t = time.time()
@@ -427,7 +468,7 @@ def _build_openai_params(
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
-    tool_choice: Union[OpenAIToolChoice, OpenAIForcedFunction] = None,
+    tool_choice: str = None,
     prediction=None,
     reasoning_effort=None,
     store=True,
@@ -591,6 +632,10 @@ async def _process_openai_response(
                         "content": str(result),
                     }
                 )
+
+                # Set tool_choice to "auto" so that the next message will be generated normally
+                request_params["tool_choice"] = "auto" if request_params["tool_choice"] != "auto" else None
+
                 # Make next call
                 if is_async:
                     response = await client.chat.completions.create(**request_params)
@@ -682,16 +727,39 @@ def chat_openai(
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
-    tool_choice: Union[OpenAIToolChoice, OpenAIForcedFunction] = None,
+    tool_choice: str = None,
     base_url: str = "https://api.openai.com/v1/",
     api_key: str = os.environ.get("OPENAI_API_KEY", ""),
-    prediction=None,
-    reasoning_effort=None,
-    store=True,
-    metadata=None,
-    timeout=100,
+    prediction: Dict[str, str] =None,
+    reasoning_effort: str = None,
+    store: bool = True,
+    metadata: Dict[str, str] = None,
+    timeout: int = 100,
 ):
-    """Synchronous OpenAI chat."""
+    """
+    Synchronous OpenAI chat.
+    
+    Parameters:
+    - messages: The list of messages to send to the LLM.
+    - model: The OpenAI model to use for the chat.
+    - max_completion_tokens: The maximum number of tokens to return in the response.
+    - temperature: Between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
+    - stop: Up to 4 sequences where the API will stop generating further tokens.
+    - response_format: The format that the model must output.
+    - seed: If specified, OpenAI will try their best to sample deterministically
+    - tools: The list of tools the model may call.
+    - tool_choice: Controls which (if any) tool is called by the model.
+        "auto": calls 0, 1, or multiple functions, 
+        "required": calls at least one function, 
+        "<function_name>": calls only the specified function
+    - base_url: The base URL to use for the chat.
+    - api_key: The OpenAI API key 
+    - prediction: Configuration for a Predicted Output.
+    - reasoning_effort: "low", "medium", or "high". Only for o1 and o3 models
+    - store: Whether or not to store the output of this chat completion request for use in model distillation or evals products.
+    - metadata: Set of 16 key-value pairs that can be attached to an object. This can be useful for storing additional information about the object in a structured format, and querying for objects via API or the dashboard.
+    - timeout: No. of seconds before the request times out.
+    """
     from openai import OpenAI
 
     t = time.time()
@@ -763,16 +831,39 @@ async def chat_openai_async(
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
-    tool_choice: Union[OpenAIToolChoice, OpenAIForcedFunction] = None,
-    store=True,
-    metadata=None,
-    timeout=100,
+    tool_choice: str = None,
+    store: bool = True,
+    metadata: Dict[str, str] = None,
+    timeout: int = 100,
     base_url: str = "https://api.openai.com/v1/",
     api_key: str = os.environ.get("OPENAI_API_KEY", ""),
     prediction: Dict[str, str] = None,
-    reasoning_effort=None,
+    reasoning_effort: str = None,
 ):
-    """Asynchronous OpenAI chat."""
+    """
+    Asynchronous OpenAI chat.
+    
+    Parameters:
+    - messages: The list of messages to send to the LLM.
+    - model: The OpenAI model to use for the chat.
+    - max_completion_tokens: The maximum number of tokens to return in the response.
+    - temperature: Between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
+    - stop: Up to 4 sequences where the API will stop generating further tokens.
+    - response_format: The format that the model must output.
+    - seed: If specified, OpenAI will try their best to sample deterministically
+    - tools: The list of tools the model may call.
+    - tool_choice: Controls which (if any) tool is called by the model.
+        "auto": calls 0, 1, or multiple functions, 
+        "required": calls at least one function, 
+        "<function_name>": calls only the specified function
+    - base_url: The base URL to use for the chat.
+    - api_key: The OpenAI API key 
+    - prediction: Configuration for a Predicted Output.
+    - reasoning_effort: "low", "medium", or "high". Only for o1 and o3 models
+    - store: Whether or not to store the output of this chat completion request for use in model distillation or evals products.
+    - metadata: Set of 16 key-value pairs that can be attached to an object. This can be useful for storing additional information about the object in a structured format, and querying for objects via API or the dashboard.
+    - timeout: No. of seconds before the request times out.
+    """
     from openai import AsyncOpenAI
 
     t = time.time()
