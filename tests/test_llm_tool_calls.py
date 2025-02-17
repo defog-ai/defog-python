@@ -245,7 +245,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.content, self.arithmetic_answer)
 
     @pytest.mark.asyncio
-    async def test_tool_weather_async_anthropic(self):
+    async def test_tool_use_weather_async_anthropic(self):
         result = await chat_async(
             model="claude-3-5-sonnet-20241022",
             messages=[
