@@ -127,7 +127,7 @@ def _build_anthropic_params(
             tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
             params["tool_choice"] = tool_choice
         else:
-            params["tool_choice"] = {"type" : "auto"}
+            params["tool_choice"] = {"type": "auto"}
 
     return params, messages  # returning updated messages in case we want them
 
@@ -230,9 +230,13 @@ async def _process_anthropic_response(
                         ],
                     }
                 )
-                
+
                 # Set tool_choice to "auto" so that the next message will be generated normally
-                request_params["tool_choice"] = {"type": "auto"} if request_params["tool_choice"] != "auto" else None
+                request_params["tool_choice"] = (
+                    {"type": "auto"}
+                    if request_params["tool_choice"] != "auto"
+                    else None
+                )
 
                 # Make next call
                 if is_async:
@@ -323,8 +327,8 @@ def chat_anthropic(
     - seed: NA
     - tools: The list of tools the model may call.
     - tool_choice: Controls which (if any) tool is called by the model.
-        "auto": calls 0, 1, or multiple functions, 
-        "required": calls at least one function, 
+        "auto": calls 0, 1, or multiple functions,
+        "required": calls at least one function,
         "<function_name>": calls only the specified function
 
     Returns:
@@ -401,8 +405,8 @@ async def chat_anthropic_async(
     - seed: NA
     - tools: The list of tools the model may call.
     - tool_choice: Controls which (if any) tool is called by the model.
-        "auto": calls 0, 1, or multiple functions, 
-        "required": calls at least one function, 
+        "auto": calls 0, 1, or multiple functions,
+        "required": calls at least one function,
         "<function_name>": calls only the specified function
     - store: NA
     - metadata: NA
@@ -641,7 +645,9 @@ async def _process_openai_response(
                 )
 
                 # Set tool_choice to "auto" so that the next message will be generated normally
-                request_params["tool_choice"] = "auto" if request_params["tool_choice"] != "auto" else None
+                request_params["tool_choice"] = (
+                    "auto" if request_params["tool_choice"] != "auto" else None
+                )
 
                 # Make next call
                 if is_async:
@@ -737,7 +743,7 @@ def chat_openai(
     tool_choice: str = None,
     base_url: str = "https://api.openai.com/v1/",
     api_key: str = os.environ.get("OPENAI_API_KEY", ""),
-    prediction: Dict[str, str] =None,
+    prediction: Dict[str, str] = None,
     reasoning_effort: str = None,
     store: bool = True,
     metadata: Dict[str, str] = None,
@@ -745,7 +751,7 @@ def chat_openai(
 ):
     """
     Synchronous OpenAI chat.
-    
+
     Parameters:
     - messages: The list of messages to send to the LLM.
     - model: The OpenAI model to use for the chat.
@@ -756,11 +762,11 @@ def chat_openai(
     - seed: If specified, OpenAI will try their best to sample deterministically
     - tools: The list of tools the model may call.
     - tool_choice: Controls which (if any) tool is called by the model.
-        "auto": calls 0, 1, or multiple functions, 
-        "required": calls at least one function, 
+        "auto": calls 0, 1, or multiple functions,
+        "required": calls at least one function,
         "<function_name>": calls only the specified function
     - base_url: The base URL to use for the chat.
-    - api_key: The OpenAI API key 
+    - api_key: The OpenAI API key
     - prediction: Configuration for a Predicted Output.
     - reasoning_effort: "low", "medium", or "high". Only for o1 and o3 models
     - store: Whether or not to store the output of this chat completion request for use in model distillation or evals products.
@@ -849,7 +855,7 @@ async def chat_openai_async(
 ):
     """
     Asynchronous OpenAI chat.
-    
+
     Parameters:
     - messages: The list of messages to send to the LLM.
     - model: The OpenAI model to use for the chat.
@@ -860,11 +866,11 @@ async def chat_openai_async(
     - seed: If specified, OpenAI will try their best to sample deterministically
     - tools: The list of tools the model may call.
     - tool_choice: Controls which (if any) tool is called by the model.
-        "auto": calls 0, 1, or multiple functions, 
-        "required": calls at least one function, 
+        "auto": calls 0, 1, or multiple functions,
+        "required": calls at least one function,
         "<function_name>": calls only the specified function
     - base_url: The base URL to use for the chat.
-    - api_key: The OpenAI API key 
+    - api_key: The OpenAI API key
     - prediction: Configuration for a Predicted Output.
     - reasoning_effort: "low", "medium", or "high". Only for o1 and o3 models
     - store: Whether or not to store the output of this chat completion request for use in model distillation or evals products.
