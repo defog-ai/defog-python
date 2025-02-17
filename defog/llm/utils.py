@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import traceback
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Union, Callable
 
@@ -121,10 +122,12 @@ def _build_anthropic_params(
     if tools:
         function_specs = get_function_specs(tools, model)
         params["tools"] = function_specs
-    if tool_choice:
-        tool_names_list = [func.__name__ for func in tools]
-        tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
-        params["tool_choice"] = tool_choice
+        if tool_choice:
+            tool_names_list = [func.__name__ for func in tools]
+            tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
+            params["tool_choice"] = tool_choice
+        else:
+            params["tool_choice"] = {"type" : "auto"}
 
     return params, messages  # returning updated messages in case we want them
 
@@ -526,16 +529,16 @@ def _build_openai_params(
         function_specs = get_function_specs(tools, model)
         request_params["tools"] = function_specs
         if tool_choice:
+            tool_names_list = [func.__name__ for func in tools]
+            tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
             request_params["tool_choice"] = tool_choice
+        else:
+            request_params["tool_choice"] = "auto"
 
         # only set parallel_tool_calls for gpt-4o based models
         # not supported in o models
         if model in ["gpt-4o", "gpt-4o-mini"]:
             request_params["parallel_tool_calls"] = False
-    if tool_choice:
-        tool_names_list = [func.__name__ for func in tools]
-        tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
-        request_params["tool_choice"] = tool_choice
 
     # Some models do not allow temperature or response_format:
     if model.startswith("o") or model == "deepseek-reasoner":
