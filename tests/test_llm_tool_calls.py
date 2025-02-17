@@ -3,57 +3,28 @@ import pytest
 from defog.llm.utils import chat_async, chat_openai, chat_anthropic
 from defog.llm.utils_function_calling import get_function_specs
 from pydantic import BaseModel, Field
-import httpx
-import os
-from bs4 import BeautifulSoup
-
-DEFOG_API_KEY = os.environ.get("DEFOG_API_KEY")
-
-if DEFOG_API_KEY is None:
-    raise ValueError("DEFOG_API_KEY is not set, the search test cannot be run")
+import aiohttp
 
 # ==================================================================================================
 # Functions for function calling
 # ==================================================================================================
 
 
-def clean_html_text(html_text):
+class WeatherInput(BaseModel):
+    latitude: float = Field(default=0.0, description="The latitude of the location")
+    longitude: float = Field(default=0.0, description="The longitude of the location")
+
+
+async def get_weather(input: WeatherInput):
     """
-    Remove HTML tags from the given HTML text and return plain text.
-
-    Args:
-        html_text (str): A string containing HTML content.
-
-    Returns:
-        str: A string with the HTML tags removed.
+    This function returns the current temperature (in celsius) for the given latitude and longitude.
     """
-    # Parse the HTML content
-    soup = BeautifulSoup(html_text, "html.parser")
-
-    # Extract text from the parsed HTML
-    # The separator parameter defines what string to insert between text blocks.
-    # strip=True removes leading and trailing whitespace from each piece of text.
-    cleaned_text = soup.get_text(separator=" ", strip=True)
-
-    return cleaned_text
-
-
-class SearchInput(BaseModel):
-    query: str = Field(default="", description="The query to search for")
-
-
-async def search(input: SearchInput):
-    """
-    This function searches Google for the given query. It then visits the first result page, and returns the HTML content of the page.
-    """
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            "https://api.defog.ai/unstructured_data/search",
-            json={"api_key": DEFOG_API_KEY, "user_question": input.query},
+    async with aiohttp.ClientSession() as client:
+        r = await client.get(
+            f"https://api.open-meteo.com/v1/forecast?latitude={input.latitude}&longitude={input.longitude}&current=temperature_2m,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m",
         )
-        first_result_link = r.json()["organic"][0]["link"]
-        r = await client.get(first_result_link)
-    return clean_html_text(r.text)
+        return_object = await r.json()
+        return return_object["current"]["temperature_2m"]
 
 
 class Numbers(BaseModel):
@@ -81,25 +52,31 @@ def numprod(input: Numbers):
 class TestGetFunctionSpecs(unittest.TestCase):
     def setUp(self):
         self.openai_model = "gpt-4o"
-        self.anthropic_model = "claude-3-haiku-20240307"
-        self.tools = [search, numsum, numprod]
+        self.anthropic_model = "claude-3-5-sonnet-20241022"
+        self.tools = [get_weather, numsum, numprod]
         self.maxDiff = None
         self.openai_specs = [
             {
                 "type": "function",
                 "function": {
-                    "name": "search",
-                    "description": "This function searches Google for the given query. It then visits the first result page, and returns the HTML content of the page.",
+                    "name": "get_weather",
+                    "description": "This function returns the current temperature (in celsius) for the given latitude and longitude.",
                     "parameters": {
                         "properties": {
-                            "query": {
-                                "default": "",
-                                "description": "The query to search for",
-                                "title": "Query",
-                                "type": "string",
-                            }
+                            "latitude": {
+                                "default": 0.0,
+                                "description": "The latitude of the location",
+                                "title": "Latitude",
+                                "type": "number",
+                            },
+                            "longitude": {
+                                "default": 0.0,
+                                "description": "The longitude of the location",
+                                "title": "Longitude",
+                                "type": "number",
+                            },
                         },
-                        "title": "SearchInput",
+                        "title": "WeatherInput",
                         "type": "object",
                     },
                 },
@@ -137,18 +114,24 @@ class TestGetFunctionSpecs(unittest.TestCase):
         ]
         self.anthropic_specs = [
             {
-                "name": "search",
-                "description": "This function searches Google for the given query. It then visits the first result page, and returns the HTML content of the page.",
+                "name": "get_weather",
+                "description": "This function returns the current temperature (in celsius) for the given latitude and longitude.",
                 "input_schema": {
                     "properties": {
-                        "query": {
-                            "default": "",
-                            "description": "The query to search for",
-                            "title": "Query",
-                            "type": "string",
-                        }
+                        "latitude": {
+                            "default": 0.0,
+                            "description": "The latitude of the location",
+                            "title": "Latitude",
+                            "type": "number",
+                        },
+                        "longitude": {
+                            "default": 0.0,
+                            "description": "The longitude of the location",
+                            "title": "Longitude",
+                            "type": "number",
+                        },
                     },
-                    "title": "SearchInput",
+                    "title": "WeatherInput",
                     "type": "object",
                 },
             },
@@ -188,11 +171,10 @@ class TestGetFunctionSpecs(unittest.TestCase):
 
 class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.tools = [search, numsum, numprod]
-        self.search_qn = "Who is the Prime Minister of Singapore right now (in 2025)? Recall that the current year is 2025. Return your answer as a single phrase."
-        self.search_answer = "lawrence wong"
+        self.tools = [get_weather, numsum, numprod]
+        self.weather_qn = "What is the current temperature in Singapore? Return the answer as a number and nothing else."
 
-        self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Return only the final answer, nothing else."
+        self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Return only the final answer, nothing else. Always use tools for arithmetic."
         self.arithmetic_answer = "72670414"
         self.arithmetic_expected_tool_outputs = [
             {"name": "numprod", "args": {"a": 31283, "b": 2323}, "result": 72670409},
@@ -222,27 +204,28 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
 
     @pytest.mark.asyncio
-    async def test_tool_use_search_async_openai(self):
+    async def test_tool_use_weather_async_openai(self):
         result = await chat_async(
             model="gpt-4o",
             messages=[
                 {
                     "role": "user",
-                    "content": self.search_qn,
+                    "content": self.weather_qn,
                 },
             ],
             tools=self.tools,
             max_retries=1,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"search"})
-        self.assertEqual(result.tool_outputs[0]["name"], "search")
-        self.assertIn(self.search_answer, result.content.lower())
+        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertGreaterEqual(float(result.content), 21)
+        self.assertLessEqual(float(result.content), 38)
 
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_anthropic(self):
         result = await chat_async(
-            model="claude-3-haiku-20240307",
+            model="claude-3-5-sonnet-20241022",
             messages=[
                 {
                     "role": "user",
@@ -262,22 +245,23 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.content, self.arithmetic_answer)
 
     @pytest.mark.asyncio
-    async def test_tool_use_search_async_anthropic(self):
+    async def test_tool_weather_async_anthropic(self):
         result = await chat_async(
-            model="claude-3-haiku-20240307",
+            model="claude-3-5-sonnet-20241022",
             messages=[
                 {
                     "role": "user",
-                    "content": self.search_qn,
+                    "content": self.weather_qn,
                 },
             ],
             tools=self.tools,
             max_retries=1,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"search"})
-        self.assertEqual(result.tool_outputs[0]["name"], "search")
-        self.assertIn(self.search_answer, result.content.lower())
+        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertGreaterEqual(float(result.content), 21)
+        self.assertLessEqual(float(result.content), 38)
 
     def test_async_tool_in_sync_function_openai(self):
         result = chat_openai(
@@ -285,15 +269,16 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             messages=[
                 {
                     "role": "user",
-                    "content": self.search_qn,
+                    "content": self.weather_qn,
                 },
             ],
             tools=self.tools,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"search"})
-        self.assertEqual(result.tool_outputs[0]["name"], "search")
-        self.assertIn(self.search_answer, result.content.lower())
+        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertGreaterEqual(float(result.content), 21)
+        self.assertLessEqual(float(result.content), 38)
 
     def test_async_tool_in_sync_function_anthropic(self):
         result = chat_anthropic(
@@ -301,15 +286,16 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             messages=[
                 {
                     "role": "user",
-                    "content": self.search_qn,
+                    "content": self.weather_qn,
                 },
             ],
             tools=self.tools,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"search"})
-        self.assertEqual(result.tool_outputs[0]["name"], "search")
-        self.assertIn(self.search_answer, result.content.lower())
+        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertGreaterEqual(float(result.content), 21)
+        self.assertLessEqual(float(result.content), 38)
 
     def test_required_tool_choice_openai(self):
         result = chat_openai(
@@ -330,7 +316,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
 
     def test_required_tool_choice_anthropic(self):
         result = chat_anthropic(
-            model="claude-3-haiku-20240307",
+            model="claude-3-5-sonnet-20241022",
             messages=[
                 {
                     "role": "user",
@@ -371,7 +357,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         This test forces the use of numprod even though the user question asks for addition.
         """
         result = chat_anthropic(
-            model="claude-3-haiku-20240307",
+            model="claude-3-5-sonnet-20241022",
             messages=[
                 {
                     "role": "user",
@@ -414,7 +400,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         """
         with self.assertRaises(ValueError) as context:
             result = chat_anthropic(
-                model="claude-3-haiku-20240307",
+                model="claude-3-5-sonnet-20241022",
                 messages=[
                     {
                         "role": "user",
