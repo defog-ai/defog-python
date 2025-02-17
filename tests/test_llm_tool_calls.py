@@ -201,8 +201,6 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_openai(self):
-        tools = self.tools
-
         result = await chat_async(
             model="gpt-4o",
             messages=[
@@ -211,8 +209,9 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
                     "content": self.arithmetic_qn,
                 },
             ],
-            tools=tools,
+            tools=self.tools,
         )
+        print(result)
         self.assertEqual(result.content, self.arithmetic_answer)
         for expected, actual in zip(
             self.arithmetic_expected_tool_outputs, result.tool_outputs
@@ -224,7 +223,6 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_tool_use_search_async_openai(self):
-        tools = self.tools
         result = await chat_async(
             model="gpt-4o",
             messages=[
@@ -233,17 +231,16 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
                     "content": self.search_qn,
                 },
             ],
-            tools=tools,
+            tools=self.tools,
             max_retries=1,
         )
+        print(result)
         self.assertSetEqual(set(result.tools_used), {"search"})
         self.assertEqual(result.tool_outputs[0]["name"], "search")
         self.assertIn(self.search_answer, result.content.lower())
 
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_anthropic(self):
-        tools = self.tools
-
         result = await chat_async(
             model="claude-3-haiku-20240307",
             messages=[
@@ -252,8 +249,9 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
                     "content": self.arithmetic_qn,
                 },
             ],
-            tools=tools,
+            tools=self.tools,
         )
+        print(result)
         self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
         for expected, actual in zip(
             self.arithmetic_expected_tool_outputs, result.tool_outputs
@@ -265,7 +263,6 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_tool_use_search_async_anthropic(self):
-        tools = self.tools
         result = await chat_async(
             model="claude-3-haiku-20240307",
             messages=[
@@ -274,16 +271,16 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
                     "content": self.search_qn,
                 },
             ],
-            tools=tools,
+            tools=self.tools,
             max_retries=1,
         )
+        print(result)
         self.assertSetEqual(set(result.tools_used), {"search"})
         self.assertEqual(result.tool_outputs[0]["name"], "search")
         self.assertIn(self.search_answer, result.content.lower())
 
     def test_async_tool_in_sync_function_openai(self):
-        tools = self.tools
-        result_openai = chat_openai(
+        result = chat_openai(
             model="gpt-4o",
             messages=[
                 {
@@ -291,15 +288,15 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
                     "content": self.search_qn,
                 },
             ],
-            tools=tools,
+            tools=self.tools,
         )
-        self.assertSetEqual(set(result_openai.tools_used), {"search"})
-        self.assertEqual(result_openai.tool_outputs[0]["name"], "search")
-        self.assertIn(self.search_answer, result_openai.content.lower())
+        print(result)
+        self.assertSetEqual(set(result.tools_used), {"search"})
+        self.assertEqual(result.tool_outputs[0]["name"], "search")
+        self.assertIn(self.search_answer, result.content.lower())
 
     def test_async_tool_in_sync_function_anthropic(self):
-        tools = self.tools
-        result_anthropic = chat_anthropic(
+        result = chat_anthropic(
             model="claude-3-5-sonnet-20241022",
             messages=[
                 {
@@ -307,8 +304,9 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
                     "content": self.search_qn,
                 },
             ],
-            tools=tools,
+            tools=self.tools,
         )
-        self.assertSetEqual(set(result_anthropic.tools_used), {"search"})
-        self.assertEqual(result_anthropic.tool_outputs[0]["name"], "search")
-        self.assertIn(self.search_answer, result_anthropic.content.lower())
+        print(result)
+        self.assertSetEqual(set(result.tools_used), {"search"})
+        self.assertEqual(result.tool_outputs[0]["name"], "search")
+        self.assertIn(self.search_answer, result.content.lower())
