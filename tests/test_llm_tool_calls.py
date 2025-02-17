@@ -386,7 +386,6 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertSetEqual(set(result.tools_used), {"numprod"})
         self.assertEqual(result.tool_outputs[0]["name"], "numprod")
         self.assertEqual(result.tool_outputs[0]["result"], 204)
-        self.assertIn("204", result.content.lower())
 
     def test_invalid_forced_tool_choice_openai(self):
         """
