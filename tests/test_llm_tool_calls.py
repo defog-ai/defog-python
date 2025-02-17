@@ -310,3 +310,38 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertSetEqual(set(result.tools_used), {"search"})
         self.assertEqual(result.tool_outputs[0]["name"], "search")
         self.assertIn(self.search_answer, result.content.lower())
+
+    def test_required_tool_choice_openai(self):
+        result = chat_openai(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Give me the result of 102 + 2",
+                },
+            ],
+            tools=self.tools,
+            tool_choice="required",
+        )
+        print(result)
+        self.assertSetEqual(set(result.tools_used), {"numsum"})
+        self.assertEqual(result.tool_outputs[0]["name"], "numsum")
+        self.assertIn("104", result.content.lower())
+
+    def test_required_tool_choice_anthropic(self):
+        result = chat_anthropic(
+            model="claude-3-haiku-20240307",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Give me the result of 102 + 2",
+                },
+            ],
+            tools=self.tools,
+            tool_choice="required",
+            max_completion_tokens=1000,
+        )
+        print(result)
+        self.assertSetEqual(set(result.tools_used), {"numsum"})
+        self.assertEqual(result.tool_outputs[0]["name"], "numsum")
+        self.assertIn("104", result.content.lower())
