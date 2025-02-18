@@ -28,6 +28,7 @@ def log_to_file(function_name, args, result):
     IO_STREAM.write(message + "\n")
     return IO_STREAM.getvalue()
 
+
 class WeatherInput(BaseModel):
     latitude: float = Field(default=0.0, description="The latitude of the location")
     longitude: float = Field(default=0.0, description="The longitude of the location")
@@ -303,23 +304,28 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(expected["args"], actual["args"])
             self.assertEqual(expected["result"], actual["result"])
         self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
-        expected_stream_value = json.dumps({
-            "function_name": "numprod",
-            "args": {
-                "a": 31283,
-                "b": 2323
+        expected_stream_value = (
+            json.dumps(
+                {
+                    "function_name": "numprod",
+                    "args": {"a": 31283, "b": 2323},
+                    "result": 72670409,
                 },
-                "result": 72670409
-            }, indent=4) + "\n" + json.dumps({
-                "function_name": "numsum",
-                "args": {
-                    "a": 72670409,
-                    "b": 5
+                indent=4,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "function_name": "numsum",
+                    "args": {"a": 72670409, "b": 5},
+                    "result": 72670414,
                 },
-                "result": 72670414
-            }, indent=4) + "\n"
+                indent=4,
+            )
+            + "\n"
+        )
         self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
-        
+
         # clear IO_STREAM
         IO_STREAM.seek(0)
         IO_STREAM.truncate()
@@ -345,23 +351,28 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(expected["args"], actual["args"])
             self.assertEqual(expected["result"], actual["result"])
         self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
-        expected_stream_value = json.dumps({
-            "function_name": "numprod",
-            "args": {
-                "a": 31283,
-                "b": 2323
+        expected_stream_value = (
+            json.dumps(
+                {
+                    "function_name": "numprod",
+                    "args": {"a": 31283, "b": 2323},
+                    "result": 72670409,
                 },
-                "result": 72670409
-            }, indent=4) + "\n" + json.dumps({
-                "function_name": "numsum",
-                "args": {
-                    "a": 72670409,
-                    "b": 5
+                indent=4,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "function_name": "numsum",
+                    "args": {"a": 72670409, "b": 5},
+                    "result": 72670414,
                 },
-                "result": 72670414
-            }, indent=4) + "\n"
+                indent=4,
+            )
+            + "\n"
+        )
         self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
-        
+
         # clear IO_STREAM
         IO_STREAM.seek(0)
         IO_STREAM.truncate()

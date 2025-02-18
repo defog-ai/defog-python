@@ -191,7 +191,7 @@ async def _process_anthropic_response(
                         result = execute_tool(tool_to_call, args)
                 except Exception as e:
                     raise Exception(f"Error executing tool `{func_name}`: {e}")
-                
+
                 if post_tool_function:
                     if inspect.iscoroutinefunction(post_tool_function):
                         await post_tool_function(func_name, args, result)
@@ -295,7 +295,7 @@ def _process_anthropic_response_handler(
                 tools=tools,
                 tool_dict=tool_dict,
                 is_async=is_async,
-                post_tool_function=post_tool_function
+                post_tool_function=post_tool_function,
             )  # Caller must await this
         else:
             return asyncio.run(
@@ -306,7 +306,7 @@ def _process_anthropic_response_handler(
                     tools=tools,
                     tool_dict=tool_dict,
                     is_async=is_async,
-                    post_tool_function=post_tool_function
+                    post_tool_function=post_tool_function,
                 )
             )
     except Exception as e:
@@ -628,7 +628,7 @@ async def _process_openai_response(
                         result = execute_tool(tool_to_call, args)
                 except Exception as e:
                     raise Exception(f"Error executing tool `{func_name}`: {e}")
-                
+
                 if post_tool_function:
                     if inspect.iscoroutinefunction(post_tool_function):
                         await post_tool_function(func_name, args, result)
@@ -702,7 +702,7 @@ def _process_openai_response_handler(
     tool_dict: Dict[str, Callable],
     response_format,
     model: str,
-    is_async: bool =False,
+    is_async: bool = False,
     post_tool_function: Callable = None,
 ):
     """
