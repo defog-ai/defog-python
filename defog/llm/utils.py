@@ -139,6 +139,7 @@ async def _process_anthropic_response(
     tools,
     tool_dict,
     is_async,
+    post_tool_function: Callable = None,
 ):
     """
     Extract content (including any tool calls) and usage info from Anthropic response.
@@ -190,6 +191,12 @@ async def _process_anthropic_response(
                         result = execute_tool(tool_to_call, args)
                 except Exception as e:
                     raise Exception(f"Error executing tool `{func_name}`: {e}")
+                
+                if post_tool_function:
+                    if inspect.iscoroutinefunction(post_tool_function):
+                        await post_tool_function(func_name, args, result)
+                    else:
+                        post_tool_function(func_name, args, result)
 
                 # Store the tool call, result, and text
                 tools_used.append(func_name)
@@ -261,6 +268,7 @@ def _process_anthropic_response_handler(
     tools: List[Callable],
     tool_dict: Dict[str, Callable],
     is_async=False,
+    post_tool_function: Callable = None,
 ):
     """
     Processes Anthropic's response by determining whether to execute the response handling
@@ -287,6 +295,7 @@ def _process_anthropic_response_handler(
                 tools=tools,
                 tool_dict=tool_dict,
                 is_async=is_async,
+                post_tool_function=post_tool_function
             )  # Caller must await this
         else:
             return asyncio.run(
@@ -297,6 +306,7 @@ def _process_anthropic_response_handler(
                     tools=tools,
                     tool_dict=tool_dict,
                     is_async=is_async,
+                    post_tool_function=post_tool_function
                 )
             )
     except Exception as e:
@@ -391,6 +401,7 @@ async def chat_anthropic_async(
     timeout=100,
     prediction=None,
     reasoning_effort=None,
+    post_tool_function: Callable = None,
 ):
     """
     Asynchronous Anthropic chat.
@@ -445,6 +456,7 @@ async def chat_anthropic_async(
             tools=tools,
             tool_dict=tool_dict,
             is_async=True,
+            post_tool_function=post_tool_function,
         )
     )
 
@@ -572,12 +584,13 @@ def _build_openai_params(
 async def _process_openai_response(
     client,
     response,
-    request_params,
-    tools,
-    tool_dict,
+    request_params: Dict[str, Any],
+    tools: List[Callable],
+    tool_dict: Dict[str, Callable],
     response_format,
-    model,
-    is_async,
+    model: str,
+    is_async: bool,
+    post_tool_function: Callable = None,
 ):
     """
     Extract content (including any tool calls) and usage info from OpenAI response.
@@ -615,6 +628,12 @@ async def _process_openai_response(
                         result = execute_tool(tool_to_call, args)
                 except Exception as e:
                     raise Exception(f"Error executing tool `{func_name}`: {e}")
+                
+                if post_tool_function:
+                    if inspect.iscoroutinefunction(post_tool_function):
+                        await post_tool_function(func_name, args, result)
+                    else:
+                        post_tool_function(func_name, args, result)
 
                 # Store the tool call, result, and text
                 tools_used.append(func_name)
@@ -683,7 +702,8 @@ def _process_openai_response_handler(
     tool_dict: Dict[str, Callable],
     response_format,
     model: str,
-    is_async=False,
+    is_async: bool =False,
+    post_tool_function: Callable = None,
 ):
     """
     Processes OpenAI's response by determining whether to execute the response handling
@@ -712,6 +732,7 @@ def _process_openai_response_handler(
                 response_format=response_format,
                 model=model,
                 is_async=is_async,
+                post_tool_function=post_tool_function,
             )  # Caller must await this
         else:
             return asyncio.run(
@@ -724,6 +745,7 @@ def _process_openai_response_handler(
                     response_format=response_format,
                     model=model,
                     is_async=is_async,
+                    post_tool_function=post_tool_function,
                 )
             )
 
@@ -748,6 +770,7 @@ def chat_openai(
     store: bool = True,
     metadata: Dict[str, str] = None,
     timeout: int = 100,
+    post_tool_function: Callable = None,
 ):
     """
     Synchronous OpenAI chat.
@@ -821,6 +844,7 @@ def chat_openai(
         response_format=response_format,
         model=model,
         is_async=False,
+        post_tool_function=post_tool_function,
     )
 
     return LLMResponse(
@@ -852,6 +876,7 @@ async def chat_openai_async(
     api_key: str = os.environ.get("OPENAI_API_KEY", ""),
     prediction: Dict[str, str] = None,
     reasoning_effort: str = None,
+    post_tool_function: Callable = None,
 ):
     """
     Asynchronous OpenAI chat.
@@ -925,6 +950,7 @@ async def chat_openai_async(
         response_format=response_format,
         model=model,
         is_async=True,
+        post_tool_function=post_tool_function,
     )
 
     return LLMResponse(
@@ -986,6 +1012,7 @@ def chat_together(
     seed: int = 0,
     tools=None,
     tool_choice=None,
+    post_tool_function: Callable = None,
 ):
     """Synchronous Together chat."""
     from together import Together
@@ -1027,6 +1054,7 @@ async def chat_together_async(
     timeout=100,
     prediction=None,
     reasoning_effort=None,
+    post_tool_function: Callable = None,
 ):
     """Asynchronous Together chat."""
     from together import AsyncTogether
@@ -1118,6 +1146,7 @@ def chat_gemini(
     tool_choice=None,
     store=True,
     metadata=None,
+    post_tool_function: Callable = None,
 ):
     """Synchronous Gemini chat."""
     from google import genai
@@ -1173,6 +1202,7 @@ async def chat_gemini_async(
     timeout=100,
     prediction=None,
     reasoning_effort=None,
+    post_tool_function: Callable = None,
 ):
     """Asynchronous Gemini chat."""
     from google import genai
@@ -1256,6 +1286,7 @@ async def chat_async(
     tools=None,
     tool_choice=None,
     max_retries=3,
+    post_tool_function: Callable = None,
 ) -> LLMResponse:
     """
     Returns the response from the LLM API for a single model that is passed in.
@@ -1263,6 +1294,14 @@ async def chat_async(
     """
     llm_function = map_model_to_chat_fn_async(model)
     base_delay = 1  # Initial delay in seconds
+
+    if post_tool_function:
+        # get number of input params from post_tool_function
+        num_params = len(inspect.signature(post_tool_function).parameters)
+        if num_params != 3:
+            raise ValueError(
+                "post_tool_function must have exactly three parameters: function_name, input_args, and tool_results"
+            )
 
     for attempt in range(max_retries):
         try:
@@ -1287,6 +1326,7 @@ async def chat_async(
                     timeout=timeout,
                     prediction=prediction,
                     reasoning_effort=reasoning_effort,
+                    post_tool_function=post_tool_function,
                 )
             else:
                 if not os.getenv("DEEPSEEK_API_KEY"):
@@ -1306,6 +1346,7 @@ async def chat_async(
                     reasoning_effort=reasoning_effort,
                     base_url="https://api.deepseek.com",
                     api_key=os.getenv("DEEPSEEK_API_KEY"),
+                    post_tool_function=post_tool_function,
                 )
         except Exception as e:
             delay = base_delay * (2**attempt)  # Exponential backoff
