@@ -1,6 +1,6 @@
 import unittest
 import pytest
-from defog.llm.utils import chat_async, chat_openai, chat_anthropic
+from defog.llm.utils import chat_async, chat_openai, chat_anthropic, chat_gemini
 from defog.llm.utils_function_calling import get_function_specs
 from pydantic import BaseModel, Field
 import aiohttp
@@ -192,7 +192,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.tools = [get_weather, numsum, numprod]
         self.weather_qn = "What is the current temperature in Singapore? Return the answer as a number and nothing else."
-
+        self.weather_qn_specific = "What is the current temperature in Singapore? Singapore's latitude is 1.3521 and longitude is 103.8198. Return the answer as a number and nothing else."
         self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Return only the final answer, nothing else. Always use tools for arithmetic."
         self.arithmetic_answer = "72670414"
         self.arithmetic_expected_tool_outputs = [
@@ -279,6 +279,50 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         print(result)
         self.assertSetEqual(set(result.tools_used), {"get_weather"})
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertGreaterEqual(float(result.content), 21)
+        self.assertLessEqual(float(result.content), 38)
+
+    @pytest.mark.asyncio
+    async def test_tool_use_arithmetic_async_gemini(self):
+        result = await chat_async(
+            model="gemini-2.0-flash",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ],
+            tools=self.tools,
+        )
+        print(result)
+        self.assertEqual(result.content, self.arithmetic_answer)
+        for expected, actual in zip(
+            self.arithmetic_expected_tool_outputs, result.tool_outputs
+        ):
+            self.assertEqual(expected["name"], actual["name"])
+            self.assertEqual(expected["args"], actual["args"])
+            self.assertEqual(expected["result"], actual["result"])
+        self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+
+    @pytest.mark.asyncio
+    async def test_tool_use_weather_async_gemini(self):
+        result = await chat_async(
+            model="gemini-2.0-flash",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.weather_qn_specific,
+                },
+            ],
+            tools=self.tools,
+            max_retries=1,
+        )
+        print(result)
+        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertEqual(
+            result.tool_outputs[0]["args"], {"latitude": 1.3521, "longitude": 103.8198}
+        )
         self.assertGreaterEqual(float(result.content), 21)
         self.assertLessEqual(float(result.content), 38)
 
@@ -408,6 +452,26 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         print(result)
         self.assertSetEqual(set(result.tools_used), {"get_weather"})
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertGreaterEqual(float(result.content), 21)
+        self.assertLessEqual(float(result.content), 38)
+
+    def test_async_tool_in_sync_function_gemini(self):
+        result = chat_gemini(
+            model="gemini-2.0-flash",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.weather_qn_specific,
+                },
+            ],
+            tools=self.tools,
+        )
+        print(result)
+        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertEqual(
+            result.tool_outputs[0]["args"], {"latitude": 1.3521, "longitude": 103.8198}
+        )
         self.assertGreaterEqual(float(result.content), 21)
         self.assertLessEqual(float(result.content), 38)
 
