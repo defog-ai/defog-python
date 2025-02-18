@@ -155,8 +155,12 @@ async def _process_anthropic_response(
     # If we have tools, handle dynamic chaining:
     tools_used = []
     tool_outputs = []
+    total_input_tokens = 0
+    total_output_tokens = 0
     if tools and len(tools) > 0:
         while True:
+            total_input_tokens += response.usage.input_tokens
+            total_output_tokens += response.usage.output_tokens
             # Check if the response contains a tool call
             tool_call_block = next(
                 (
@@ -258,7 +262,9 @@ async def _process_anthropic_response(
         content = response.content[0].text
 
     usage = response.usage
-    return content, tools_used, tool_outputs, usage.input_tokens, usage.output_tokens
+    total_input_tokens += usage.input_tokens
+    total_output_tokens += usage.output_tokens
+    return content, tools_used, tool_outputs, total_input_tokens, total_output_tokens
 
 
 def _process_anthropic_response_handler(
@@ -604,8 +610,12 @@ async def _process_openai_response(
     # If we have tools, handle dynamic chaining:
     tools_used = []
     tool_outputs = []
+    total_input_tokens = 0
+    total_output_tokens = 0
     if tools and len(tools) > 0:
         while True:
+            total_input_tokens += response.usage.prompt_tokens
+            total_output_tokens += response.usage.completion_tokens
             message = response.choices[0].message
             if message.tool_calls:
                 tool_call = message.tool_calls[0]
@@ -684,12 +694,14 @@ async def _process_openai_response(
             content = response.choices[0].message.content
 
     usage = response.usage
+    total_input_tokens += usage.prompt_tokens
+    total_output_tokens += usage.completion_tokens
     return (
         content,
         tools_used,
         tool_outputs,
-        usage.prompt_tokens,
-        usage.completion_tokens,
+        total_input_tokens,
+        total_output_tokens,
         usage.completion_tokens_details,
     )
 
