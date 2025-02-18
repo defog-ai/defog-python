@@ -2,6 +2,7 @@ import inspect
 from typing import Callable, List, Dict, Any, Union
 from pydantic import BaseModel
 from defog.llm.models import OpenAIFunctionSpecs, AnthropicFunctionSpecs
+from google.genai import types
 
 
 def get_function_specs(
@@ -36,6 +37,14 @@ def get_function_specs(
         # Get the JSON schema from the model
         input_schema = model_class.model_json_schema()
 
+        # Remove title from input_schema
+        input_schema.pop("title")
+        # Remove default and title values from input_schema["properties"]
+        for prop in input_schema["properties"].values():
+            keys_to_remove = [k for k in prop if k in ["default", "title"]]
+            for k in keys_to_remove:
+                prop.pop(k)
+
         if (
             model.startswith("gpt")
             or model.startswith("o1")
@@ -60,6 +69,17 @@ def get_function_specs(
                     "input_schema": input_schema,
                 }
             )
+        elif model.startswith("gemini"):
+
+            func_spec = {
+                "name": func.__name__,
+                "description": docstring,
+                "parameters": input_schema,
+            }
+            function_declaration = types.FunctionDeclaration(**func_spec)
+            tool = types.Tool(function_declarations=[function_declaration])
+
+            function_specs.append(tool)
         else:
             raise ValueError(f"Model does not support function calling: {model}")
 
