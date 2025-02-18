@@ -83,19 +83,14 @@ class TestGetFunctionSpecs(unittest.TestCase):
                     "parameters": {
                         "properties": {
                             "latitude": {
-                                "default": 0.0,
                                 "description": "The latitude of the location",
-                                "title": "Latitude",
                                 "type": "number",
                             },
                             "longitude": {
-                                "default": 0.0,
                                 "description": "The longitude of the location",
-                                "title": "Longitude",
                                 "type": "number",
                             },
                         },
-                        "title": "WeatherInput",
                         "type": "object",
                     },
                 },
@@ -107,10 +102,9 @@ class TestGetFunctionSpecs(unittest.TestCase):
                     "description": "This function returns the sum of two numbers",
                     "parameters": {
                         "properties": {
-                            "a": {"default": 0, "title": "A", "type": "integer"},
-                            "b": {"default": 0, "title": "B", "type": "integer"},
+                            "a": {"type": "integer"},
+                            "b": {"type": "integer"},
                         },
-                        "title": "Numbers",
                         "type": "object",
                     },
                 },
@@ -122,10 +116,9 @@ class TestGetFunctionSpecs(unittest.TestCase):
                     "description": "This function returns the product of two numbers",
                     "parameters": {
                         "properties": {
-                            "a": {"default": 0, "title": "A", "type": "integer"},
-                            "b": {"default": 0, "title": "B", "type": "integer"},
+                            "a": {"type": "integer"},
+                            "b": {"type": "integer"},
                         },
-                        "title": "Numbers",
                         "type": "object",
                     },
                 },
@@ -138,19 +131,14 @@ class TestGetFunctionSpecs(unittest.TestCase):
                 "input_schema": {
                     "properties": {
                         "latitude": {
-                            "default": 0.0,
                             "description": "The latitude of the location",
-                            "title": "Latitude",
                             "type": "number",
                         },
                         "longitude": {
-                            "default": 0.0,
                             "description": "The longitude of the location",
-                            "title": "Longitude",
                             "type": "number",
                         },
                     },
-                    "title": "WeatherInput",
                     "type": "object",
                 },
             },
@@ -159,10 +147,9 @@ class TestGetFunctionSpecs(unittest.TestCase):
                 "description": "This function returns the sum of two numbers",
                 "input_schema": {
                     "properties": {
-                        "a": {"default": 0, "title": "A", "type": "integer"},
-                        "b": {"default": 0, "title": "B", "type": "integer"},
+                        "a": {"type": "integer"},
+                        "b": {"type": "integer"},
                     },
-                    "title": "Numbers",
                     "type": "object",
                 },
             },
@@ -171,10 +158,9 @@ class TestGetFunctionSpecs(unittest.TestCase):
                 "description": "This function returns the product of two numbers",
                 "input_schema": {
                     "properties": {
-                        "a": {"default": 0, "title": "A", "type": "integer"},
-                        "b": {"default": 0, "title": "B", "type": "integer"},
+                        "a": {"type": "integer"},
+                        "b": {"type": "integer"},
                     },
-                    "title": "Numbers",
                     "type": "object",
                 },
             },
