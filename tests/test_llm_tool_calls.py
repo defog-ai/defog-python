@@ -4,11 +4,29 @@ from defog.llm.utils import chat_async, chat_openai, chat_anthropic
 from defog.llm.utils_function_calling import get_function_specs
 from pydantic import BaseModel, Field
 import aiohttp
+from io import StringIO
+import json
 
 # ==================================================================================================
 # Functions for function calling
 # ==================================================================================================
 
+IO_STREAM = StringIO()
+
+
+def log_to_file(function_name, args, result):
+    """
+    Simple function to test logging to a StringIO object.
+    Used in test_post_tool_calls_openai and test_post_tool_calls_anthropic
+    """
+    message = {
+        "function_name": function_name,
+        "args": args,
+        "result": result,
+    }
+    message = json.dumps(message, indent=4)
+    IO_STREAM.write(message + "\n")
+    return IO_STREAM.getvalue()
 
 class WeatherInput(BaseModel):
     latitude: float = Field(default=0.0, description="The latitude of the location")
@@ -262,6 +280,91 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
         self.assertGreaterEqual(float(result.content), 21)
         self.assertLessEqual(float(result.content), 38)
+
+    @pytest.mark.asyncio
+    async def test_post_tool_calls_openai(self):
+        result = await chat_async(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ],
+            tools=self.tools,
+            post_tool_function=log_to_file,
+        )
+        print(result)
+        self.assertEqual(result.content, self.arithmetic_answer)
+        for expected, actual in zip(
+            self.arithmetic_expected_tool_outputs, result.tool_outputs
+        ):
+            self.assertEqual(expected["name"], actual["name"])
+            self.assertEqual(expected["args"], actual["args"])
+            self.assertEqual(expected["result"], actual["result"])
+        self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+        expected_stream_value = json.dumps({
+            "function_name": "numprod",
+            "args": {
+                "a": 31283,
+                "b": 2323
+                },
+                "result": 72670409
+            }, indent=4) + "\n" + json.dumps({
+                "function_name": "numsum",
+                "args": {
+                    "a": 72670409,
+                    "b": 5
+                },
+                "result": 72670414
+            }, indent=4) + "\n"
+        self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
+        
+        # clear IO_STREAM
+        IO_STREAM.seek(0)
+        IO_STREAM.truncate()
+
+    async def test_post_tool_calls_anthropic(self):
+        result = await chat_async(
+            model="claude-3-5-sonnet-latest",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ],
+            tools=self.tools,
+            post_tool_function=log_to_file,
+        )
+        print(result)
+        self.assertEqual(result.content, self.arithmetic_answer)
+        for expected, actual in zip(
+            self.arithmetic_expected_tool_outputs, result.tool_outputs
+        ):
+            self.assertEqual(expected["name"], actual["name"])
+            self.assertEqual(expected["args"], actual["args"])
+            self.assertEqual(expected["result"], actual["result"])
+        self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+        expected_stream_value = json.dumps({
+            "function_name": "numprod",
+            "args": {
+                "a": 31283,
+                "b": 2323
+                },
+                "result": 72670409
+            }, indent=4) + "\n" + json.dumps({
+                "function_name": "numsum",
+                "args": {
+                    "a": 72670409,
+                    "b": 5
+                },
+                "result": 72670414
+            }, indent=4) + "\n"
+        self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
+        
+        # clear IO_STREAM
+        IO_STREAM.seek(0)
+        IO_STREAM.truncate()
 
     def test_async_tool_in_sync_function_openai(self):
         result = chat_openai(
