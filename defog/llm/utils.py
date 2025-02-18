@@ -4,6 +4,7 @@ import json
 import traceback
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Union, Callable
+from google.genai import types
 
 from defog.llm.utils_function_calling import (
     get_function_specs,
@@ -1108,6 +1109,7 @@ def _build_gemini_params(
     stop: List[str],
     response_format=None,
     seed: int = 0,
+    tools=None,
     store=True,
     metadata=None,
 ):
@@ -1118,8 +1120,13 @@ def _build_gemini_params(
     else:
         system_msg = None
 
-    # Combine all user/assistant messages into one string
-    message = "\n".join([m["content"] for m in messages])
+    # Combine all user/assistant messages into one string and create a types.Content object
+    messages_str = "\n".join([m["content"] for m in messages])
+    user_prompt_content = types.Content(
+        role="user",
+        parts=[types.Part.from_text(text=messages_str)],
+    )
+    messages = [user_prompt_content]
     config = {
         "temperature": temperature,
         "system_instruction": system_msg,
@@ -1127,23 +1134,187 @@ def _build_gemini_params(
         "stop_sequences": stop,
     }
 
+    if tools:
+        function_specs = get_function_specs(tools, model)
+        config["tools"] = function_specs
+
     if response_format:
         # If we want a JSON / Pydantic format
         # "response_schema" is only recognized if the google.genai library supports it
         config["response_mime_type"] = "application/json"
         config["response_schema"] = response_format
 
-    return message, config
+    return messages, config
 
 
-def _process_gemini_response(response, response_format=None):
-    """Extract the response content & usage from Gemini result, optionally parse JSON."""
-    content = response.text
-    if response_format:
-        # Attempt to parse with pydantic model
-        content = response_format.model_validate_json(content)
+async def _process_gemini_response(
+    client,
+    response,
+    request_params,
+    messages,
+    tools,
+    tool_dict,
+    response_format,
+    model,
+    is_async,
+):
+    """Extract content (including any tool calls) and usage info from Gemini response.
+    Handles chaining of tool calls.
+    """
+    if len(response.candidates) == 0:
+        raise Exception("No response from Gemini.")
+    if response.candidates[0].finish_reason == "MAX_TOKENS":
+        raise Exception("Max tokens reached")
+
+    # If we have tools, handle dynamic chaining:
+    tools_used = []
+    tool_outputs = []
+    if tools and len(tools) > 0:
+        while True:
+            if response.function_calls:
+                tool_call = response.function_calls[0]
+                func_name = tool_call.name
+                args = tool_call.args
+
+                try:
+                    tool_to_call = tool_dict[func_name]
+                except KeyError:
+                    raise Exception(f"Tool `{func_name}` not found")
+
+                # Execute tool depending on whether it is async
+                try:
+                    if inspect.iscoroutinefunction(tool_to_call):
+                        result = await execute_tool_async(tool_to_call, args)
+                    else:
+                        result = execute_tool(tool_to_call, args)
+                except Exception as e:
+                    raise Exception(f"Error executing tool `{func_name}`: {e}")
+
+                # Store the tool call, result, and text
+                tools_used.append(func_name)
+                try:
+                    text = response.text
+                except Exception as e:
+                    text = None
+                tool_outputs.append(
+                    {
+                        "name": func_name,
+                        "args": args,
+                        "result": result,
+                        "text": text,
+                    }
+                )
+
+                # Append the tool call content to messages
+                tool_call_content = response.candidates[0].content
+                messages.append(tool_call_content)
+
+                # Append the tool result to messages
+                messages.append(
+                    types.Content(
+                        role="tool",
+                        parts=[
+                            types.Part.from_function_response(
+                                name=func_name,
+                                response={"result": str(result)},
+                            )
+                        ],
+                    )
+                )
+
+                # TODO: Set tool_choice to "auto" so that the next message will be generated normally
+
+                # Make next call
+                if is_async:
+                    response = await client.aio.models.generate_content(
+                        model=model,
+                        contents=messages,
+                        config=types.GenerateContentConfig(**request_params),
+                    )
+                else:
+                    response = client.models.generate_content(
+                        model=model,
+                        contents=messages,
+                        config=types.GenerateContentConfig(**request_params),
+                    )
+            else:
+                content = response.text.strip()
+                break
+    else:
+        # No tools provided
+        if response_format:
+            # Attempt to parse with pydantic model
+            content = response_format.model_validate_json(response.text)
+        else:
+            content = response.text.strip()
+
     usage_meta = response.usage_metadata
-    return content, usage_meta.prompt_token_count, usage_meta.candidates_token_count
+    return (
+        content,
+        tools_used,
+        tool_outputs,
+        usage_meta.prompt_token_count,
+        usage_meta.candidates_token_count,
+    )
+
+
+def _process_gemini_response_handler(
+    client,
+    response,
+    request_params: Dict[str, Any],
+    messages: List[types.Content],
+    tools: List[Callable],
+    tool_dict: Dict[str, Callable],
+    response_format,
+    model: str,
+    is_async=False,
+):
+    """
+    Processes Gemini's response by determining whether to execute the response handling
+    synchronously or asynchronously. This function acts as a wrapper around _process_gemini_response,
+    deciding the execution mode based on the is_async parameter.
+
+    Parameters:
+    - client: The client instance used for communication.
+    - response: The response object from Gemini.
+    - request_params: A dictionary of request parameters that resulted in the response.
+    - tools: A list of callable tools available for function calling.
+    - tool_dict: A dictionary mapping tool names to their callable functions.
+    - is_async: A boolean flag indicating whether to execute asynchronously.
+
+    Returns:
+    - The processed response content, input tokens, and output tokens from the response.
+    """
+    try:
+        if is_async:
+            return _process_gemini_response(
+                client=client,
+                response=response,
+                request_params=request_params,
+                messages=messages,
+                tools=tools,
+                tool_dict=tool_dict,
+                response_format=response_format,
+                model=model,
+                is_async=is_async,
+            )  # Caller must await this
+        else:
+            return asyncio.run(
+                _process_gemini_response(
+                    client=client,
+                    response=response,
+                    request_params=request_params,
+                    messages=messages,
+                    tools=tools,
+                    tool_dict=tool_dict,
+                    response_format=response_format,
+                    model=model,
+                    is_async=is_async,
+                )
+            )
+
+    except Exception as e:
+        raise Exception("Error processing Gemini response:", e)
 
 
 def chat_gemini(
@@ -1162,11 +1333,10 @@ def chat_gemini(
 ):
     """Synchronous Gemini chat."""
     from google import genai
-    from google.genai import types
 
     t = time.time()
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
-    message, generation_cfg = _build_gemini_params(
+    messages, request_params = _build_gemini_params(
         messages=messages,
         model=model,
         max_completion_tokens=max_completion_tokens,
@@ -1174,21 +1344,37 @@ def chat_gemini(
         stop=stop,
         response_format=response_format,
         seed=seed,
+        tools=tools,
         store=store,
         metadata=metadata,
     )
 
+    # Construct a tool dict if needed
+    tool_dict = {}
+    if tools and len(tools) > 0 and "tools" in request_params:
+        tool_dict = {tool.__name__: tool for tool in tools}
+
     try:
         response = client.models.generate_content(
             model=model,
-            contents=message,
-            config=types.GenerateContentConfig(**generation_cfg),
+            contents=messages,
+            config=types.GenerateContentConfig(**request_params),
         )
     except Exception as e:
         raise Exception(f"An error occurred: {e}")
 
-    content, input_toks, output_toks = _process_gemini_response(
-        response, response_format
+    content, tools_used, tool_outputs, input_toks, output_toks = (
+        _process_gemini_response_handler(
+            client=client,
+            response=response,
+            request_params=request_params,
+            tools=tools,
+            tool_dict=tool_dict,
+            response_format=response_format,
+            messages=messages,
+            model=model,
+            is_async=False,
+        )
     )
     return LLMResponse(
         model=model,
@@ -1196,6 +1382,8 @@ def chat_gemini(
         time=round(time.time() - t, 3),
         input_tokens=input_toks,
         output_tokens=output_toks,
+        tools_used=tools_used,
+        tool_outputs=tool_outputs,
     )
 
 
@@ -1218,11 +1406,10 @@ async def chat_gemini_async(
 ):
     """Asynchronous Gemini chat."""
     from google import genai
-    from google.genai import types
 
     t = time.time()
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
-    message, generation_cfg = _build_gemini_params(
+    messages, request_params = _build_gemini_params(
         messages=messages,
         model=model,
         max_completion_tokens=max_completion_tokens,
@@ -1230,21 +1417,37 @@ async def chat_gemini_async(
         stop=stop,
         response_format=response_format,
         seed=seed,
+        tools=tools,
         store=store,
         metadata=metadata,
     )
 
+    # Construct a tool dict if needed
+    tool_dict = {}
+    if tools and len(tools) > 0 and "tools" in request_params:
+        tool_dict = {tool.__name__: tool for tool in tools}
+
     try:
         response = await client.aio.models.generate_content(
             model=model,
-            contents=message,
-            config=types.GenerateContentConfig(**generation_cfg),
+            contents=messages,
+            config=types.GenerateContentConfig(**request_params),
         )
     except Exception as e:
         raise Exception(f"An error occurred: {e}")
 
-    content, input_toks, output_toks = _process_gemini_response(
-        response, response_format
+    content, tools_used, tool_outputs, input_toks, output_toks = (
+        await _process_gemini_response_handler(
+            client=client,
+            response=response,
+            request_params=request_params,
+            messages=messages,
+            tools=tools,
+            tool_dict=tool_dict,
+            response_format=response_format,
+            model=model,
+            is_async=True,
+        )
     )
     return LLMResponse(
         model=model,
@@ -1252,6 +1455,8 @@ async def chat_gemini_async(
         time=round(time.time() - t, 3),
         input_tokens=input_toks,
         output_tokens=output_toks,
+        tools_used=tools_used,
+        tool_outputs=tool_outputs,
     )
 
 
