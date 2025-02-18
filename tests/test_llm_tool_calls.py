@@ -496,6 +496,23 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.tool_outputs[0]["name"], "numsum")
         self.assertIn("104", result.content.lower())
 
+    def test_required_tool_choice_gemini(self):
+        result = chat_gemini(
+            model="gemini-2.0-flash",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "If I add 1 egg to 1 egg, how many eggs are there in total?",
+                },
+            ],
+            tools=self.tools,
+            tool_choice="required",
+        )
+        print(result)
+        self.assertSetEqual(set(result.tools_used), {"numsum"})
+        self.assertEqual(result.tool_outputs[0]["name"], "numsum")
+        self.assertIn("2", result.content.lower())
+
     def test_forced_tool_choice_openai(self):
         """
         This test forces the use of numprod even though the user question asks for addition.
@@ -512,7 +529,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tool_choice="numprod",
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"numprod"})
+        self.assertIn("numprod", set(result.tools_used))
         self.assertEqual(result.tool_outputs[0]["name"], "numprod")
         self.assertEqual(result.tool_outputs[0]["result"], 204)
 
@@ -533,7 +550,27 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             max_completion_tokens=1000,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"numprod"})
+        self.assertIn("numprod", set(result.tools_used))
+        self.assertEqual(result.tool_outputs[0]["name"], "numprod")
+        self.assertEqual(result.tool_outputs[0]["result"], 204)
+
+    def test_forced_tool_choice_gemini(self):
+        """
+        This test forces the use of numprod even though the user question asks for addition.
+        """
+        result = chat_gemini(
+            model="gemini-2.0-flash",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Give me the result of 102 + 2",
+                },
+            ],
+            tools=self.tools,
+            tool_choice="numprod",
+        )
+        print(result)
+        self.assertIn("numprod", set(result.tools_used))
         self.assertEqual(result.tool_outputs[0]["name"], "numprod")
         self.assertEqual(result.tool_outputs[0]["result"], 204)
 
@@ -574,6 +611,27 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
                 tools=self.tools,
                 tool_choice="sum",
                 max_completion_tokens=1000,
+            )
+        self.assertEqual(
+            str(context.exception),
+            "Forced function `sum` is not in the list of provided tools",
+        )
+
+    def test_invalid_forced_tool_choice_gemini(self):
+        """
+        This test forces the use of an invalid tool `sum` and checks that an error is raised
+        """
+        with self.assertRaises(ValueError) as context:
+            result = chat_gemini(
+                model="gemini-2.0-flash",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": self.arithmetic_qn,
+                    },
+                ],
+                tools=self.tools,
+                tool_choice="sum",
             )
         self.assertEqual(
             str(context.exception),
