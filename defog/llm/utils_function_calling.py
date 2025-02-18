@@ -7,7 +7,7 @@ from google.genai import types
 
 def get_function_specs(
     functions: List[Callable], model: str
-) -> List[Union[OpenAIFunctionSpecs, AnthropicFunctionSpecs]]:
+) -> List[Union[OpenAIFunctionSpecs, AnthropicFunctionSpecs, types.Tool]]:
     """Return a list of dictionaries describing each function's name, docstring, and input schema."""
     function_specs = []
 
@@ -109,6 +109,23 @@ def convert_tool_choice(tool_choice: str, tool_name_list: List[str], model: str)
                 "any": {"type": "any"},
             },
             "custom": {"type": "tool", "name": tool_choice},
+        },
+        "gemini": {
+            "prefixes": ["gemini"],
+            "choices": {
+                "auto": None,
+                "required": types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(mode="ANY")
+                ),
+                "any": types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(mode="ANY")
+                ),
+            },
+            "custom": types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(
+                    mode="ANY", allowed_function_names=[tool_choice]
+                )
+            ),
         },
     }
 

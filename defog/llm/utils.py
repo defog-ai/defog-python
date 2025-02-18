@@ -1110,6 +1110,7 @@ def _build_gemini_params(
     response_format=None,
     seed: int = 0,
     tools=None,
+    tool_choice=None,
     store=True,
     metadata=None,
 ):
@@ -1127,7 +1128,7 @@ def _build_gemini_params(
         parts=[types.Part.from_text(text=messages_str)],
     )
     messages = [user_prompt_content]
-    config = {
+    request_params = {
         "temperature": temperature,
         "system_instruction": system_msg,
         "max_output_tokens": max_completion_tokens,
@@ -1136,15 +1137,23 @@ def _build_gemini_params(
 
     if tools:
         function_specs = get_function_specs(tools, model)
-        config["tools"] = function_specs
+        request_params["tools"] = function_specs
+
+        # Set up automatic_function_calling and tool_config based on tool_choice
+        if tool_choice:
+            tool_names_list = [func.__name__ for func in tools]
+            tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
+        if tool_choice:
+            request_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=True)
+            request_params["tool_config"] = tool_choice
 
     if response_format:
         # If we want a JSON / Pydantic format
         # "response_schema" is only recognized if the google.genai library supports it
-        config["response_mime_type"] = "application/json"
-        config["response_schema"] = response_format
+        request_params["response_mime_type"] = "application/json"
+        request_params["response_schema"] = response_format
 
-    return messages, config
+    return messages, request_params
 
 
 async def _process_gemini_response(
@@ -1222,7 +1231,9 @@ async def _process_gemini_response(
                     )
                 )
 
-                # TODO: Set tool_choice to "auto" so that the next message will be generated normally
+                # Set tool_choice to None so that the next message will be generated normally without required tool calls
+                request_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=False)
+                request_params["tool_config"] = None
 
                 # Make next call
                 if is_async:
@@ -1238,7 +1249,7 @@ async def _process_gemini_response(
                         config=types.GenerateContentConfig(**request_params),
                     )
             else:
-                content = response.text.strip()
+                content = response.text.strip() if response.text else None
                 break
     else:
         # No tools provided
@@ -1246,7 +1257,7 @@ async def _process_gemini_response(
             # Attempt to parse with pydantic model
             content = response_format.model_validate_json(response.text)
         else:
-            content = response.text.strip()
+            content = response.text.strip() if response.text else None
 
     usage_meta = response.usage_metadata
     return (
@@ -1345,6 +1356,7 @@ def chat_gemini(
         response_format=response_format,
         seed=seed,
         tools=tools,
+        tool_choice=tool_choice,
         store=store,
         metadata=metadata,
     )
@@ -1418,6 +1430,7 @@ async def chat_gemini_async(
         response_format=response_format,
         seed=seed,
         tools=tools,
+        tool_choice=tool_choice,
         store=store,
         metadata=metadata,
     )
@@ -1426,6 +1439,14 @@ async def chat_gemini_async(
     tool_dict = {}
     if tools and len(tools) > 0 and "tools" in request_params:
         tool_dict = {tool.__name__: tool for tool in tools}
+
+        # Set up automatic_function_calling and tool_config based on tool_choice
+        if tool_choice:
+            tool_names_list = [func.__name__ for func in tools]
+            tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
+        if tool_choice:
+            request_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=True)
+            request_params["tool_config"] = tool_choice
 
     try:
         response = await client.aio.models.generate_content(
