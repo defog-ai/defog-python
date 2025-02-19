@@ -175,3 +175,19 @@ async def execute_tool_async(tool: Callable, inputs: Dict[str, Any]):
     model = model_class.model_validate(inputs)
     # Call the tool function with the Pydantic model
     return await tool(model)
+
+
+def verify_post_tool_function(function: Callable):
+    """
+    Verify that the post_tool_function is a function that takes exactly 3 arguments: function_name, input_args, tool_results
+    """
+    if not inspect.isfunction(function):
+        raise ValueError(
+            f"post_tool_function must be a function, not {type(function)}"
+        )
+    sig = inspect.signature(function)
+    if len(sig.parameters) != 3:
+        raise ValueError(
+                "post_tool_function must have exactly three parameters: function_name, input_args, and tool_results"
+            )
+    return function
