@@ -1208,8 +1208,12 @@ async def _process_gemini_response(
     # If we have tools, handle dynamic chaining:
     tools_used = []
     tool_outputs = []
+    total_input_tokens = 0
+    total_output_tokens = 0
     if tools and len(tools) > 0:
         while True:
+            total_input_tokens += response.usage_metadata.prompt_token_count
+            total_output_tokens += response.usage_metadata.candidates_token_count
             if response.function_calls:
                 tool_call = response.function_calls[0]
                 func_name = tool_call.name
@@ -1302,13 +1306,15 @@ async def _process_gemini_response(
         else:
             content = response.text.strip() if response.text else None
 
-    usage_meta = response.usage_metadata
+    usage = response.usage_metadata
+    total_input_tokens += usage.prompt_token_count
+    total_output_tokens += usage.candidates_token_count
     return (
         content,
         tools_used,
         tool_outputs,
-        usage_meta.prompt_token_count,
-        usage_meta.candidates_token_count,
+        total_input_tokens,
+        total_output_tokens,
     )
 
 
