@@ -330,6 +330,7 @@ def chat_anthropic(
     seed: int = 0,
     tools: List[Callable] = None,
     tool_choice: str = None,
+    post_tool_function: Callable = None,
 ):
     """
     Synchronous Anthropic chat.
@@ -1111,8 +1112,6 @@ def _build_gemini_params(
     seed: int = 0,
     tools=None,
     tool_choice=None,
-    store=True,
-    metadata=None,
 ):
     """Construct parameters for Gemini's generate_content call."""
     if messages[0]["role"] == "system":
@@ -1342,11 +1341,30 @@ def chat_gemini(
     seed: int = 0,
     tools=None,
     tool_choice=None,
-    store=True,
-    metadata=None,
     post_tool_function: Callable = None,
 ):
-    """Synchronous Gemini chat."""
+    """
+    Synchronous Gemini chat.
+
+    Parameters:
+    - messages: The list of messages to send to the LLM.
+    - model: The Gemini model to use for the chat.
+    - max_completion_tokens: The maximum number of tokens to return in the response.
+    - temperature: Higher values will make the output more random, while lower values like will make it more focused and deterministic.
+        Between 0 to 2: gemini-1.5-flash, gemini-1.5-pro, gemini-1.0-pro-002, gemini-2.0-flash
+        Between 0 to 1: gemini-1.0-pro-vision, gemini-1.0-pro-001
+    - stop: List of strings that will stop the model from generating further tokens.
+    - response_format: The format that the model must output. See https://ai.google.dev/gemini-api/docs/structured-output?lang=python
+    - seed: NA
+    - tools: The list of tools the model may call.
+    - tool_choice: Controls which (if any) tool is called by the model.
+        "auto": calls 0, 1, or multiple functions,
+        "required": calls at least one function,
+        "<function_name>": calls only the specified function
+    
+    Returns:
+    - LLMResponse which contains the response content, input tokens, output tokens, tools used, and tool outputs
+    """
     from google import genai
 
     t = time.time()
@@ -1361,8 +1379,6 @@ def chat_gemini(
         seed=seed,
         tools=tools,
         tool_choice=tool_choice,
-        store=store,
-        metadata=metadata,
     )
 
     # Construct a tool dict if needed
@@ -1420,7 +1436,33 @@ async def chat_gemini_async(
     reasoning_effort=None,
     post_tool_function: Callable = None,
 ):
-    """Asynchronous Gemini chat."""
+    """
+    Asynchronous Gemini chat.
+    
+    Parameters:
+    - messages: The list of messages to send to the LLM.
+    - model: The Gemini model to use for the chat.
+    - max_completion_tokens: The maximum number of tokens to return in the response.
+    - temperature: Higher values will make the output more random, while lower values like will make it more focused and deterministic.
+        Between 0 to 2: gemini-1.5-flash, gemini-1.5-pro, gemini-1.0-pro-002, gemini-2.0-flash
+        Between 0 to 1: gemini-1.0-pro-vision, gemini-1.0-pro-001
+    - stop: List of strings that will stop the model from generating further tokens.
+    - response_format: The format that the model must output. See https://ai.google.dev/gemini-api/docs/structured-output?lang=python
+    - seed: NA
+    - tools: The list of tools the model may call.
+    - tool_choice: Controls which (if any) tool is called by the model.
+        "auto": calls 0, 1, or multiple functions,
+        "required": calls at least one function,
+        "<function_name>": calls only the specified function
+    - store: NA
+    - metadata: NA
+    - timeout: NA
+    - prediction: NA
+    - reasoning_effort: NA
+    
+    Returns:
+    - LLMResponse which contains the response content, input tokens, output tokens, tools used, and tool outputs
+    """
     from google import genai
 
     t = time.time()
@@ -1435,8 +1477,6 @@ async def chat_gemini_async(
         seed=seed,
         tools=tools,
         tool_choice=tool_choice,
-        store=store,
-        metadata=metadata,
     )
 
     # Construct a tool dict if needed
