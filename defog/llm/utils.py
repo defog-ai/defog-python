@@ -1276,11 +1276,13 @@ async def _process_gemini_response(
                     )
                 )
 
-                # Set tool_choice to None so that the next message will be generated normally without required tool calls
+                # Set tool_choice to AUTO so that the next message will be generated normally without required tool calls
                 request_params["automatic_function_calling"] = (
                     types.AutomaticFunctionCallingConfig(disable=False)
                 )
-                request_params["tool_config"] = None
+                request_params["tool_config"] = types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(mode="AUTO")
+                )
 
                 # Make next call
                 if is_async:

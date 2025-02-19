@@ -117,12 +117,17 @@ def convert_tool_choice(tool_choice: str, tool_name_list: List[str], model: str)
         "gemini": {
             "prefixes": ["gemini"],
             "choices": {
-                "auto": None,
+                "auto": types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(mode="AUTO")
+                ),
                 "required": types.ToolConfig(
                     function_calling_config=types.FunctionCallingConfig(mode="ANY")
                 ),
                 "any": types.ToolConfig(
                     function_calling_config=types.FunctionCallingConfig(mode="ANY")
+                ),
+                "none": types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(mode="NONE")
                 ),
             },
             "custom": types.ToolConfig(
