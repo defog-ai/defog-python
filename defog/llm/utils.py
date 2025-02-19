@@ -4,7 +4,6 @@ import json
 import traceback
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Union, Callable
-from google.genai import types
 
 from defog.llm.utils_function_calling import (
     get_function_specs,
@@ -1142,6 +1141,9 @@ def _build_gemini_params(
     tool_choice: str = None,
 ):
     """Construct parameters for Gemini's generate_content call."""
+
+    from google.genai import types
+
     if messages[0]["role"] == "system":
         system_msg = messages[0]["content"]
         messages = messages[1:]
@@ -1200,6 +1202,9 @@ async def _process_gemini_response(
     """Extract content (including any tool calls) and usage info from Gemini response.
     Handles chaining of tool calls.
     """
+
+    from google.genai import types
+
     if len(response.candidates) == 0:
         raise Exception("No response from Gemini.")
     if response.candidates[0].finish_reason == "MAX_TOKENS":
@@ -1324,7 +1329,7 @@ def _process_gemini_response_handler(
     client,
     response,
     request_params: Dict[str, Any],
-    messages: List[types.Content],
+    messages: List,
     tools: List[Callable],
     tool_dict: Dict[str, Callable],
     response_format,
@@ -1418,6 +1423,7 @@ def chat_gemini(
     - LLMResponse which contains the response content, input tokens, output tokens, tools used, and tool outputs
     """
     from google import genai
+    from google.genai import types
 
     if post_tool_function:
         verify_post_tool_function(post_tool_function)
@@ -1521,6 +1527,7 @@ async def chat_gemini_async(
     - LLMResponse which contains the response content, input tokens, output tokens, tools used, and tool outputs
     """
     from google import genai
+    from google.genai import types
 
     t = time.time()
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
