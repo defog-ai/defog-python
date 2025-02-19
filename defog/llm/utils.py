@@ -103,7 +103,7 @@ def _build_anthropic_params(
     stop: List[str],
     tools: List[Callable] = None,
     tool_choice: str = None,
-    timeout=100,
+    timeout: int = 100,
 ):
     """Create the parameter dict for Anthropic's .messages.create()."""
     if len(messages) >= 1 and messages[0].get("role") == "system":
@@ -137,10 +137,10 @@ def _build_anthropic_params(
 async def _process_anthropic_response(
     client,
     response,
-    request_params,
-    tools,
-    tool_dict,
-    is_async,
+    request_params: Dict[str, Any],
+    tools: List[Callable],
+    tool_dict: Dict[str, Callable],
+    is_async: bool,
     post_tool_function: Callable = None,
 ):
     """
@@ -280,7 +280,7 @@ def _process_anthropic_response_handler(
     request_params: Dict[str, Any],
     tools: List[Callable],
     tool_dict: Dict[str, Callable],
-    is_async=False,
+    is_async: bool = False,
     post_tool_function: Callable = None,
 ):
     """
@@ -508,11 +508,11 @@ def _build_openai_params(
     seed: int = 0,
     tools: List[Callable] = None,
     tool_choice: str = None,
-    prediction=None,
-    reasoning_effort=None,
-    store=True,
-    metadata=None,
-    timeout=100,
+    prediction: Dict[str, str] = None,
+    reasoning_effort: str = None,
+    store: bool = True,
+    metadata: Dict[str, str] = None,
+    timeout: int = 100,
 ):
     """
     Build the parameter dictionary for OpenAI's chat.completions.create().
@@ -1138,8 +1138,8 @@ def _build_gemini_params(
     stop: List[str],
     response_format=None,
     seed: int = 0,
-    tools=None,
-    tool_choice=None,
+    tools: List[Callable] = None,
+    tool_choice: str = None,
 ):
     """Construct parameters for Gemini's generate_content call."""
     if messages[0]["role"] == "system":
@@ -1188,13 +1188,14 @@ def _build_gemini_params(
 async def _process_gemini_response(
     client,
     response,
-    request_params,
-    messages,
-    tools,
-    tool_dict,
+    request_params: Dict[str, Any],
+    messages: List[Dict[str, str]],
+    tools: List[Callable],
+    tool_dict: Dict[str, Callable],
     response_format,
-    model,
-    is_async,
+    model: str,
+    is_async: bool,
+    post_tool_function: Callable = None,
 ):
     """Extract content (including any tool calls) and usage info from Gemini response.
     Handles chaining of tool calls.
@@ -1321,6 +1322,7 @@ def _process_gemini_response_handler(
     response_format,
     model: str,
     is_async=False,
+    post_tool_function: Callable = None,
 ):
     """
     Processes Gemini's response by determining whether to execute the response handling
@@ -1350,6 +1352,7 @@ def _process_gemini_response_handler(
                 response_format=response_format,
                 model=model,
                 is_async=is_async,
+                post_tool_function=post_tool_function,
             )  # Caller must await this
         else:
             return asyncio.run(
@@ -1363,6 +1366,7 @@ def _process_gemini_response_handler(
                     response_format=response_format,
                     model=model,
                     is_async=is_async,
+                    post_tool_function=post_tool_function,
                 )
             )
 
@@ -1378,8 +1382,8 @@ def chat_gemini(
     stop: List[str] = [],
     response_format=None,
     seed: int = 0,
-    tools=None,
-    tool_choice=None,
+    tools: List[Callable] = None,
+    tool_choice: str = None,
     post_tool_function: Callable = None,
 ):
     """
@@ -1449,6 +1453,7 @@ def chat_gemini(
             messages=messages,
             model=model,
             is_async=False,
+            post_tool_function=post_tool_function,
         )
     )
     return LLMResponse(
@@ -1470,8 +1475,8 @@ async def chat_gemini_async(
     stop: List[str] = [],
     response_format=None,
     seed: int = 0,
-    tools=None,
-    tool_choice=None,
+    tools: List[Callable] = None,
+    tool_choice: str = None,
     store=True,
     metadata=None,
     timeout=100,
@@ -1558,6 +1563,7 @@ async def chat_gemini_async(
             response_format=response_format,
             model=model,
             is_async=True,
+            post_tool_function=post_tool_function,
         )
     )
     return LLMResponse(
