@@ -70,6 +70,10 @@ def get_function_specs(
                 }
             )
         elif model.startswith("gemini"):
+            # change all "type" values to uppercase
+            input_schema["type"] = input_schema["type"].upper()
+            for prop in input_schema["properties"].values():
+                prop["type"] = prop["type"].upper()
 
             func_spec = {
                 "name": func.__name__,
