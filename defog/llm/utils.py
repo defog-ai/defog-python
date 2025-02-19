@@ -11,6 +11,7 @@ from defog.llm.utils_function_calling import (
     convert_tool_choice,
     execute_tool,
     execute_tool_async,
+    verify_post_tool_function,
 )
 import inspect
 import asyncio
@@ -197,11 +198,16 @@ async def _process_anthropic_response(
                 except Exception as e:
                     raise Exception(f"Error executing tool `{func_name}`: {e}")
 
+                # Execute post-tool function if provided
                 if post_tool_function:
                     if inspect.iscoroutinefunction(post_tool_function):
-                        await post_tool_function(func_name, args, result)
+                        await post_tool_function(
+                            function_name=func_name, input_args=args, tool_result=result
+                        )
                     else:
-                        post_tool_function(func_name, args, result)
+                        post_tool_function(
+                            function_name=func_name, input_args=args, tool_result=result
+                        )
 
                 # Store the tool call, result, and text
                 tools_used.append(func_name)
@@ -348,11 +354,15 @@ def chat_anthropic(
         "auto": calls 0, 1, or multiple functions,
         "required": calls at least one function,
         "<function_name>": calls only the specified function
+    - post_tool_function: An optional function to handle tool responses post-generation. The function takes exactly 3 arguments: function_name, input_args, tool_result
 
     Returns:
     - LLMResponse which contains the response content, input tokens, output tokens, tools used, and tool outputs
     """
     from anthropic import Anthropic
+
+    if post_tool_function:
+        verify_post_tool_function(post_tool_function)
 
     t = time.time()
     client = Anthropic()
@@ -380,6 +390,7 @@ def chat_anthropic(
             tools=tools,
             tool_dict=tool_dict,
             is_async=False,
+            post_tool_function=post_tool_function,
         )
     )
 
@@ -432,6 +443,7 @@ async def chat_anthropic_async(
     - timeout: NA
     - prediction: NA
     - reasoning_effort: NA
+    - post_tool_function: An optional function to handle tool responses post-generation. The function takes exactly 3 arguments: function_name, input_args, tool_result
 
     Returns:
     - LLMResponse which contains the response content, input tokens, output tokens, tools used, and tool outputs
@@ -641,11 +653,16 @@ async def _process_openai_response(
                 except Exception as e:
                     raise Exception(f"Error executing tool `{func_name}`: {e}")
 
+                # Execute post-tool function if provided
                 if post_tool_function:
                     if inspect.iscoroutinefunction(post_tool_function):
-                        await post_tool_function(func_name, args, result)
+                        await post_tool_function(
+                            function_name=func_name, input_args=args, tool_result=result
+                        )
                     else:
-                        post_tool_function(func_name, args, result)
+                        post_tool_function(
+                            function_name=func_name, input_args=args, tool_result=result
+                        )
 
                 # Store the tool call, result, and text
                 tools_used.append(func_name)
@@ -809,8 +826,15 @@ def chat_openai(
     - store: Whether or not to store the output of this chat completion request for use in model distillation or evals products.
     - metadata: Set of 16 key-value pairs that can be attached to an object. This can be useful for storing additional information about the object in a structured format, and querying for objects via API or the dashboard.
     - timeout: No. of seconds before the request times out.
+    - post_tool_function: An optional function to handle tool responses post-generation. The function takes exactly 3 arguments: function_name, input_args, tool_result
+
+    Returns:
+    - LLMResponse which contains the response content, input tokens, output tokens, output token details, tools used, and tool outputs
     """
     from openai import OpenAI
+
+    if post_tool_function:
+        verify_post_tool_function(post_tool_function)
 
     t = time.time()
     client_openai = OpenAI(base_url=base_url, api_key=api_key)
@@ -915,6 +939,10 @@ async def chat_openai_async(
     - store: Whether or not to store the output of this chat completion request for use in model distillation or evals products.
     - metadata: Set of 16 key-value pairs that can be attached to an object. This can be useful for storing additional information about the object in a structured format, and querying for objects via API or the dashboard.
     - timeout: No. of seconds before the request times out.
+    - post_tool_function: An optional function to handle tool responses post-generation. The function takes exactly 3 arguments: function_name, input_args, tool_result
+
+    Returns:
+    - LLMResponse which contains the response content, input tokens, output tokens, output token details, tools used, and tool outputs
     """
     from openai import AsyncOpenAI
 
@@ -1200,6 +1228,17 @@ async def _process_gemini_response(
                 except Exception as e:
                     raise Exception(f"Error executing tool `{func_name}`: {e}")
 
+                # Execute post-tool function if provided
+                if post_tool_function:
+                    if inspect.iscoroutinefunction(post_tool_function):
+                        await post_tool_function(
+                            function_name=func_name, input_args=args, tool_result=result
+                        )
+                    else:
+                        post_tool_function(
+                            function_name=func_name, input_args=args, tool_result=result
+                        )
+
                 # Store the tool call, result, and text
                 tools_used.append(func_name)
                 try:
@@ -1361,11 +1400,15 @@ def chat_gemini(
         "auto": calls 0, 1, or multiple functions,
         "required": calls at least one function,
         "<function_name>": calls only the specified function
-    
+    - post_tool_function: An optional function to handle tool responses post-generation. The function takes exactly 3 arguments: function_name, input_args, tool_result
+
     Returns:
     - LLMResponse which contains the response content, input tokens, output tokens, tools used, and tool outputs
     """
     from google import genai
+
+    if post_tool_function:
+        verify_post_tool_function(post_tool_function)
 
     t = time.time()
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
@@ -1438,7 +1481,7 @@ async def chat_gemini_async(
 ):
     """
     Asynchronous Gemini chat.
-    
+
     Parameters:
     - messages: The list of messages to send to the LLM.
     - model: The Gemini model to use for the chat.
@@ -1459,7 +1502,8 @@ async def chat_gemini_async(
     - timeout: NA
     - prediction: NA
     - reasoning_effort: NA
-    
+    - post_tool_function: An optional function to handle tool responses post-generation. The function takes exactly 3 arguments: function_name, input_args, tool_result
+
     Returns:
     - LLMResponse which contains the response content, input tokens, output tokens, tools used, and tool outputs
     """
@@ -1580,12 +1624,7 @@ async def chat_async(
     base_delay = 1  # Initial delay in seconds
 
     if post_tool_function:
-        # get number of input params from post_tool_function
-        num_params = len(inspect.signature(post_tool_function).parameters)
-        if num_params != 3:
-            raise ValueError(
-                "post_tool_function must have exactly three parameters: function_name, input_args, and tool_results"
-            )
+        verify_post_tool_function(post_tool_function)
 
     for attempt in range(max_retries):
         try:
