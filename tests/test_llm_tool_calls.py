@@ -19,9 +19,11 @@ def log_to_file(function_name, input_args, tool_result):
     Simple function to test logging to a StringIO object.
     Used in test_post_tool_calls_openai and test_post_tool_calls_anthropic
     """
+    sorted_input_args = {k: input_args[k] for k in sorted(input_args)}
+
     message = {
         "function_name": function_name,
-        "args": input_args,
+        "args": sorted_input_args,
         "result": tool_result,
     }
     message = json.dumps(message, indent=4)
@@ -179,7 +181,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.tools = [get_weather, numsum, numprod]
         self.weather_qn = "What is the current temperature in Singapore? Return the answer as a number and nothing else."
         self.weather_qn_specific = "What is the current temperature in Singapore? Singapore's latitude is 1.3521 and longitude is 103.8198. Return the answer as a number and nothing else."
-        self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Return only the final answer, nothing else. Always use tools for arithmetic."
+        self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Always use the tools provided for all calculation, even simple calculations. Return only the final answer, nothing else."
         self.arithmetic_answer = "72670414"
         self.arithmetic_expected_tool_outputs = [
             {"name": "numprod", "args": {"a": 31283, "b": 2323}, "result": 72670409},
@@ -363,6 +365,54 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     async def test_post_tool_calls_anthropic(self):
         result = await chat_async(
             model="claude-3-5-sonnet-latest",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ],
+            tools=self.tools,
+            post_tool_function=log_to_file,
+        )
+        print(result)
+        self.assertEqual(result.content, self.arithmetic_answer)
+        for expected, actual in zip(
+            self.arithmetic_expected_tool_outputs, result.tool_outputs
+        ):
+            self.assertEqual(expected["name"], actual["name"])
+            self.assertEqual(expected["args"], actual["args"])
+            self.assertEqual(expected["result"], actual["result"])
+        self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+        expected_stream_value = (
+            json.dumps(
+                {
+                    "function_name": "numprod",
+                    "args": {"a": 31283, "b": 2323},
+                    "result": 72670409,
+                },
+                indent=4,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "function_name": "numsum",
+                    "args": {"a": 72670409, "b": 5},
+                    "result": 72670414,
+                },
+                indent=4,
+            )
+            + "\n"
+        )
+        self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
+
+        # clear IO_STREAM
+        IO_STREAM.seek(0)
+        IO_STREAM.truncate()
+
+    @pytest.mark.asyncio
+    async def test_post_tool_calls_gemini(self):
+        result = await chat_async(
+            model="gemini-2.0-flash",
             messages=[
                 {
                     "role": "user",
