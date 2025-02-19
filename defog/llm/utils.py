@@ -1144,7 +1144,9 @@ def _build_gemini_params(
             tool_names_list = [func.__name__ for func in tools]
             tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
         if tool_choice:
-            request_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=True)
+            request_params["automatic_function_calling"] = (
+                types.AutomaticFunctionCallingConfig(disable=True)
+            )
             request_params["tool_config"] = tool_choice
 
     if response_format:
@@ -1232,7 +1234,9 @@ async def _process_gemini_response(
                 )
 
                 # Set tool_choice to None so that the next message will be generated normally without required tool calls
-                request_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=False)
+                request_params["automatic_function_calling"] = (
+                    types.AutomaticFunctionCallingConfig(disable=False)
+                )
                 request_params["tool_config"] = None
 
                 # Make next call
@@ -1445,7 +1449,9 @@ async def chat_gemini_async(
             tool_names_list = [func.__name__ for func in tools]
             tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
         if tool_choice:
-            request_params["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=True)
+            request_params["automatic_function_calling"] = (
+                types.AutomaticFunctionCallingConfig(disable=True)
+            )
             request_params["tool_config"] = tool_choice
 
     try:
