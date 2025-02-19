@@ -14,15 +14,15 @@ import json
 IO_STREAM = StringIO()
 
 
-def log_to_file(function_name, args, result):
+def log_to_file(function_name, input_args, tool_result):
     """
     Simple function to test logging to a StringIO object.
     Used in test_post_tool_calls_openai and test_post_tool_calls_anthropic
     """
     message = {
         "function_name": function_name,
-        "args": args,
-        "result": result,
+        "args": input_args,
+        "result": tool_result,
     }
     message = json.dumps(message, indent=4)
     IO_STREAM.write(message + "\n")

@@ -179,7 +179,7 @@ async def execute_tool_async(tool: Callable, inputs: Dict[str, Any]):
 
 def verify_post_tool_function(function: Callable):
     """
-    Verify that the post_tool_function is a function that takes exactly 3 arguments: function_name, input_args, tool_results
+    Verify that the post_tool_function is a function that takes exactly 3 arguments: function_name, input_args, tool_result
     """
     if not inspect.isfunction(function):
         raise ValueError(
@@ -188,6 +188,19 @@ def verify_post_tool_function(function: Callable):
     sig = inspect.signature(function)
     if len(sig.parameters) != 3:
         raise ValueError(
-                "post_tool_function must have exactly three parameters: function_name, input_args, and tool_results"
+                "post_tool_function must have exactly three parameters: function_name, input_args, and tool_result"
             )
+    if sig.parameters.get("function_name") is None:
+        raise ValueError(
+            "post_tool_function must have parameter named `function_name`"
+        )
+    if sig.parameters.get("input_args") is None:
+        raise ValueError(
+            "post_tool_function must have parameter named `input_args`"
+        )
+    if sig.parameters.get("tool_result") is None:
+        raise ValueError(
+            "post_tool_function must have parameter named `tool_result`"
+        )
+
     return function
