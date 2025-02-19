@@ -2,12 +2,11 @@ import inspect
 from typing import Callable, List, Dict, Any, Union
 from pydantic import BaseModel
 from defog.llm.models import OpenAIFunctionSpecs, AnthropicFunctionSpecs
-from google.genai import types
 
 
 def get_function_specs(
     functions: List[Callable], model: str
-) -> List[Union[OpenAIFunctionSpecs, AnthropicFunctionSpecs, types.Tool]]:
+) -> List[Union[OpenAIFunctionSpecs, AnthropicFunctionSpecs]]:
     """Return a list of dictionaries describing each function's name, docstring, and input schema."""
     function_specs = []
 
@@ -70,6 +69,8 @@ def get_function_specs(
                 }
             )
         elif model.startswith("gemini"):
+            from google.genai import types
+
             # change all "type" values to uppercase
             input_schema["type"] = input_schema["type"].upper()
             for prop in input_schema["properties"].values():
