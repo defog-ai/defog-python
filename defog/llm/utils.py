@@ -379,7 +379,7 @@ def chat_anthropic(
         tool_dict = {tool.__name__: tool for tool in tools}
 
     response = client.messages.create(**request_params)
-    content, tools_used, tool_outputs, input_toks, output_toks = (
+    content, tool_outputs, input_toks, output_toks = (
         _process_anthropic_response_handler(
             client=client,
             response=response,
@@ -397,7 +397,6 @@ def chat_anthropic(
         time=round(time.time() - t, 3),
         input_tokens=input_toks,
         output_tokens=output_toks,
-        tools_used=tools_used,
         tool_outputs=tool_outputs,
     )
 
@@ -465,7 +464,7 @@ async def chat_anthropic_async(
         tool_dict = {tool.__name__: tool for tool in tools}
 
     response = await client.messages.create(**params)
-    content, tools_used, tool_outputs, input_toks, output_toks = (
+    content, tool_outputs, input_toks, output_toks = (
         await _process_anthropic_response_handler(
             client=client,
             response=response,
@@ -483,7 +482,6 @@ async def chat_anthropic_async(
         time=round(time.time() - t, 3),
         input_tokens=input_toks,
         output_tokens=output_toks,
-        tools_used=tools_used,
         tool_outputs=tool_outputs,
     )
 
@@ -864,7 +862,6 @@ def chat_openai(
 
     (
         content,
-        tools_used,
         tool_outputs,
         prompt_tokens,
         output_tokens,
@@ -888,7 +885,6 @@ def chat_openai(
         input_tokens=prompt_tokens,
         output_tokens=output_tokens,
         output_tokens_details=completion_token_details,
-        tools_used=tools_used,
         tool_outputs=tool_outputs,
     )
 
@@ -974,7 +970,6 @@ async def chat_openai_async(
 
     (
         content,
-        tools_used,
         tool_outputs,
         prompt_tokens,
         output_tokens,
@@ -998,7 +993,6 @@ async def chat_openai_async(
         input_tokens=prompt_tokens,
         output_tokens=output_tokens,
         output_tokens_details=completion_token_details,
-        tools_used=tools_used,
         tool_outputs=tool_outputs,
     )
 
@@ -1219,7 +1213,10 @@ async def _process_gemini_response(
                 tool_call = response.function_calls[0]
                 func_name = tool_call.name
                 args = tool_call.args
-                tool_id = tool_call.tool_id
+
+                # set tool_id to None, as Gemini models do not return a tool_id by default
+                # strangely, tool_call.id exists, but is always set to `None`
+                tool_id = None
 
                 try:
                     tool_to_call = tool_dict[func_name]
@@ -1452,7 +1449,7 @@ def chat_gemini(
     except Exception as e:
         raise Exception(f"An error occurred: {e}")
 
-    content, tools_used, tool_outputs, input_toks, output_toks = (
+    content, tool_outputs, input_toks, output_toks = (
         _process_gemini_response_handler(
             client=client,
             response=response,
@@ -1472,7 +1469,6 @@ def chat_gemini(
         time=round(time.time() - t, 3),
         input_tokens=input_toks,
         output_tokens=output_toks,
-        tools_used=tools_used,
         tool_outputs=tool_outputs,
     )
 
@@ -1563,7 +1559,7 @@ async def chat_gemini_async(
     except Exception as e:
         raise Exception(f"An error occurred: {e}")
 
-    content, tools_used, tool_outputs, input_toks, output_toks = (
+    content, tool_outputs, input_toks, output_toks = (
         await _process_gemini_response_handler(
             client=client,
             response=response,
@@ -1583,7 +1579,6 @@ async def chat_gemini_async(
         time=round(time.time() - t, 3),
         input_tokens=input_toks,
         output_tokens=output_toks,
-        tools_used=tools_used,
         tool_outputs=tool_outputs,
     )
 
