@@ -208,7 +208,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(expected["name"], actual["name"])
             self.assertEqual(expected["args"], actual["args"])
             self.assertEqual(expected["result"], actual["result"])
-        self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
 
     @pytest.mark.asyncio
     async def test_tool_use_weather_async_openai(self):
@@ -224,7 +225,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             max_retries=1,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"get_weather"})
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
         self.assertGreaterEqual(float(result.content), 21)
         self.assertLessEqual(float(result.content), 38)
@@ -242,7 +244,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tools=self.tools,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
         for expected, actual in zip(
             self.arithmetic_expected_tool_outputs, result.tool_outputs
         ):
@@ -265,7 +268,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             max_retries=1,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"get_weather"})
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
         self.assertGreaterEqual(float(result.content), 21)
         self.assertLessEqual(float(result.content), 38)
@@ -290,7 +294,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(expected["name"], actual["name"])
             self.assertEqual(expected["args"], actual["args"])
             self.assertEqual(expected["result"], actual["result"])
-        self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
 
     @pytest.mark.asyncio
     async def test_tool_use_weather_async_gemini(self):
@@ -306,7 +311,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             max_retries=1,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"get_weather"})
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
         self.assertEqual(
             result.tool_outputs[0]["args"], {"latitude": 1.3521, "longitude": 103.8198}
@@ -335,7 +341,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(expected["name"], actual["name"])
             self.assertEqual(expected["args"], actual["args"])
             self.assertEqual(expected["result"], actual["result"])
-        self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
         expected_stream_value = (
             json.dumps(
                 {
@@ -382,7 +389,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(expected["name"], actual["name"])
             self.assertEqual(expected["args"], actual["args"])
             self.assertEqual(expected["result"], actual["result"])
-        self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
         expected_stream_value = (
             json.dumps(
                 {
@@ -430,7 +438,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(expected["name"], actual["name"])
             self.assertEqual(expected["args"], actual["args"])
             self.assertEqual(expected["result"], actual["result"])
-        self.assertSetEqual(set(result.tools_used), {"numsum", "numprod"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
         expected_stream_value = (
             json.dumps(
                 {
@@ -469,7 +478,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tools=self.tools,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"get_weather"})
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
         self.assertGreaterEqual(float(result.content), 21)
         self.assertLessEqual(float(result.content), 38)
@@ -486,7 +496,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tools=self.tools,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"get_weather"})
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
         self.assertGreaterEqual(float(result.content), 21)
         self.assertLessEqual(float(result.content), 38)
@@ -503,7 +514,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tools=self.tools,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"get_weather"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"get_weather"})
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
         self.assertEqual(
             result.tool_outputs[0]["args"], {"latitude": 1.3521, "longitude": 103.8198}
@@ -524,7 +536,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tool_choice="required",
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"numsum"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum"})
         self.assertEqual(result.tool_outputs[0]["name"], "numsum")
         self.assertIn("104", result.content.lower())
 
@@ -542,7 +555,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             max_completion_tokens=1000,
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"numsum"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum"})
         self.assertEqual(result.tool_outputs[0]["name"], "numsum")
         self.assertIn("104", result.content.lower())
 
@@ -559,7 +573,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tool_choice="required",
         )
         print(result)
-        self.assertSetEqual(set(result.tools_used), {"numsum"})
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum"})
         self.assertEqual(result.tool_outputs[0]["name"], "numsum")
         self.assertIn("2", result.content.lower())
 
