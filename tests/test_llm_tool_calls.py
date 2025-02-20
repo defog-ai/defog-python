@@ -594,7 +594,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tool_choice="numprod",
         )
         print(result)
-        self.assertIn("numprod", set(result.tools_used))
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertIn("numprod", set(tools_used))
         self.assertEqual(result.tool_outputs[0]["name"], "numprod")
         self.assertEqual(result.tool_outputs[0]["result"], 204)
 
@@ -615,7 +616,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             max_completion_tokens=1000,
         )
         print(result)
-        self.assertIn("numprod", set(result.tools_used))
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertIn("numprod", set(tools_used))
         self.assertEqual(result.tool_outputs[0]["name"], "numprod")
         self.assertEqual(result.tool_outputs[0]["result"], 204)
 
@@ -635,7 +637,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             tool_choice="numprod",
         )
         print(result)
-        self.assertIn("numprod", set(result.tools_used))
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertIn("numprod", set(tools_used))
         self.assertEqual(result.tool_outputs[0]["name"], "numprod")
         self.assertEqual(result.tool_outputs[0]["result"], 204)
 
