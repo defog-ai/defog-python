@@ -1449,19 +1449,17 @@ def chat_gemini(
     except Exception as e:
         raise Exception(f"An error occurred: {e}")
 
-    content, tool_outputs, input_toks, output_toks = (
-        _process_gemini_response_handler(
-            client=client,
-            response=response,
-            request_params=request_params,
-            tools=tools,
-            tool_dict=tool_dict,
-            response_format=response_format,
-            messages=messages,
-            model=model,
-            is_async=False,
-            post_tool_function=post_tool_function,
-        )
+    content, tool_outputs, input_toks, output_toks = _process_gemini_response_handler(
+        client=client,
+        response=response,
+        request_params=request_params,
+        tools=tools,
+        tool_dict=tool_dict,
+        response_format=response_format,
+        messages=messages,
+        model=model,
+        is_async=False,
+        post_tool_function=post_tool_function,
     )
     return LLMResponse(
         model=model,
