@@ -60,7 +60,6 @@ class LLMResponse:
     output_tokens: int
     output_tokens_details: Optional[Dict[str, int]] = None
     cost_in_cents: Optional[float] = None
-    tools_used: Optional[List[str]] = None
     tool_outputs: Optional[Dict[str, str]] = None
 
     def __post_init__(self):
@@ -154,7 +153,6 @@ async def _process_anthropic_response(
         raise Exception("Max tokens reached")
 
     # If we have tools, handle dynamic chaining:
-    tools_used = []
     tool_outputs = []
     total_input_tokens = 0
     total_output_tokens = 0
@@ -209,9 +207,9 @@ async def _process_anthropic_response(
                         )
 
                 # Store the tool call, result, and text
-                tools_used.append(func_name)
                 tool_outputs.append(
                     {
+                        "tool_call_id": tool_id,
                         "name": func_name,
                         "args": args,
                         "result": result,
@@ -270,7 +268,7 @@ async def _process_anthropic_response(
     usage = response.usage
     total_input_tokens += usage.input_tokens
     total_output_tokens += usage.output_tokens
-    return content, tools_used, tool_outputs, total_input_tokens, total_output_tokens
+    return content, tool_outputs, total_input_tokens, total_output_tokens
 
 
 def _process_anthropic_response_handler(
@@ -621,7 +619,6 @@ async def _process_openai_response(
         raise Exception("Max tokens reached")
 
     # If we have tools, handle dynamic chaining:
-    tools_used = []
     tool_outputs = []
     total_input_tokens = 0
     total_output_tokens = 0
@@ -633,6 +630,7 @@ async def _process_openai_response(
             if message.tool_calls:
                 tool_call = message.tool_calls[0]
                 func_name = tool_call.function.name
+                tool_call_id = tool_call.id
                 try:
                     args = json.loads(tool_call.function.arguments)
                 except json.JSONDecodeError:
@@ -664,9 +662,9 @@ async def _process_openai_response(
                         )
 
                 # Store the tool call, result, and text
-                tools_used.append(func_name)
                 tool_outputs.append(
                     {
+                        "tool_call_id": tool_call_id,
                         "name": func_name,
                         "args": args,
                         "result": result,
@@ -716,7 +714,6 @@ async def _process_openai_response(
     total_output_tokens += usage.completion_tokens
     return (
         content,
-        tools_used,
         tool_outputs,
         total_input_tokens,
         total_output_tokens,
@@ -1211,7 +1208,6 @@ async def _process_gemini_response(
         raise Exception("Max tokens reached")
 
     # If we have tools, handle dynamic chaining:
-    tools_used = []
     tool_outputs = []
     total_input_tokens = 0
     total_output_tokens = 0
@@ -1223,6 +1219,7 @@ async def _process_gemini_response(
                 tool_call = response.function_calls[0]
                 func_name = tool_call.name
                 args = tool_call.args
+                tool_id = tool_call.tool_id
 
                 try:
                     tool_to_call = tool_dict[func_name]
@@ -1250,13 +1247,13 @@ async def _process_gemini_response(
                         )
 
                 # Store the tool call, result, and text
-                tools_used.append(func_name)
                 try:
                     text = response.text
                 except Exception as e:
                     text = None
                 tool_outputs.append(
                     {
+                        "tool_id": tool_id,
                         "name": func_name,
                         "args": args,
                         "result": result,
@@ -1318,7 +1315,6 @@ async def _process_gemini_response(
     total_output_tokens += usage.candidates_token_count
     return (
         content,
-        tools_used,
         tool_outputs,
         total_input_tokens,
         total_output_tokens,
