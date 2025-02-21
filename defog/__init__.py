@@ -12,6 +12,7 @@ from defog import (
     health_methods,
     async_health_methods,
 )
+from typing import Dict, List, Optional, Union, Any
 
 try:
     __version__ = version("defog")
@@ -33,6 +34,12 @@ class BaseDefog:
     """
     The base class for Defog and AsyncDefog
     """
+
+    api_key: str
+    db_type: str
+    db_creds: dict
+    base_url: str
+    generate_query_url: str
 
     def __init__(
         self,
@@ -239,6 +246,38 @@ class Defog(BaseDefog):
             verbose=verbose,
         )
 
+    def generate_db_schema(
+        self,
+        tables: list,
+        scan: bool = True,
+        upload: bool = True,
+        return_tables_only: bool = False,
+        return_format: str = "csv",
+    ) -> str: ...
+
+    def run_query(
+        self,
+        question: str,
+        hard_filters: str = "",
+        previous_context: list = [],
+        glossary: str = "",
+        query: dict = None,
+        retries: int = 3,
+        dev: bool = False,
+        temp: bool = False,
+        profile: bool = False,
+        ignore_cache: bool = False,
+        model: str = "",
+        use_golden_queries: bool = True,
+        subtable_pruning: bool = False,
+        glossary_pruning: bool = False,
+        prune_max_tokens: int = 2000,
+        prune_bm25_num_columns: int = 10,
+        prune_glossary_max_tokens: int = 1000,
+        prune_glossary_num_cos_sim_units: int = 10,
+        prune_glossary_bm25_units: int = 10,
+    ): ...
+
 
 class AsyncDefog(BaseDefog):
     """
@@ -267,6 +306,38 @@ class AsyncDefog(BaseDefog):
             generate_query_url=generate_query_url,
             verbose=verbose,
         )
+
+    async def generate_db_schema(
+        self,
+        tables: list,
+        scan: bool = True,
+        upload: bool = True,
+        return_tables_only: bool = False,
+        return_format: str = "csv",
+    ) -> str: ...
+
+    async def run_query(
+        self,
+        question: str,
+        hard_filters: str = "",
+        previous_context: list = [],
+        glossary: str = "",
+        query: dict = None,
+        retries: int = 3,
+        dev: bool = False,
+        temp: bool = False,
+        profile: bool = False,
+        ignore_cache: bool = False,
+        model: str = "",
+        use_golden_queries: bool = True,
+        subtable_pruning: bool = False,
+        glossary_pruning: bool = False,
+        prune_max_tokens: int = 2000,
+        prune_bm25_num_columns: int = 10,
+        prune_glossary_max_tokens: int = 1000,
+        prune_glossary_num_cos_sim_units: int = 10,
+        prune_glossary_bm25_units: int = 10,
+    ): ...
 
 
 # Add all methods from generate_schema to Defog
