@@ -109,7 +109,7 @@ def _build_anthropic_params(
         messages = messages[1:]
     else:
         sys_msg = ""
-    
+
     # Anthropic does not allow `None` as a value for max_completion_tokens
     # Therefore, set it to 8191, which is the max output tokens limit for 3.5 sonnet right now
     if max_completion_tokens is None:
