@@ -96,9 +96,9 @@ class LLMResponse:
 def _build_anthropic_params(
     messages: List[Dict[str, str]],
     model: str,
-    max_completion_tokens: int,
-    temperature: float,
-    stop: List[str],
+    max_completion_tokens: int = None,
+    temperature: float = 0.0,
+    stop: List[str] = [],
     tools: List[Callable] = None,
     tool_choice: str = None,
     timeout: int = 100,
@@ -109,6 +109,11 @@ def _build_anthropic_params(
         messages = messages[1:]
     else:
         sys_msg = ""
+    
+    # Anthropic does not allow `None` as a value for max_completion_tokens
+    # Therefore, set it to 8191, which is the max output tokens limit for 3.5 sonnet right now
+    if max_completion_tokens is None:
+        max_completion_tokens = 8191
 
     params = {
         "system": sys_msg,
@@ -325,8 +330,8 @@ def _process_anthropic_response_handler(
 
 def chat_anthropic(
     messages: List[Dict[str, str]],
+    max_completion_tokens: int = None,
     model: str = "claude-3-5-sonnet-20241022",
-    max_completion_tokens: int = 8192,
     temperature: float = 0.0,
     stop: List[str] = [],
     response_format=None,
@@ -363,6 +368,7 @@ def chat_anthropic(
 
     t = time.time()
     client = Anthropic()
+
     request_params, _ = _build_anthropic_params(
         messages=messages,
         model=model,
@@ -403,8 +409,8 @@ def chat_anthropic(
 
 async def chat_anthropic_async(
     messages: List[Dict[str, str]],
+    max_completion_tokens: int = None,
     model: str = "claude-3-5-sonnet-20241022",
-    max_completion_tokens: int = 8192,
     temperature: float = 0.0,
     stop: List[str] = [],
     response_format=None,
@@ -780,8 +786,8 @@ def _process_openai_response_handler(
 
 def chat_openai(
     messages: List[Dict[str, str]],
+    max_completion_tokens: int = None,
     model: str = "gpt-4o",
-    max_completion_tokens: int = 16384,
     temperature: float = 0.0,
     stop: List[str] = [],
     response_format=None,
@@ -891,8 +897,8 @@ def chat_openai(
 
 async def chat_openai_async(
     messages: List[Dict[str, str]],
+    max_completion_tokens: int = None,
     model: str = "gpt-4o",
-    max_completion_tokens: int = 16384,
     temperature: float = 0.0,
     stop: List[str] = [],
     response_format=None,
@@ -1036,8 +1042,8 @@ def _process_together_response(response):
 
 def chat_together(
     messages: List[Dict[str, str]],
+    max_completion_tokens: int = None,
     model: str = "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-    max_completion_tokens: int = 4096,
     temperature: float = 0.0,
     stop: List[str] = [],
     response_format=None,
@@ -1073,8 +1079,8 @@ def chat_together(
 
 async def chat_together_async(
     messages: List[Dict[str, str]],
+    max_completion_tokens: int = None,
     model: str = "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-    max_completion_tokens: int = 4096,
     temperature: float = 0.0,
     stop: List[str] = [],
     response_format=None,
@@ -1382,8 +1388,8 @@ def _process_gemini_response_handler(
 
 def chat_gemini(
     messages: List[Dict[str, str]],
+    max_completion_tokens: int = None,
     model: str = "gemini-2.0-flash",
-    max_completion_tokens: int = 8192,
     temperature: float = 0.0,
     stop: List[str] = [],
     response_format=None,
@@ -1473,8 +1479,8 @@ def chat_gemini(
 
 async def chat_gemini_async(
     messages: List[Dict[str, str]],
+    max_completion_tokens: int = None,
     model: str = "gemini-2.0-flash",
-    max_completion_tokens: int = 8192,
     temperature: float = 0.0,
     stop: List[str] = [],
     response_format=None,
@@ -1610,7 +1616,7 @@ def map_model_to_chat_fn_async(model: str) -> Callable:
 async def chat_async(
     model,
     messages,
-    max_completion_tokens=4096,
+    max_completion_tokens=None,
     temperature=0.0,
     stop=[],
     response_format=None,
