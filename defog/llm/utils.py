@@ -233,14 +233,17 @@ async def _process_anthropic_response(
 
                 # Execute post-tool function if provided
                 if post_tool_function:
-                    if inspect.iscoroutinefunction(post_tool_function):
-                        await post_tool_function(
-                            function_name=func_name, input_args=args, tool_result=result
-                        )
-                    else:
-                        post_tool_function(
-                            function_name=func_name, input_args=args, tool_result=result
-                        )
+                    try:
+                        if inspect.iscoroutinefunction(post_tool_function):
+                            await post_tool_function(
+                                function_name=func_name, input_args=args, tool_result=result
+                            )
+                        else:
+                            post_tool_function(
+                                function_name=func_name, input_args=args, tool_result=result
+                            )
+                    except Exception as e:
+                        raise Exception(f"Error executing post-tool function: {e}")
 
                 # Store the tool call, result, and text
                 tool_outputs.append(
@@ -295,6 +298,7 @@ async def _process_anthropic_response(
                 else:
                     response = client.messages.create(**request_params)
             else:
+                # Break out of loop when tool calls are finished
                 content = response.content[0].text
                 break
     else:
@@ -688,14 +692,17 @@ async def _process_openai_response(
 
                 # Execute post-tool function if provided
                 if post_tool_function:
-                    if inspect.iscoroutinefunction(post_tool_function):
-                        await post_tool_function(
-                            function_name=func_name, input_args=args, tool_result=result
-                        )
-                    else:
-                        post_tool_function(
-                            function_name=func_name, input_args=args, tool_result=result
-                        )
+                    try:
+                        if inspect.iscoroutinefunction(post_tool_function):
+                            await post_tool_function(
+                                function_name=func_name, input_args=args, tool_result=result
+                            )
+                        else:
+                            post_tool_function(
+                                function_name=func_name, input_args=args, tool_result=result
+                            )
+                    except Exception as e:
+                        raise Exception(f"Error executing post_tool_function: {e}")
 
                 # Store the tool call, result, and text
                 tool_outputs.append(
@@ -736,6 +743,7 @@ async def _process_openai_response(
                 else:
                     response = client.chat.completions.create(**request_params)
             else:
+                # Break out of loop when tool calls are finished
                 content = message.content
                 break
     else:
@@ -1280,14 +1288,17 @@ async def _process_gemini_response(
 
                 # Execute post-tool function if provided
                 if post_tool_function:
-                    if inspect.iscoroutinefunction(post_tool_function):
-                        await post_tool_function(
-                            function_name=func_name, input_args=args, tool_result=result
-                        )
-                    else:
-                        post_tool_function(
-                            function_name=func_name, input_args=args, tool_result=result
-                        )
+                    try:
+                        if inspect.iscoroutinefunction(post_tool_function):
+                            await post_tool_function(
+                                function_name=func_name, input_args=args, tool_result=result
+                            )
+                        else:
+                            post_tool_function(
+                                function_name=func_name, input_args=args, tool_result=result
+                            )
+                    except Exception as e:
+                        raise Exception(f"Error executing post-tool function: {e}")
 
                 # Store the tool call, result, and text
                 try:
@@ -1343,6 +1354,7 @@ async def _process_gemini_response(
                         config=types.GenerateContentConfig(**request_params),
                     )
             else:
+                # Break out of loop when tool calls are finished
                 content = response.text.strip() if response.text else None
                 break
     else:
