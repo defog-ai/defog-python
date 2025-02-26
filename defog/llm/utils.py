@@ -17,12 +17,32 @@ import asyncio
 
 LLM_COSTS_PER_TOKEN = {
     "chatgpt-4o": {"input_cost_per1k": 0.0025, "output_cost_per1k": 0.01},
-    "gpt-4o": {"input_cost_per1k": 0.0025, "output_cost_per1k": 0.01},
-    "gpt-4o-mini": {"input_cost_per1k": 0.00015, "output_cost_per1k": 0.0006},
-    "o1": {"input_cost_per1k": 0.015, "output_cost_per1k": 0.06},
+    "gpt-4o": {
+        "input_cost_per1k": 0.0025,
+        "cached_input_cost_per1k": 0.00125,
+        "output_cost_per1k": 0.01,
+    },
+    "gpt-4o-mini": {
+        "input_cost_per1k": 0.00015,
+        "cached_input_cost_per1k": 0.000075,
+        "output_cost_per1k": 0.0006,
+    },
+    "o1": {
+        "input_cost_per1k": 0.015,
+        "cached_input_cost_per1k": 0.0075,
+        "output_cost_per1k": 0.06,
+    },
     "o1-preview": {"input_cost_per1k": 0.015, "output_cost_per1k": 0.06},
-    "o1-mini": {"input_cost_per1k": 0.003, "output_cost_per1k": 0.012},
-    "o3-mini": {"input_cost_per1k": 0.0011, "output_cost_per1k": 0.0044},
+    "o1-mini": {
+        "input_cost_per1k": 0.003,
+        "cached_input_cost_per1k": 0.00055,
+        "output_cost_per1k": 0.012,
+    },
+    "o3-mini": {
+        "input_cost_per1k": 0.0011,
+        "cached_input_cost_per1k": 0.00055,
+        "output_cost_per1k": 0.0044,
+    },
     "gpt-4-turbo": {"input_cost_per1k": 0.01, "output_cost_per1k": 0.03},
     "gpt-3.5-turbo": {"input_cost_per1k": 0.0005, "output_cost_per1k": 0.0015},
     "claude-3-5-sonnet": {"input_cost_per1k": 0.003, "output_cost_per1k": 0.015},
@@ -41,11 +61,13 @@ LLM_COSTS_PER_TOKEN = {
         "output_cost_per1k": 0.0004,
     },
     "deepseek-chat": {
-        "input_cost_per1k": 0.00014,
-        "output_cost_per1k": 0.00028,
+        "input_cost_per1k": 0.00027,
+        "cached_input_cost_per1k": 0.00007,
+        "output_cost_per1k": 0.0011,
     },
     "deepseek-reasoner": {
         "input_cost_per1k": 0.00055,
+        "cached_input_cost_per1k": 0.00014,
         "output_cost_per1k": 0.00219,
     },
 }
@@ -58,6 +80,7 @@ class LLMResponse:
     time: float
     input_tokens: int
     output_tokens: int
+    cached_input_tokens: Optional[int] = None
     output_tokens_details: Optional[Dict[str, int]] = None
     cost_in_cents: Optional[float] = None
     tool_outputs: Optional[Dict[str, str]] = None
@@ -84,6 +107,14 @@ class LLMResponse:
                 / 1000
                 * LLM_COSTS_PER_TOKEN[model_name]["output_cost_per1k"]
             ) * 100
+
+            # Add cached input cost if available
+            if "cached_input_cost_per1k" in LLM_COSTS_PER_TOKEN[model_name]:
+                self.cost_in_cents += (
+                    self.cached_input_tokens
+                    / 1000
+                    * LLM_COSTS_PER_TOKEN[model_name]["cached_input_cost_per1k"]
+                ) * 100
 
 
 #
@@ -625,6 +656,7 @@ async def _process_openai_response(
     # If we have tools, handle dynamic chaining:
     tool_outputs = []
     total_input_tokens = 0
+    total_cached_input_tokens = 0
     total_output_tokens = 0
     if tools and len(tools) > 0:
         while True:
@@ -714,12 +746,16 @@ async def _process_openai_response(
             content = response.choices[0].message.content
 
     usage = response.usage
-    total_input_tokens += usage.prompt_tokens
+    total_cached_input_tokens += usage.prompt_tokens_details.cached_tokens
+    total_input_tokens += (
+        usage.prompt_tokens - usage.prompt_tokens_details.cached_tokens
+    )
     total_output_tokens += usage.completion_tokens
     return (
         content,
         tool_outputs,
         total_input_tokens,
+        total_cached_input_tokens,
         total_output_tokens,
         usage.completion_tokens_details,
     )
@@ -750,7 +786,7 @@ def _process_openai_response_handler(
     - is_async: A boolean flag indicating whether to execute asynchronously.
 
     Returns:
-    - The processed response content, input tokens, and output tokens from the response.
+    - The processed response content, input tokens, cached input tokens and output tokens from the response.
     """
     try:
         if is_async:
@@ -829,7 +865,7 @@ def chat_openai(
     - post_tool_function: An optional function to handle tool responses post-generation. The function takes exactly 3 arguments: function_name, input_args, tool_result
 
     Returns:
-    - LLMResponse which contains the response content, input tokens, output tokens, output token details, tools used, and tool outputs
+    - LLMResponse which contains the response content, input tokens, cached input tokens, output tokens, output token details, tools used, and tool outputs
     """
     from openai import OpenAI
 
@@ -869,7 +905,8 @@ def chat_openai(
     (
         content,
         tool_outputs,
-        prompt_tokens,
+        input_tokens,
+        cached_input_tokens,
         output_tokens,
         completion_token_details,
     ) = _process_openai_response_handler(
@@ -888,7 +925,8 @@ def chat_openai(
         model=model,
         content=content,
         time=round(time.time() - t, 3),
-        input_tokens=prompt_tokens,
+        input_tokens=input_tokens,
+        cached_input_tokens=cached_input_tokens,
         output_tokens=output_tokens,
         output_tokens_details=completion_token_details,
         tool_outputs=tool_outputs,
@@ -940,7 +978,7 @@ async def chat_openai_async(
     - post_tool_function: An optional function to handle tool responses post-generation. The function takes exactly 3 arguments: function_name, input_args, tool_result
 
     Returns:
-    - LLMResponse which contains the response content, input tokens, output tokens, output token details, tools used, and tool outputs
+    - LLMResponse which contains the response content, input tokens, cached input tokens, output tokens, output token details, tools used, and tool outputs
     """
     from openai import AsyncOpenAI
 
@@ -977,7 +1015,8 @@ async def chat_openai_async(
     (
         content,
         tool_outputs,
-        prompt_tokens,
+        input_tokens,
+        cached_input_tokens,
         output_tokens,
         completion_token_details,
     ) = await _process_openai_response_handler(
@@ -996,7 +1035,8 @@ async def chat_openai_async(
         model=model,
         content=content,
         time=round(time.time() - t, 3),
-        input_tokens=prompt_tokens,
+        input_tokens=input_tokens,
+        cached_input_tokens=cached_input_tokens,
         output_tokens=output_tokens,
         output_tokens_details=completion_token_details,
         tool_outputs=tool_outputs,
