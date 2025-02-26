@@ -203,10 +203,6 @@ def verify_post_tool_function(function: Callable):
     Verify that the post_tool_function is a function that takes exactly 3 arguments: function_name, input_args, tool_result
     """
     sig = inspect.signature(function)
-    if len(sig.parameters) != 3:
-        raise ValueError(
-            "post_tool_function must have exactly three parameters: function_name, input_args, and tool_result"
-        )
     if sig.parameters.get("function_name") is None:
         raise ValueError("post_tool_function must have parameter named `function_name`")
     if sig.parameters.get("input_args") is None:
