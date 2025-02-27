@@ -667,87 +667,102 @@ async def _process_openai_response(
     total_cached_input_tokens = 0
     total_output_tokens = 0
     if tools and len(tools) > 0:
+        consecutive_exceptions = 0
         while True:
             total_input_tokens += (
                 response.usage.prompt_tokens
                 - response.usage.prompt_tokens_details.cached_tokens
             )
-            total_cached_input_tokens += response.usage.cached_prompt_tokens
+            total_cached_input_tokens += response.usage.prompt_tokens_details.cached_tokens
             total_output_tokens += response.usage.completion_tokens
             message = response.choices[0].message
             if message.tool_calls:
-                tool_call = message.tool_calls[0]
-                func_name = tool_call.function.name
-                tool_call_id = tool_call.id
                 try:
-                    args = json.loads(tool_call.function.arguments)
-                except json.JSONDecodeError:
-                    args = {}
-
-                try:
-                    tool_to_call = tool_dict[func_name]
-                except KeyError:
-                    raise Exception(f"Tool `{func_name}` not found")
-
-                # Execute tool depending on whether it is async
-                try:
-                    if inspect.iscoroutinefunction(tool_to_call):
-                        result = await execute_tool_async(tool_to_call, args)
-                    else:
-                        result = execute_tool(tool_to_call, args)
-                except Exception as e:
-                    raise Exception(f"Error executing tool `{func_name}`: {e}")
-
-                # Execute post-tool function if provided
-                if post_tool_function:
+                    tool_call = message.tool_calls[0]
+                    func_name = tool_call.function.name
+                    tool_call_id = tool_call.id
                     try:
-                        if inspect.iscoroutinefunction(post_tool_function):
-                            await post_tool_function(
-                                function_name=func_name,
-                                input_args=args,
-                                tool_result=result,
-                            )
+                        args = json.loads(tool_call.function.arguments)
+                    except json.JSONDecodeError:
+                        args = {}
+
+                    tool_to_call = tool_dict.get(func_name)
+                    if tool_to_call is None:
+                        raise Exception(f"Tool `{func_name}` not found")
+
+                    # Execute tool depending on whether it is async
+                    try:
+                        if inspect.iscoroutinefunction(tool_to_call):
+                            result = await execute_tool_async(tool_to_call, args)
                         else:
-                            post_tool_function(
-                                function_name=func_name,
-                                input_args=args,
-                                tool_result=result,
-                            )
+                            result = execute_tool(tool_to_call, args)
                     except Exception as e:
-                        raise Exception(f"Error executing post_tool_function: {e}")
+                        raise Exception(f"Error executing tool `{func_name}`: {e}")
 
-                # Store the tool call, result, and text
-                tool_outputs.append(
-                    {
-                        "tool_call_id": tool_call_id,
-                        "name": func_name,
-                        "args": args,
-                        "result": result,
-                        "text": message.content if message.content else None,
-                    }
-                )
+                    # Execute post-tool function if provided
+                    if post_tool_function:
+                        try:
+                            if inspect.iscoroutinefunction(post_tool_function):
+                                await post_tool_function(
+                                    function_name=func_name, input_args=args, tool_result=result
+                                )
+                            else:
+                                post_tool_function(
+                                    function_name=func_name, input_args=args, tool_result=result
+                                )
+                        except Exception as e:
+                            raise Exception(f"Error executing post_tool_function: {e}")
+                    
+                    # Reset consecutive_exceptions when tool call is successful
+                    consecutive_exceptions = 0
+                    
+                    # Store the tool call, result, and text
+                    tool_outputs.append(
+                        {
+                            "tool_call_id": tool_call_id,
+                            "name": func_name,
+                            "args": args,
+                            "result": result,
+                            "text": message.content if message.content else None,
+                        }
+                    )
 
-                # Append the tool calls as an assistant response
-                request_params["messages"].append(
+                    # Append the tool calls as an assistant response
+                    request_params["messages"].append(
+                        {
+                            "role": "assistant",
+                            "tool_calls": message.tool_calls,
+                        }
+                    )
+
+                    # Append the tool message
+                    request_params["messages"].append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": str(result),
+                        }
+                    )
+
+                    # Set tool_choice to "auto" so that the next message will be generated normally
+                    request_params["tool_choice"] = (
+                        "auto" if request_params["tool_choice"] != "auto" else None
+                    )
+                except Exception as e:
+                    consecutive_exceptions += 1
+
+                    # Break the loop if consecutive exceptions exceed the threshold
+                    if consecutive_exceptions >= 3:
+                        raise Exception(f"Consecutive errors during tool chaining: {e}")
+                    
+                    print(f"{e}. Retries left: {3 - consecutive_exceptions}")
+                    # Append error message to request_params and retry
+                    request_params["messages"].append(
                     {
                         "role": "assistant",
-                        "tool_calls": message.tool_calls,
+                        "content": str(e),
                     }
-                )
-
-                # Append the tool message
-                request_params["messages"].append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": str(result),
-                    }
-                )
-
-                # Set tool_choice to "auto" so that the next message will be generated normally
-                request_params["tool_choice"] = (
-                    "auto" if request_params["tool_choice"] != "auto" else None
-                )
+                    )
 
                 # Make next call
                 if is_async:
