@@ -1,11 +1,21 @@
 import unittest
+from unittest.mock import Mock, patch, AsyncMock, PropertyMock
 import pytest
-from defog.llm.utils import chat_async, chat_openai, chat_anthropic, chat_gemini
+from defog.llm.utils import (
+    chat_async,
+    chat_openai,
+    chat_anthropic,
+    chat_gemini,
+    _process_openai_response,
+    _process_anthropic_response,
+    _process_gemini_response,
+)
 from defog.llm.utils_function_calling import get_function_specs
 from pydantic import BaseModel, Field
 import aiohttp
 from io import StringIO
 import json
+import asyncio
 
 # ==================================================================================================
 # Functions for function calling
@@ -704,4 +714,634 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             str(context.exception),
             "Forced function `sum` is not in the list of provided tools",
+        )
+
+
+class TestToolChainExceptionsOpenAI(unittest.TestCase):
+    def setUp(self):
+        self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Always use the tools provided for all calculation, even simple calculations. Return only the final answer, nothing else."
+        self.request_params = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ]
+        }
+        self.tools = [get_weather, numsum, numprod]
+        self.tool_dict = {
+            "get_weather": get_weather,
+            "numsum": numsum,
+            "numprod": numprod,
+        }
+        self.model = "gpt-models"
+        self.response_format = None
+        self.is_async = False
+        self.post_tool_function = Mock()
+
+        self.response = Mock()
+        self.response.usage = Mock()
+        self.response.usage.prompt_tokens = 10
+        self.response.usage.prompt_tokens_details = Mock()
+        self.response.usage.prompt_tokens_details.cached_tokens = 5
+        self.response.usage.completion_tokens = 8
+        self.response.id = "test_response_id"
+
+        self.client = Mock()
+        self.client.chat = Mock()
+        self.client.chat.completions = Mock()
+        self.client.chat.completions.create = Mock(return_value=self.response)
+
+        self.message_mock = Mock()
+        self.message_mock.tool_calls = [Mock(function=Mock())]
+        type(self.message_mock.tool_calls[0].function).name = PropertyMock(
+            return_value="numprod"
+        )
+        type(self.message_mock.tool_calls[0].function).arguments = PropertyMock(
+            return_value="{'a': '1'}"
+        )
+        self.response.choices = [Mock(message=self.message_mock)]
+
+        self.tool_not_found_exception = "Tool `non_existent_tool` not found"
+        self.tool_execution_exception = (
+            "Error executing tool `numprod`: something failed in tool execution"
+        )
+        self.post_tool_function_exception = "Error executing post_tool_function: something failed in post-tool execution"
+
+    def test_tool_not_found_exception_openai(self):
+        """
+        Test that an exception is raised when a non-existent tool is consecutively called in the tool chain and error messages are added to the messages list.
+        """
+
+        # Set the tool name in the tool call to a non-existent tool
+        type(self.message_mock.tool_calls[0].function).name = PropertyMock(
+            return_value="non_existent_tool"
+        )
+
+        async def test_coroutine():
+            return await _process_openai_response(
+                client=self.client,
+                response=self.response,
+                request_params=self.request_params,
+                response_format=self.response_format,
+                tools=self.tools,
+                tool_dict=self.tool_dict,
+                model=self.model,
+                is_async=self.is_async,
+                post_tool_function=self.post_tool_function,
+            )
+
+        with self.assertRaises(Exception) as context:
+            asyncio.run(test_coroutine())
+
+        self.assertEqual(
+            str(context.exception),
+            f"Consecutive errors during tool chaining: {self.tool_not_found_exception}",
+        )
+        self.assertEqual(
+            self.request_params,
+            {
+                "messages": [
+                    {"role": "user", "content": self.arithmetic_qn},
+                    {"role": "assistant", "content": self.tool_not_found_exception},
+                    {"role": "assistant", "content": self.tool_not_found_exception},
+                ]
+            },
+        )
+
+    @patch(
+        "defog.llm.utils.execute_tool",
+        side_effect=Exception("something failed in tool execution"),
+    )
+    def test_tool_execution_exception_openai(self, mock_execute_tool):
+        """
+        Test that an exception is raised when the execution of a tool fails consecutively in the tool chain and error messages are added to the messages list.
+        """
+
+        async def test_coroutine():
+            return await _process_openai_response(
+                client=self.client,
+                response=self.response,
+                request_params=self.request_params,
+                response_format=self.response_format,
+                tools=self.tools,
+                tool_dict=self.tool_dict,
+                model=self.model,
+                is_async=self.is_async,
+                post_tool_function=self.post_tool_function,
+            )
+
+        with self.assertRaises(Exception) as context:
+            asyncio.run(test_coroutine())
+
+        self.assertEqual(
+            str(context.exception),
+            f"Consecutive errors during tool chaining: {self.tool_execution_exception}",
+        )
+        self.assertEqual(
+            self.request_params,
+            {
+                "messages": [
+                    {"role": "user", "content": self.arithmetic_qn},
+                    {"role": "assistant", "content": self.tool_execution_exception},
+                    {"role": "assistant", "content": self.tool_execution_exception},
+                ]
+            },
+        )
+
+    def test_post_tool_function_exception_openai(self):
+        """
+        Test that an exception is raised when the post-tool function fails consecutively in the tool chain and error messages are added to the messages list.
+        """
+        self.post_tool_function = Mock(
+            side_effect=Exception("something failed in post-tool execution")
+        )
+
+        async def test_coroutine():
+            return await _process_openai_response(
+                client=self.client,
+                response=self.response,
+                request_params=self.request_params,
+                response_format=self.response_format,
+                tools=self.tools,
+                tool_dict=self.tool_dict,
+                model=self.model,
+                is_async=self.is_async,
+                post_tool_function=self.post_tool_function,
+            )
+
+        with self.assertRaises(Exception) as context:
+            asyncio.run(test_coroutine())
+
+        self.assertEqual(
+            str(context.exception),
+            f"Consecutive errors during tool chaining: {self.post_tool_function_exception}",
+        )
+        self.assertEqual(
+            self.request_params,
+            {
+                "messages": [
+                    {"role": "user", "content": self.arithmetic_qn},
+                    {"role": "assistant", "content": self.post_tool_function_exception},
+                    {"role": "assistant", "content": self.post_tool_function_exception},
+                ]
+            },
+        )
+
+
+class TestToolChainExceptionsAnthropic(unittest.TestCase):
+    from anthropic.types import ToolUseBlock
+
+    def setUp(self):
+        self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Always use the tools provided for all calculation, even simple calculations. Return only the final answer, nothing else."
+        self.request_params = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ]
+        }
+        self.tools = [get_weather, numsum, numprod]
+        self.tool_dict = {
+            "get_weather": get_weather,
+            "numsum": numsum,
+            "numprod": numprod,
+        }
+        self.is_async = False
+        self.post_tool_function = Mock()
+
+        self.tool_use_block_mock = Mock(spec=ToolUseBlock)
+        self.tool_use_block_mock.name = "numprod"
+        self.tool_use_block_mock.input = {"a": "1"}
+        self.tool_use_block_mock.id = "mock_id"
+
+        self.response = Mock()
+        self.response.usage = Mock()
+        self.response.usage.input_tokens = 10
+        self.response.usage.output_tokens = 8
+        self.response.content = [self.tool_use_block_mock]
+
+        self.client = Mock()
+        self.client.messages = Mock()
+        self.client.messages.create = Mock()
+        self.client.messages.create = Mock(return_value=self.response)
+
+        self.tool_not_found_exception = "Tool `non_existent_tool` not found"
+        self.tool_execution_exception = (
+            "Error executing tool `numprod`: something failed in tool execution"
+        )
+        self.post_tool_function_exception = "Error executing post_tool_function: something failed in post-tool execution"
+
+    def test_tool_not_found_exception_anthropic(self):
+        """
+        Test that an exception is raised when a non-existent tool is consecutively called in the tool chain and error messages are added to the messages list.
+        """
+
+        # Set the tool name in the tool call to a non-existent tool
+        type(self.tool_use_block_mock).name = PropertyMock(
+            return_value="non_existent_tool"
+        )
+
+        async def test_coroutine():
+            return await _process_anthropic_response(
+                client=self.client,
+                response=self.response,
+                request_params=self.request_params,
+                tools=self.tools,
+                tool_dict=self.tool_dict,
+                is_async=self.is_async,
+                post_tool_function=self.post_tool_function,
+            )
+
+        with self.assertRaises(Exception) as context:
+            asyncio.run(test_coroutine())
+
+        self.assertEqual(
+            str(context.exception),
+            f"Consecutive errors during tool chaining: {self.tool_not_found_exception}",
+        )
+        self.assertEqual(
+            self.request_params,
+            {
+                "messages": [
+                    {"role": "user", "content": self.arithmetic_qn},
+                    {"role": "assistant", "content": self.tool_not_found_exception},
+                    {"role": "assistant", "content": self.tool_not_found_exception},
+                ]
+            },
+        )
+
+    @patch(
+        "defog.llm.utils.execute_tool",
+        side_effect=Exception("something failed in tool execution"),
+    )
+    def test_tool_execution_exception_anthropic(self, mock_execute_tool):
+        """
+        Test that an exception is raised when the execution of a tool fails consecutively in the tool chain and error messages are added to the messages list.
+        """
+
+        async def test_coroutine():
+            return await _process_anthropic_response(
+                client=self.client,
+                response=self.response,
+                request_params=self.request_params,
+                tools=self.tools,
+                tool_dict=self.tool_dict,
+                is_async=self.is_async,
+                post_tool_function=self.post_tool_function,
+            )
+
+        with self.assertRaises(Exception) as context:
+            asyncio.run(test_coroutine())
+
+        self.assertEqual(
+            str(context.exception),
+            f"Consecutive errors during tool chaining: {self.tool_execution_exception}",
+        )
+        self.assertEqual(
+            self.request_params,
+            {
+                "messages": [
+                    {"role": "user", "content": self.arithmetic_qn},
+                    {"role": "assistant", "content": self.tool_execution_exception},
+                    {"role": "assistant", "content": self.tool_execution_exception},
+                ]
+            },
+        )
+
+    def test_post_tool_function_exception_anthropic(self):
+        """
+        Test that an exception is raised when the post-tool function fails consecutively in the tool chain and error messages are added to the messages list.
+        """
+        self.post_tool_function = Mock(
+            side_effect=Exception("something failed in post-tool execution")
+        )
+
+        async def test_coroutine():
+            return await _process_anthropic_response(
+                client=self.client,
+                response=self.response,
+                request_params=self.request_params,
+                tools=self.tools,
+                tool_dict=self.tool_dict,
+                is_async=self.is_async,
+                post_tool_function=self.post_tool_function,
+            )
+
+        with self.assertRaises(Exception) as context:
+            asyncio.run(test_coroutine())
+
+        self.assertEqual(
+            str(context.exception),
+            f"Consecutive errors during tool chaining: {self.post_tool_function_exception}",
+        )
+        self.assertEqual(
+            self.request_params,
+            {
+                "messages": [
+                    {"role": "user", "content": self.arithmetic_qn},
+                    {"role": "assistant", "content": self.post_tool_function_exception},
+                    {"role": "assistant", "content": self.post_tool_function_exception},
+                ]
+            },
+        )
+
+
+class TestToolChainExceptionsGemini(unittest.TestCase):
+    from google.genai import types
+
+    def setUp(self):
+        self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Always use the tools provided for all calculation, even simple calculations. Return only the final answer, nothing else."
+        self.request_params = {}
+        self.tools = [get_weather, numsum, numprod]
+        self.tool_dict = {
+            "get_weather": get_weather,
+            "numsum": numsum,
+            "numprod": numprod,
+        }
+        self.model = "gpt-models"
+        self.response_format = None
+        self.is_async = False
+        self.post_tool_function = Mock()
+
+        self.response = Mock()
+        self.response.candidates = [Mock()]
+        self.response.usage_metadata = Mock()
+        self.response.usage_metadata.prompt_token_count = 10
+        self.response.usage_metadata.candidates_token_count = 8
+        self.response.function_calls = [Mock()]
+        type(self.response.function_calls[0]).name = PropertyMock(
+            return_value="numprod"
+        )
+        type(self.response.function_calls[0]).args = PropertyMock(
+            return_value={"a": "1"}
+        )
+
+        self.client = Mock()
+        self.client.models = Mock()
+        self.client.models.generate_content = Mock(return_value=self.response)
+        self.messages = [
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=self.arithmetic_qn)],
+            )
+        ]
+
+        self.tool_not_found_exception = "Tool `non_existent_tool` not found"
+        self.tool_execution_exception = (
+            "Error executing tool `numprod`: something failed in tool execution"
+        )
+        self.post_tool_function_exception = "Error executing post_tool_function: something failed in post-tool execution"
+
+    def test_tool_not_found_exception_gemini(self):
+        """
+        Test that an exception is raised when a non-existent tool is consecutively called in the tool chain and error messages are added to the messages list.
+        """
+
+        # Set the tool name in the tool call to a non-existent tool
+        type(self.response.function_calls[0]).name = PropertyMock(
+            return_value="non_existent_tool"
+        )
+
+        async def test_coroutine():
+            return await _process_gemini_response(
+                client=self.client,
+                response=self.response,
+                request_params=self.request_params,
+                messages=self.messages,
+                response_format=self.response_format,
+                tools=self.tools,
+                tool_dict=self.tool_dict,
+                model=self.model,
+                is_async=self.is_async,
+                post_tool_function=self.post_tool_function,
+            )
+
+        with self.assertRaises(Exception) as context:
+            asyncio.run(test_coroutine())
+
+        self.assertEqual(
+            str(context.exception),
+            f"Consecutive errors during tool chaining: {self.tool_not_found_exception}",
+        )
+        self.assertEqual(
+            self.messages,
+            [
+                types.Content(
+                    parts=[
+                        types.Part(
+                            video_metadata=None,
+                            thought=None,
+                            code_execution_result=None,
+                            executable_code=None,
+                            file_data=None,
+                            function_call=None,
+                            function_response=None,
+                            inline_data=None,
+                            text=self.arithmetic_qn,
+                        )
+                    ],
+                    role="user",
+                ),
+                types.Content(
+                    parts=[
+                        types.Part(
+                            video_metadata=None,
+                            thought=None,
+                            code_execution_result=None,
+                            executable_code=None,
+                            file_data=None,
+                            function_call=None,
+                            function_response=None,
+                            inline_data=None,
+                            text=self.tool_not_found_exception,
+                        )
+                    ],
+                    role="model",
+                ),
+                types.Content(
+                    parts=[
+                        types.Part(
+                            video_metadata=None,
+                            thought=None,
+                            code_execution_result=None,
+                            executable_code=None,
+                            file_data=None,
+                            function_call=None,
+                            function_response=None,
+                            inline_data=None,
+                            text=self.tool_not_found_exception,
+                        )
+                    ],
+                    role="model",
+                ),
+            ],
+        )
+
+    @patch(
+        "defog.llm.utils.execute_tool",
+        side_effect=Exception("something failed in tool execution"),
+    )
+    def test_tool_execution_exception_gemini(self, mock_execute_tool):
+        """
+        Test that an exception is raised when the execution of a tool fails consecutively in the tool chain and error messages are added to the messages list.
+        """
+
+        async def test_coroutine():
+            return await _process_gemini_response(
+                client=self.client,
+                response=self.response,
+                request_params=self.request_params,
+                messages=self.messages,
+                response_format=self.response_format,
+                tools=self.tools,
+                tool_dict=self.tool_dict,
+                model=self.model,
+                is_async=self.is_async,
+                post_tool_function=self.post_tool_function,
+            )
+
+        with self.assertRaises(Exception) as context:
+            asyncio.run(test_coroutine())
+
+        self.assertEqual(
+            str(context.exception),
+            f"Consecutive errors during tool chaining: {self.tool_execution_exception}",
+        )
+        self.assertEqual(
+            self.messages,
+            [
+                types.Content(
+                    parts=[
+                        types.Part(
+                            video_metadata=None,
+                            thought=None,
+                            code_execution_result=None,
+                            executable_code=None,
+                            file_data=None,
+                            function_call=None,
+                            function_response=None,
+                            inline_data=None,
+                            text=self.arithmetic_qn,
+                        )
+                    ],
+                    role="user",
+                ),
+                types.Content(
+                    parts=[
+                        types.Part(
+                            video_metadata=None,
+                            thought=None,
+                            code_execution_result=None,
+                            executable_code=None,
+                            file_data=None,
+                            function_call=None,
+                            function_response=None,
+                            inline_data=None,
+                            text=self.tool_execution_exception,
+                        )
+                    ],
+                    role="model",
+                ),
+                types.Content(
+                    parts=[
+                        types.Part(
+                            video_metadata=None,
+                            thought=None,
+                            code_execution_result=None,
+                            executable_code=None,
+                            file_data=None,
+                            function_call=None,
+                            function_response=None,
+                            inline_data=None,
+                            text=self.tool_execution_exception,
+                        )
+                    ],
+                    role="model",
+                ),
+            ],
+        )
+
+    def test_post_tool_function_exception_gemini(self):
+        """
+        Test that an exception is raised when the post-tool function fails consecutively in the tool chain and error messages are added to the messages list.
+        """
+        self.post_tool_function = Mock(
+            side_effect=Exception("something failed in post-tool execution")
+        )
+
+        async def test_coroutine():
+            return await _process_gemini_response(
+                client=self.client,
+                response=self.response,
+                request_params=self.request_params,
+                messages=self.messages,
+                response_format=self.response_format,
+                tools=self.tools,
+                tool_dict=self.tool_dict,
+                model=self.model,
+                is_async=self.is_async,
+                post_tool_function=self.post_tool_function,
+            )
+
+        with self.assertRaises(Exception) as context:
+            asyncio.run(test_coroutine())
+
+        self.assertEqual(
+            str(context.exception),
+            f"Consecutive errors during tool chaining: {self.post_tool_function_exception}",
+        )
+        self.assertEqual(
+            self.messages,
+            [
+                types.Content(
+                    parts=[
+                        types.Part(
+                            video_metadata=None,
+                            thought=None,
+                            code_execution_result=None,
+                            executable_code=None,
+                            file_data=None,
+                            function_call=None,
+                            function_response=None,
+                            inline_data=None,
+                            text=self.arithmetic_qn,
+                        )
+                    ],
+                    role="user",
+                ),
+                types.Content(
+                    parts=[
+                        types.Part(
+                            video_metadata=None,
+                            thought=None,
+                            code_execution_result=None,
+                            executable_code=None,
+                            file_data=None,
+                            function_call=None,
+                            function_response=None,
+                            inline_data=None,
+                            text=self.post_tool_function_exception,
+                        )
+                    ],
+                    role="model",
+                ),
+                types.Content(
+                    parts=[
+                        types.Part(
+                            video_metadata=None,
+                            thought=None,
+                            code_execution_result=None,
+                            executable_code=None,
+                            file_data=None,
+                            function_call=None,
+                            function_response=None,
+                            inline_data=None,
+                            text=self.post_tool_function_exception,
+                        )
+                    ],
+                    role="model",
+                ),
+            ],
         )
