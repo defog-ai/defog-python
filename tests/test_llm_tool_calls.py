@@ -16,6 +16,8 @@ import aiohttp
 from io import StringIO
 import json
 import asyncio
+from anthropic.types import ToolUseBlock
+from google.genai import types
 
 # ==================================================================================================
 # Functions for function calling
@@ -890,7 +892,6 @@ class TestToolChainExceptionsOpenAI(unittest.TestCase):
 
 
 class TestToolChainExceptionsAnthropic(unittest.TestCase):
-    from anthropic.types import ToolUseBlock
 
     def setUp(self):
         self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Always use the tools provided for all calculation, even simple calculations. Return only the final answer, nothing else."
@@ -1049,7 +1050,6 @@ class TestToolChainExceptionsAnthropic(unittest.TestCase):
 
 
 class TestToolChainExceptionsGemini(unittest.TestCase):
-    from google.genai import types
 
     def setUp(self):
         self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Always use the tools provided for all calculation, even simple calculations. Return only the final answer, nothing else."
