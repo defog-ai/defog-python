@@ -236,11 +236,15 @@ async def _process_anthropic_response(
                     try:
                         if inspect.iscoroutinefunction(post_tool_function):
                             await post_tool_function(
-                                function_name=func_name, input_args=args, tool_result=result
+                                function_name=func_name,
+                                input_args=args,
+                                tool_result=result,
                             )
                         else:
                             post_tool_function(
-                                function_name=func_name, input_args=args, tool_result=result
+                                function_name=func_name,
+                                input_args=args,
+                                tool_result=result,
                             )
                     except Exception as e:
                         raise Exception(f"Error executing post-tool function: {e}")
@@ -664,7 +668,11 @@ async def _process_openai_response(
     total_output_tokens = 0
     if tools and len(tools) > 0:
         while True:
-            total_input_tokens += response.usage.prompt_tokens
+            total_input_tokens += (
+                response.usage.prompt_tokens
+                - response.usage.prompt_tokens_details.cached_tokens
+            )
+            total_cached_input_tokens += response.usage.cached_prompt_tokens
             total_output_tokens += response.usage.completion_tokens
             message = response.choices[0].message
             if message.tool_calls:
@@ -695,11 +703,15 @@ async def _process_openai_response(
                     try:
                         if inspect.iscoroutinefunction(post_tool_function):
                             await post_tool_function(
-                                function_name=func_name, input_args=args, tool_result=result
+                                function_name=func_name,
+                                input_args=args,
+                                tool_result=result,
                             )
                         else:
                             post_tool_function(
-                                function_name=func_name, input_args=args, tool_result=result
+                                function_name=func_name,
+                                input_args=args,
+                                tool_result=result,
                             )
                     except Exception as e:
                         raise Exception(f"Error executing post_tool_function: {e}")
@@ -1291,11 +1303,15 @@ async def _process_gemini_response(
                     try:
                         if inspect.iscoroutinefunction(post_tool_function):
                             await post_tool_function(
-                                function_name=func_name, input_args=args, tool_result=result
+                                function_name=func_name,
+                                input_args=args,
+                                tool_result=result,
                             )
                         else:
                             post_tool_function(
-                                function_name=func_name, input_args=args, tool_result=result
+                                function_name=func_name,
+                                input_args=args,
+                                tool_result=result,
                             )
                     except Exception as e:
                         raise Exception(f"Error executing post-tool function: {e}")
