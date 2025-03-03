@@ -133,6 +133,7 @@ def _build_anthropic_params(
     tools: List[Callable] = None,
     tool_choice: str = None,
     timeout: int = 100,
+    response_format=None,
 ):
     """Create the parameter dict for Anthropic's .messages.create()."""
     if len(messages) >= 1 and messages[0].get("role") == "system":
@@ -155,6 +156,35 @@ def _build_anthropic_params(
         "stop_sequences": stop,
         "timeout": timeout,
     }
+    
+    # Handle structured output for Anthropic models
+    if response_format:
+        # Add instructions to the system message to enforce structured output
+        if isinstance(response_format, type) and hasattr(response_format, 'model_json_schema'):
+            schema = response_format.model_json_schema()
+            schema_str = json.dumps(schema, indent=2)
+            
+            # Append structured output instructions to system prompt
+            structured_instruction = f"""
+IMPORTANT: You must respond with ONLY a valid, properly formatted JSON object that conforms to the following JSON schema:
+{schema_str}
+
+RESPONSE FORMAT INSTRUCTIONS:
+1. Your entire response must be ONLY the JSON object, with no additional text before or after.
+2. Format the JSON properly with no line breaks within property values.
+3. Use double quotes for all property names and string values.
+4. Do not add comments or explanations outside the JSON structure.
+5. Ensure all required properties in the schema are included.
+6. Make sure the JSON is properly formatted and can be parsed by standard JSON parsers.
+
+THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS BEFORE OR AFTER.
+"""
+            # Update system message
+            if sys_msg:
+                params["system"] = sys_msg + "\n\n" + structured_instruction
+            else:
+                params["system"] = structured_instruction
+    
     if tools:
         function_specs = get_function_specs(tools, model)
         params["tools"] = function_specs
@@ -175,11 +205,12 @@ async def _process_anthropic_response(
     tools: List[Callable],
     tool_dict: Dict[str, Callable],
     is_async: bool,
+    response_format=None,
     post_tool_function: Callable = None,
 ):
     """
     Extract content (including any tool calls) and usage info from Anthropic response.
-    Handles chaining of tool calls.
+    Handles chaining of tool calls and structured output parsing.
     """
     from anthropic.types import ToolUseBlock, TextBlock
 
@@ -328,6 +359,23 @@ async def _process_anthropic_response(
     else:
         # No tools provided
         content = response.content[0].text
+        
+    # Parse structured output if response_format is provided
+    if response_format and not tools:
+        # Check if response_format is a Pydantic model
+        try:
+            # Extract the raw text response and clean it
+            content = content.strip()
+            print(content)
+            content = json.loads(content)
+
+            # Parse the response into the specified Pydantic model
+            content = response_format.parse_obj(content)
+        except Exception as e:
+            # If parsing fails, return the raw content
+            print(f"Warning: Failed to parse structured output: {e}")
+            # We keep the raw content in this case
+            content = content
 
     usage = response.usage
     total_input_tokens += usage.input_tokens
@@ -342,6 +390,7 @@ def _process_anthropic_response_handler(
     tools: List[Callable],
     tool_dict: Dict[str, Callable],
     is_async: bool = False,
+    response_format=None,
     post_tool_function: Callable = None,
 ):
     """
@@ -356,6 +405,8 @@ def _process_anthropic_response_handler(
     - tools: A list of callable tools available for function calling.
     - tool_dict: A dictionary mapping tool names to their callable functions.
     - is_async: A boolean flag indicating whether to execute asynchronously.
+    - response_format: Optional format specification for structured output.
+    - post_tool_function: Optional function to handle tool responses.
 
     Returns:
     - The processed response content, input tokens, and output tokens from the response.
@@ -369,6 +420,7 @@ def _process_anthropic_response_handler(
                 tools=tools,
                 tool_dict=tool_dict,
                 is_async=is_async,
+                response_format=response_format,
                 post_tool_function=post_tool_function,
             )  # Caller must await this
         else:
@@ -380,6 +432,7 @@ def _process_anthropic_response_handler(
                     tools=tools,
                     tool_dict=tool_dict,
                     is_async=is_async,
+                    response_format=response_format,
                     post_tool_function=post_tool_function,
                 )
             )
@@ -408,7 +461,8 @@ def chat_anthropic(
     - max_completion_tokens: The maximum number of tokens for the completion.
     - temperature: Ranges from 0.0 to 1.0. Defaults to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
     - stop: Custom text sequences that will cause the model to stop generating.
-    - response_format: NA
+    - response_format: Format specification for structured output (Pydantic model).
+        For Anthropic models, this will modify the system message to instruct the model to return valid JSON.
     - seed: NA
     - tools: The list of tools the model may call.
     - tool_choice: Controls which (if any) tool is called by the model.
@@ -436,6 +490,7 @@ def chat_anthropic(
         stop=stop,
         tools=tools,
         tool_choice=tool_choice,
+        response_format=response_format,
     )
 
     # Construct a tool dict if needed
@@ -452,6 +507,7 @@ def chat_anthropic(
             tools=tools,
             tool_dict=tool_dict,
             is_async=False,
+            response_format=response_format,
             post_tool_function=post_tool_function,
         )
     )
@@ -492,7 +548,8 @@ async def chat_anthropic_async(
     - max_completion_tokens: The maximum number of tokens for the completion.
     - temperature: Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
     - stop: Custom text sequences that will cause the model to stop generating.
-    - response_format: NA
+    - response_format: Format specification for structured output (Pydantic model).
+        For Anthropic models, this will modify the system message to instruct the model to return valid JSON.
     - seed: NA
     - tools: The list of tools the model may call.
     - tool_choice: Controls which (if any) tool is called by the model.
@@ -511,6 +568,9 @@ async def chat_anthropic_async(
     """
     from anthropic import AsyncAnthropic
 
+    if post_tool_function:
+        verify_post_tool_function(post_tool_function)
+
     t = time.time()
     client = AsyncAnthropic()
     params, _ = _build_anthropic_params(
@@ -521,6 +581,7 @@ async def chat_anthropic_async(
         stop=stop,
         tools=tools,
         tool_choice=tool_choice,
+        response_format=response_format,
     )
 
     # Construct a tool dict if needed
@@ -537,6 +598,7 @@ async def chat_anthropic_async(
             tools=tools,
             tool_dict=tool_dict,
             is_async=True,
+            response_format=response_format,
             post_tool_function=post_tool_function,
         )
     )
