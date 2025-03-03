@@ -119,7 +119,6 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
                 messages,
                 max_completion_tokens=4000,
                 temperature=0.0,
-                stop=[";"],
                 seed=0,
                 max_retries=1,
             )
@@ -144,7 +143,6 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
                 messages_sql,
                 max_completion_tokens=4000,
                 temperature=0.0,
-                stop=[";"],
                 seed=0,
                 max_retries=1,
             )
@@ -160,7 +158,6 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
                 messages=messages_sql_structured,
                 max_completion_tokens=4000,
                 temperature=0.0,
-                stop=[";"],
                 seed=0,
                 response_format=ResponseFormat,
                 reasoning_effort=effort,
@@ -175,6 +172,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             "gpt-4o",
             "o1",
             "gemini-2.0-flash",
+            "claude-3-7-sonnet-latest",  # Added Anthropic model to test structured output
         ]
         for model in models:
             response = await chat_async(
@@ -182,7 +180,6 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
                 messages_sql_structured,
                 max_completion_tokens=4000,
                 temperature=0.0,
-                stop=[";"],
                 seed=0,
                 response_format=ResponseFormat,
                 max_retries=1,
