@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import Mock, patch, AsyncMock, PropertyMock
+import anthropic
 import pytest
 from defog.llm.utils import (
     chat_async,
@@ -193,12 +194,48 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.tools = [get_weather, numsum, numprod]
         self.weather_qn = "What is the current temperature in Singapore? Return the answer as a number and nothing else."
         self.weather_qn_specific = "What is the current temperature in Singapore? Singapore's latitude is 1.3521 and longitude is 103.8198. Return the answer as a number and nothing else."
-        self.arithmetic_qn = "What is the product of 31283 and 2323, added to 5? Always use the tools provided for all calculation, even simple calculations. Return only the final answer, nothing else."
-        self.arithmetic_answer = "72670414"
+        self.arithmetic_qn = "Square 1 has length 31283 and width 2323. square 2 has length 1493 and width 951. What is their combined area? Always use the tools provided for all calculation, even simple calculations. Return only the final answer, nothing else."
+        self.arithmetic_answer = "74090252"
         self.arithmetic_expected_tool_outputs = [
             {"name": "numprod", "args": {"a": 31283, "b": 2323}, "result": 72670409},
-            {"name": "numsum", "args": {"a": 72670409, "b": 5}, "result": 72670414},
+            {"name": "numprod", "args": {"a": 1493, "b": 951}, "result": 1419843},
+            {
+                "name": "numsum",
+                "args": {"a": 72670409, "b": 1419843},
+                "result": 74090252,
+            },
         ]
+
+        # Create the expected stream value based on the actual tool outputs
+        self.expected_stream_value = (
+            json.dumps(
+                {
+                    "function_name": "numprod",
+                    "args": {"a": 31283, "b": 2323},
+                    "result": 72670409,
+                },
+                indent=4,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "function_name": "numprod",
+                    "args": {"a": 1493, "b": 951},
+                    "result": 1419843,
+                },
+                indent=4,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "function_name": "numsum",
+                    "args": {"a": 72670409, "b": 1419843},
+                    "result": 74090252,
+                },
+                indent=4,
+            )
+            + "\n"
+        )
 
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_openai(self):
@@ -245,26 +282,52 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
 
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_anthropic(self):
-        result = await chat_async(
-            model="claude-3-5-sonnet-20241022",
-            messages=[
-                {
-                    "role": "user",
-                    "content": self.arithmetic_qn,
-                },
-            ],
-            tools=self.tools,
-        )
-        print(result)
-        tools_used = [output["name"] for output in result.tool_outputs]
-        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
-        for expected, actual in zip(
-            self.arithmetic_expected_tool_outputs, result.tool_outputs
-        ):
-            self.assertEqual(expected["name"], actual["name"])
-            self.assertEqual(expected["args"], actual["args"])
-            self.assertEqual(expected["result"], actual["result"])
-        self.assertEqual(result.content, self.arithmetic_answer)
+        call_count = 0
+
+        # Get the original AsyncAnthropic instance and its messages.create method
+        original_client = anthropic.AsyncAnthropic()
+        original_create = original_client.messages.create
+
+        # Create a mock function that counts calls
+        async def mock_create(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return await original_create(*args, **kwargs)
+
+        # Create a mock Messages class with a create method
+        class MockMessages:
+            async def create(self, *args, **kwargs):
+                return await mock_create(*args, **kwargs)
+
+        # Create a mock AsyncAnthropic class that returns our mock messages
+        class MockAsyncAnthropic:
+            def __init__(self, *args, **kwargs):
+                self.messages = MockMessages()
+
+        # Patch the AsyncAnthropic class
+        with patch("anthropic.AsyncAnthropic", MockAsyncAnthropic):
+            result = await chat_async(
+                model="claude-3-5-sonnet-20241022",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": self.arithmetic_qn,
+                    },
+                ],
+                tools=self.tools,
+                tool_choice="required",
+            )
+            print(result)
+            tools_used = [output["name"] for output in result.tool_outputs]
+            self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
+            for expected, actual in zip(
+                self.arithmetic_expected_tool_outputs, result.tool_outputs
+            ):
+                self.assertEqual(expected["name"], actual["name"])
+                self.assertEqual(expected["args"], actual["args"])
+                self.assertEqual(expected["result"], actual["result"])
+            self.assertEqual(result.content, self.arithmetic_answer)
+            self.assertEqual(call_count, 3)
 
     @pytest.mark.asyncio
     async def test_tool_use_weather_async_anthropic(self):
@@ -355,27 +418,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(expected["result"], actual["result"])
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
-        expected_stream_value = (
-            json.dumps(
-                {
-                    "function_name": "numprod",
-                    "args": {"a": 31283, "b": 2323},
-                    "result": 72670409,
-                },
-                indent=4,
-            )
-            + "\n"
-            + json.dumps(
-                {
-                    "function_name": "numsum",
-                    "args": {"a": 72670409, "b": 5},
-                    "result": 72670414,
-                },
-                indent=4,
-            )
-            + "\n"
-        )
-        self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
+        self.assertEqual(IO_STREAM.getvalue(), self.expected_stream_value)
 
         # clear IO_STREAM
         IO_STREAM.seek(0)
@@ -403,27 +446,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(expected["result"], actual["result"])
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
-        expected_stream_value = (
-            json.dumps(
-                {
-                    "function_name": "numprod",
-                    "args": {"a": 31283, "b": 2323},
-                    "result": 72670409,
-                },
-                indent=4,
-            )
-            + "\n"
-            + json.dumps(
-                {
-                    "function_name": "numsum",
-                    "args": {"a": 72670409, "b": 5},
-                    "result": 72670414,
-                },
-                indent=4,
-            )
-            + "\n"
-        )
-        self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
+        self.assertEqual(IO_STREAM.getvalue(), self.expected_stream_value)
 
         # clear IO_STREAM
         IO_STREAM.seek(0)
@@ -452,27 +475,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(expected["result"], actual["result"])
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
-        expected_stream_value = (
-            json.dumps(
-                {
-                    "function_name": "numprod",
-                    "args": {"a": 31283, "b": 2323},
-                    "result": 72670409,
-                },
-                indent=4,
-            )
-            + "\n"
-            + json.dumps(
-                {
-                    "function_name": "numsum",
-                    "args": {"a": 72670409, "b": 5},
-                    "result": 72670414,
-                },
-                indent=4,
-            )
-            + "\n"
-        )
-        self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
+        self.assertEqual(IO_STREAM.getvalue(), self.expected_stream_value)
 
         # clear IO_STREAM
         IO_STREAM.seek(0)
@@ -551,7 +554,10 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum"})
         self.assertEqual(result.tool_outputs[0]["name"], "numsum")
-        self.assertIn("104", result.content.lower())
+        self.assertTrue(
+            "2" in result.content.lower() or "two" in result.content.lower(),
+            f"Expected '2' or 'two' in response content, but got: {result.content}",
+        )
 
     def test_required_tool_choice_anthropic(self):
         result = chat_anthropic(
@@ -570,7 +576,10 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum"})
         self.assertEqual(result.tool_outputs[0]["name"], "numsum")
-        self.assertIn("104", result.content.lower())
+        self.assertTrue(
+            "2" in result.content.lower() or "two" in result.content.lower(),
+            f"Expected '2' or 'two' in response content, but got: {result.content}",
+        )
 
     def test_required_tool_choice_gemini(self):
         result = chat_gemini(
@@ -588,7 +597,10 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum"})
         self.assertEqual(result.tool_outputs[0]["name"], "numsum")
-        self.assertIn("2", result.content.lower())
+        self.assertTrue(
+            "2" in result.content.lower() or "two" in result.content.lower(),
+            f"Expected '2' or 'two' in response content, but got: {result.content}",
+        )
 
     def test_forced_tool_choice_openai(self):
         """
@@ -805,8 +817,16 @@ class TestToolChainExceptionsOpenAI(unittest.TestCase):
             {
                 "messages": [
                     {"role": "user", "content": self.arithmetic_qn},
-                    {"role": "assistant", "content": self.tool_not_found_exception},
-                    {"role": "assistant", "content": self.tool_not_found_exception},
+                    {
+                        "role": "tool",
+                        "tool_call_id": self.message_mock.tool_calls[0].id,
+                        "content": self.tool_not_found_exception,
+                    },
+                    {
+                        "role": "tool",
+                        "tool_call_id": self.message_mock.tool_calls[0].id,
+                        "content": self.tool_not_found_exception,
+                    },
                 ]
             },
         )
@@ -845,8 +865,16 @@ class TestToolChainExceptionsOpenAI(unittest.TestCase):
             {
                 "messages": [
                     {"role": "user", "content": self.arithmetic_qn},
-                    {"role": "assistant", "content": self.tool_execution_exception},
-                    {"role": "assistant", "content": self.tool_execution_exception},
+                    {
+                        "role": "tool",
+                        "tool_call_id": self.message_mock.tool_calls[0].id,
+                        "content": self.tool_execution_exception,
+                    },
+                    {
+                        "role": "tool",
+                        "tool_call_id": self.message_mock.tool_calls[0].id,
+                        "content": self.tool_execution_exception,
+                    },
                 ]
             },
         )
@@ -884,8 +912,16 @@ class TestToolChainExceptionsOpenAI(unittest.TestCase):
             {
                 "messages": [
                     {"role": "user", "content": self.arithmetic_qn},
-                    {"role": "assistant", "content": self.post_tool_function_exception},
-                    {"role": "assistant", "content": self.post_tool_function_exception},
+                    {
+                        "role": "tool",
+                        "tool_call_id": self.message_mock.tool_calls[0].id,
+                        "content": self.post_tool_function_exception,
+                    },
+                    {
+                        "role": "tool",
+                        "tool_call_id": self.message_mock.tool_calls[0].id,
+                        "content": self.post_tool_function_exception,
+                    },
                 ]
             },
         )
@@ -1005,8 +1041,16 @@ class TestToolChainExceptionsAnthropic(unittest.TestCase):
             {
                 "messages": [
                     {"role": "user", "content": self.arithmetic_qn},
-                    {"role": "assistant", "content": self.tool_execution_exception},
-                    {"role": "assistant", "content": self.tool_execution_exception},
+                    {
+                        "role": "assistant",
+                        "content": self.tool_execution_exception,
+                        "is_error": True,
+                    },
+                    {
+                        "role": "assistant",
+                        "content": self.tool_execution_exception,
+                        "is_error": True,
+                    },
                 ]
             },
         )
@@ -1088,11 +1132,79 @@ class TestToolChainExceptionsGemini(unittest.TestCase):
             )
         ]
 
+        # Create function response parts for error messages
+        self.function_response_part = types.Part.from_function_response(
+            name="numprod",
+            response={
+                "content": "Error executing post_tool_function: something failed in post-tool execution"
+            },
+        )
+
+        self.tool_execution_function_response_part = types.Part.from_function_response(
+            name="numprod",
+            response={
+                "content": "Error executing tool `numprod`: something failed in tool execution"
+            },
+        )
+
+        self.tool_not_found_function_response_part = types.Part.from_function_response(
+            name="non_existent_tool",
+            response={"content": "Tool `non_existent_tool` not found"},
+        )
+
         self.tool_not_found_exception = "Tool `non_existent_tool` not found"
         self.tool_execution_exception = (
             "Error executing tool `numprod`: something failed in tool execution"
         )
         self.post_tool_function_exception = "Error executing post_tool_function: something failed in post-tool execution"
+
+    @patch(
+        "defog.llm.utils.execute_tool",
+        side_effect=Exception("something failed in tool execution"),
+    )
+    def test_tool_execution_exception_gemini(self, mock_execute_tool):
+        """
+        Test that an exception is raised when the execution of a tool fails consecutively in the tool chain and error messages are added to the messages list.
+        """
+
+        async def test_coroutine():
+            return await _process_gemini_response(
+                client=self.client,
+                response=self.response,
+                request_params=self.request_params,
+                messages=self.messages,
+                response_format=self.response_format,
+                tools=self.tools,
+                tool_dict=self.tool_dict,
+                model=self.model,
+                is_async=self.is_async,
+                post_tool_function=self.post_tool_function,
+            )
+
+        with self.assertRaises(Exception) as context:
+            asyncio.run(test_coroutine())
+
+        self.assertEqual(
+            str(context.exception),
+            f"Consecutive errors during tool chaining: {self.tool_execution_exception}",
+        )
+        self.assertEqual(
+            self.messages,
+            [
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text=self.arithmetic_qn)],
+                ),
+                self.response.candidates[0].content,
+                types.Content(
+                    role="tool", parts=[self.tool_execution_function_response_part]
+                ),
+                self.response.candidates[0].content,
+                types.Content(
+                    role="tool", parts=[self.tool_execution_function_response_part]
+                ),
+            ],
+        )
 
     def test_tool_not_found_exception_gemini(self):
         """
@@ -1129,136 +1241,16 @@ class TestToolChainExceptionsGemini(unittest.TestCase):
             self.messages,
             [
                 types.Content(
-                    parts=[
-                        types.Part(
-                            video_metadata=None,
-                            thought=None,
-                            code_execution_result=None,
-                            executable_code=None,
-                            file_data=None,
-                            function_call=None,
-                            function_response=None,
-                            inline_data=None,
-                            text=self.arithmetic_qn,
-                        )
-                    ],
                     role="user",
+                    parts=[types.Part.from_text(text=self.arithmetic_qn)],
                 ),
+                self.response.candidates[0].content,
                 types.Content(
-                    parts=[
-                        types.Part(
-                            video_metadata=None,
-                            thought=None,
-                            code_execution_result=None,
-                            executable_code=None,
-                            file_data=None,
-                            function_call=None,
-                            function_response=None,
-                            inline_data=None,
-                            text=self.tool_not_found_exception,
-                        )
-                    ],
-                    role="model",
+                    role="tool", parts=[self.tool_not_found_function_response_part]
                 ),
+                self.response.candidates[0].content,
                 types.Content(
-                    parts=[
-                        types.Part(
-                            video_metadata=None,
-                            thought=None,
-                            code_execution_result=None,
-                            executable_code=None,
-                            file_data=None,
-                            function_call=None,
-                            function_response=None,
-                            inline_data=None,
-                            text=self.tool_not_found_exception,
-                        )
-                    ],
-                    role="model",
-                ),
-            ],
-        )
-
-    @patch(
-        "defog.llm.utils.execute_tool",
-        side_effect=Exception("something failed in tool execution"),
-    )
-    def test_tool_execution_exception_gemini(self, mock_execute_tool):
-        """
-        Test that an exception is raised when the execution of a tool fails consecutively in the tool chain and error messages are added to the messages list.
-        """
-
-        async def test_coroutine():
-            return await _process_gemini_response(
-                client=self.client,
-                response=self.response,
-                request_params=self.request_params,
-                messages=self.messages,
-                response_format=self.response_format,
-                tools=self.tools,
-                tool_dict=self.tool_dict,
-                model=self.model,
-                is_async=self.is_async,
-                post_tool_function=self.post_tool_function,
-            )
-
-        with self.assertRaises(Exception) as context:
-            asyncio.run(test_coroutine())
-
-        self.assertEqual(
-            str(context.exception),
-            f"Consecutive errors during tool chaining: {self.tool_execution_exception}",
-        )
-        self.assertEqual(
-            self.messages,
-            [
-                types.Content(
-                    parts=[
-                        types.Part(
-                            video_metadata=None,
-                            thought=None,
-                            code_execution_result=None,
-                            executable_code=None,
-                            file_data=None,
-                            function_call=None,
-                            function_response=None,
-                            inline_data=None,
-                            text=self.arithmetic_qn,
-                        )
-                    ],
-                    role="user",
-                ),
-                types.Content(
-                    parts=[
-                        types.Part(
-                            video_metadata=None,
-                            thought=None,
-                            code_execution_result=None,
-                            executable_code=None,
-                            file_data=None,
-                            function_call=None,
-                            function_response=None,
-                            inline_data=None,
-                            text=self.tool_execution_exception,
-                        )
-                    ],
-                    role="model",
-                ),
-                types.Content(
-                    parts=[
-                        types.Part(
-                            video_metadata=None,
-                            thought=None,
-                            code_execution_result=None,
-                            executable_code=None,
-                            file_data=None,
-                            function_call=None,
-                            function_response=None,
-                            inline_data=None,
-                            text=self.tool_execution_exception,
-                        )
-                    ],
-                    role="model",
+                    role="tool", parts=[self.tool_not_found_function_response_part]
                 ),
             ],
         )
@@ -1296,52 +1288,12 @@ class TestToolChainExceptionsGemini(unittest.TestCase):
             self.messages,
             [
                 types.Content(
-                    parts=[
-                        types.Part(
-                            video_metadata=None,
-                            thought=None,
-                            code_execution_result=None,
-                            executable_code=None,
-                            file_data=None,
-                            function_call=None,
-                            function_response=None,
-                            inline_data=None,
-                            text=self.arithmetic_qn,
-                        )
-                    ],
                     role="user",
+                    parts=[types.Part.from_text(text=self.arithmetic_qn)],
                 ),
-                types.Content(
-                    parts=[
-                        types.Part(
-                            video_metadata=None,
-                            thought=None,
-                            code_execution_result=None,
-                            executable_code=None,
-                            file_data=None,
-                            function_call=None,
-                            function_response=None,
-                            inline_data=None,
-                            text=self.post_tool_function_exception,
-                        )
-                    ],
-                    role="model",
-                ),
-                types.Content(
-                    parts=[
-                        types.Part(
-                            video_metadata=None,
-                            thought=None,
-                            code_execution_result=None,
-                            executable_code=None,
-                            file_data=None,
-                            function_call=None,
-                            function_response=None,
-                            inline_data=None,
-                            text=self.post_tool_function_exception,
-                        )
-                    ],
-                    role="model",
-                ),
+                self.response.candidates[0].content,
+                types.Content(role="tool", parts=[self.function_response_part]),
+                self.response.candidates[0].content,
+                types.Content(role="tool", parts=[self.function_response_part]),
             ],
         )

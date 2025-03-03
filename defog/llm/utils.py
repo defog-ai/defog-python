@@ -5,6 +5,7 @@ import traceback
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Union, Callable
 
+from defog.llm.models import Provider
 from defog.llm.utils_function_calling import (
     get_function_specs,
     convert_tool_choice,
@@ -183,6 +184,8 @@ async def _process_anthropic_response(
     """
     from anthropic.types import ToolUseBlock, TextBlock
 
+    print("Processing anthropic response:\n", response)
+
     if response.stop_reason == "max_tokens":
         raise Exception("Max tokens reached")
     if len(response.content) == 0:
@@ -194,140 +197,145 @@ async def _process_anthropic_response(
     total_output_tokens = 0
     if tools and len(tools) > 0:
         consecutive_exceptions = 0
+        # This while loop will continue until the LLM has decided no more tool calls are needed
         while True:
             total_input_tokens += response.usage.input_tokens
             total_output_tokens += response.usage.output_tokens
-            # Check if the response contains a tool call
-            tool_call_block = next(
-                (
-                    block
-                    for block in response.content
-                    if isinstance(block, ToolUseBlock)
-                ),
-                None,
-            )
-            text_block = next(
-                (block for block in response.content if isinstance(block, TextBlock)),
-                None,
-            )
-            if tool_call_block:
-                try:
+            text_block = None
+            has_tool_call = False
+            for block in response.content:
+                if isinstance(block, TextBlock):
+                    text_block = block
+                elif isinstance(block, ToolUseBlock):
+                    tool_call_block = block
+                    has_tool_call = True
                     try:
-                        func_name = tool_call_block.name
-                        args = tool_call_block.input
-                        tool_id = tool_call_block.id
-                    except Exception as e:
-                        raise Exception(f"Error parsing tool call: {e}")
-
-                    tool_to_call = tool_dict.get(func_name)
-                    if tool_to_call is None:
-                        raise Exception(f"Tool `{func_name}` not found")
-
-                    # Execute tool depending on whether it is async
-                    try:
-                        if inspect.iscoroutinefunction(tool_to_call):
-                            result = await execute_tool_async(tool_to_call, args)
-                        else:
-                            result = execute_tool(tool_to_call, args)
-                    except Exception as e:
-                        raise Exception(f"Error executing tool `{func_name}`: {e}")
-
-                    # Execute post-tool function if provided
-                    if post_tool_function:
                         try:
-                            if inspect.iscoroutinefunction(post_tool_function):
-                                await post_tool_function(
-                                    function_name=func_name,
-                                    input_args=args,
-                                    tool_result=result,
-                                )
-                            else:
-                                post_tool_function(
-                                    function_name=func_name,
-                                    input_args=args,
-                                    tool_result=result,
-                                )
+                            func_name = tool_call_block.name
+                            args = tool_call_block.input
+                            tool_id = tool_call_block.id
                         except Exception as e:
-                            raise Exception(f"Error executing post_tool_function: {e}")
+                            raise Exception(f"Error parsing tool call: {e}")
 
-                    # Reset consecutive_exceptions when tool call is successful
-                    consecutive_exceptions = 0
+                        tool_to_call = tool_dict.get(func_name)
+                        if tool_to_call is None:
+                            raise Exception(f"Tool `{func_name}` not found")
 
-                    # Store the tool call, result, and text
-                    tool_outputs.append(
-                        {
-                            "tool_call_id": tool_id,
-                            "name": func_name,
-                            "args": args,
-                            "result": result,
-                            "text": text_block.text if text_block else None,
-                        }
-                    )
+                        # Execute tool depending on whether it is async
+                        try:
+                            if inspect.iscoroutinefunction(tool_to_call):
+                                result = await execute_tool_async(tool_to_call, args)
+                            else:
+                                result = execute_tool(tool_to_call, args)
+                        except Exception as e:
+                            raise Exception(f"Error executing tool `{func_name}`: {e}")
 
-                    # Append the tool call as an assistant response
-                    request_params["messages"].append(
-                        {
-                            "role": "assistant",
-                            "content": [
-                                {
-                                    "type": "tool_use",
-                                    "id": tool_id,
-                                    "name": func_name,
-                                    "input": args,
-                                }
-                            ],
-                        }
-                    )
+                        # Execute post-tool function if provided
+                        if post_tool_function:
+                            try:
+                                if inspect.iscoroutinefunction(post_tool_function):
+                                    await post_tool_function(
+                                        function_name=func_name,
+                                        input_args=args,
+                                        tool_result=result,
+                                    )
+                                else:
+                                    post_tool_function(
+                                        function_name=func_name,
+                                        input_args=args,
+                                        tool_result=result,
+                                    )
+                            except Exception as e:
+                                raise Exception(
+                                    f"Error executing post_tool_function: {e}"
+                                )
 
-                    # Append the tool result as a user response
-                    request_params["messages"].append(
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": tool_id,
-                                    "content": str(result),
-                                }
-                            ],
-                        }
-                    )
+                        # Reset consecutive_exceptions when tool call is successful
+                        consecutive_exceptions = 0
 
-                    # Set tool_choice to "auto" so that the next message will be generated normally
-                    request_params["tool_choice"] = (
-                        {"type": "auto"}
-                        if request_params["tool_choice"] != "auto"
-                        else None
-                    )
-                except Exception as e:
-                    consecutive_exceptions += 1
+                        # Store the tool call, result, and text
+                        tool_outputs.append(
+                            {
+                                "tool_call_id": tool_id,
+                                "name": func_name,
+                                "args": args,
+                                "result": result,
+                                "text": text_block.text if text_block else None,
+                            }
+                        )
 
-                    # Break the loop if consecutive exceptions exceed the threshold
-                    if consecutive_exceptions >= 3:
-                        raise Exception(f"Consecutive errors during tool chaining: {e}")
+                        # Append the tool call as an assistant response
+                        request_params["messages"].append(
+                            {
+                                "role": "assistant",
+                                "content": [
+                                    {
+                                        "type": "tool_use",
+                                        "id": tool_id,
+                                        "name": func_name,
+                                        "input": args,
+                                    }
+                                ],
+                            }
+                        )
 
-                    print(f"{e}. Retries left: {3 - consecutive_exceptions}")
+                        # Append the tool result as a user response
+                        request_params["messages"].append(
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "tool_result",
+                                        "tool_use_id": tool_id,
+                                        "content": str(result),
+                                    }
+                                ],
+                            }
+                        )
 
-                    # Append error message to request_params and retry
-                    request_params["messages"].append(
-                        {
-                            "role": "assistant",
-                            "content": str(e),
-                        }
-                    )
+                        # Set tool_choice to "auto" so that the next message will be generated normally
+                        request_params["tool_choice"] = (
+                            {"type": "auto"}
+                            if request_params["tool_choice"] != "auto"
+                            else None
+                        )
+                    except Exception as e:
+                        consecutive_exceptions += 1
 
-                # Make next call
+                        # Break the loop if consecutive exceptions exceed the threshold
+                        if consecutive_exceptions >= 3:
+                            raise Exception(
+                                f"Consecutive errors during tool chaining: {e}"
+                            )
+
+                        print(f"{e}. Retries left: {3 - consecutive_exceptions}")
+
+                        # Append error message to request_params and retry
+                        request_params["messages"].append(
+                            {
+                                "role": "assistant",
+                                "content": str(e),
+                                "is_error": True,
+                            }
+                        )
+
+            # Make next call
+            if has_tool_call:
                 if is_async:
+                    print(
+                        "Making async call to messages.create with request_params: ",
+                        request_params,
+                    )
                     response = await client.messages.create(**request_params)
                 else:
                     response = client.messages.create(**request_params)
             else:
-                # Break out of loop when tool calls are finished
-                content = response.content[0].text
+                # Break out of while loop when tool calls are finished
                 break
-    else:
-        # No tools provided
         content = response.content[0].text
+        content = response.content[0].text
+
+    content = response.content[0].text
 
     usage = response.usage
     total_input_tokens += usage.input_tokens
@@ -698,104 +706,121 @@ async def _process_openai_response(
             )
             total_output_tokens += response.usage.completion_tokens
             message = response.choices[0].message
+            has_tool_calls = False
             if message.tool_calls:
-                try:
-                    tool_call = message.tool_calls[0]
-                    func_name = tool_call.function.name
-                    tool_call_id = tool_call.id
+                for tool_call in message.tool_calls:
                     try:
-                        args = json.loads(tool_call.function.arguments)
-                    except json.JSONDecodeError:
-                        args = {}
-
-                    tool_to_call = tool_dict.get(func_name)
-                    if tool_to_call is None:
-                        raise Exception(f"Tool `{func_name}` not found")
-
-                    # Execute tool depending on whether it is async
-                    try:
-                        if inspect.iscoroutinefunction(tool_to_call):
-                            result = await execute_tool_async(tool_to_call, args)
-                        else:
-                            result = execute_tool(tool_to_call, args)
-                    except Exception as e:
-                        raise Exception(f"Error executing tool `{func_name}`: {e}")
-
-                    # Execute post-tool function if provided
-                    if post_tool_function:
+                        has_tool_calls = True
+                        func_name = tool_call.function.name
+                        tool_call_id = tool_call.id
                         try:
-                            if inspect.iscoroutinefunction(post_tool_function):
-                                await post_tool_function(
-                                    function_name=func_name,
-                                    input_args=args,
-                                    tool_result=result,
-                                )
+                            args = json.loads(tool_call.function.arguments)
+                        except json.JSONDecodeError:
+                            args = {}
+
+                        tool_to_call = tool_dict.get(func_name)
+                        if tool_to_call is None:
+                            raise Exception(f"Tool `{func_name}` not found")
+
+                        # Execute tool depending on whether it is async
+                        try:
+                            if inspect.iscoroutinefunction(tool_to_call):
+                                result = await execute_tool_async(tool_to_call, args)
                             else:
-                                post_tool_function(
-                                    function_name=func_name,
-                                    input_args=args,
-                                    tool_result=result,
-                                )
+                                result = execute_tool(tool_to_call, args)
                         except Exception as e:
-                            raise Exception(f"Error executing post_tool_function: {e}")
+                            raise Exception(f"Error executing tool `{func_name}`: {e}")
 
-                    # Reset consecutive_exceptions when tool call is successful
-                    consecutive_exceptions = 0
+                        # Execute post-tool function if provided
+                        if post_tool_function:
+                            try:
+                                if inspect.iscoroutinefunction(post_tool_function):
+                                    await post_tool_function(
+                                        function_name=func_name,
+                                        input_args=args,
+                                        tool_result=result,
+                                    )
+                                else:
+                                    post_tool_function(
+                                        function_name=func_name,
+                                        input_args=args,
+                                        tool_result=result,
+                                    )
+                            except Exception as e:
+                                raise Exception(
+                                    f"Error executing post_tool_function: {e}"
+                                )
 
-                    # Store the tool call, result, and text
-                    tool_outputs.append(
-                        {
-                            "tool_call_id": tool_call_id,
-                            "name": func_name,
-                            "args": args,
-                            "result": result,
-                            "text": message.content if message.content else None,
-                        }
-                    )
+                        # Reset consecutive_exceptions when tool call is successful
+                        consecutive_exceptions = 0
 
-                    # Append the tool calls as an assistant response
-                    request_params["messages"].append(
-                        {
-                            "role": "assistant",
-                            "tool_calls": message.tool_calls,
-                        }
-                    )
+                        # Store the tool call, result, and text
+                        tool_outputs.append(
+                            {
+                                "tool_call_id": tool_call_id,
+                                "name": func_name,
+                                "args": args,
+                                "result": result,
+                                "text": message.content if message.content else None,
+                            }
+                        )
 
-                    # Append the tool message
-                    request_params["messages"].append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "content": str(result),
-                        }
-                    )
+                        # Append the tool calls as an assistant response
+                        request_params["messages"].append(
+                            {
+                                "role": "assistant",
+                                "tool_calls": message.tool_calls,
+                            }
+                        )
 
-                    # Set tool_choice to "auto" so that the next message will be generated normally
-                    request_params["tool_choice"] = (
-                        "auto" if request_params["tool_choice"] != "auto" else None
-                    )
-                except Exception as e:
-                    consecutive_exceptions += 1
+                        # Append the tool result
+                        request_params["messages"].append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": str(result),
+                            }
+                        )
 
-                    # Break the loop if consecutive exceptions exceed the threshold
-                    if consecutive_exceptions >= 3:
-                        raise Exception(f"Consecutive errors during tool chaining: {e}")
+                        # Set tool_choice to "auto" so that the next message will be generated normally
+                        request_params["tool_choice"] = (
+                            "auto" if request_params["tool_choice"] != "auto" else None
+                        )
+                    except Exception as e:
+                        consecutive_exceptions += 1
 
-                    print(f"{e}. Retries left: {3 - consecutive_exceptions}")
+                        # Break the loop if consecutive exceptions exceed the threshold
+                        if consecutive_exceptions >= 3:
+                            raise Exception(
+                                f"Consecutive errors during tool chaining: {e}"
+                            )
 
-                    # Append error message to request_params and retry
-                    request_params["messages"].append(
-                        {
-                            "role": "assistant",
-                            "content": str(e),
-                        }
-                    )
+                        print(f"{e}. Retries left: {3 - consecutive_exceptions}")
 
-                # Make next call
-                if is_async:
-                    response = await client.chat.completions.create(**request_params)
+                        # Append error message to request_params and retry
+                        request_params["messages"].append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": str(e),
+                            }
+                        )
+                print(f"has_tool_calls: {has_tool_calls}")
+                # Make next call if has tool_calls
+                if has_tool_calls:
+                    if is_async:
+                        print(f"Calling chat.completions asynchronously")
+                        for message in request_params["messages"]:
+                            print(f"\t{message}")
+                        response = await client.chat.completions.create(
+                            **request_params
+                        )
+                    else:
+                        response = client.chat.completions.create(**request_params)
                 else:
-                    response = client.chat.completions.create(**request_params)
+                    # Break out of loop when tool calls are finished
+                    content = message.content
+                    break
             else:
                 # Break out of loop when tool calls are finished
                 content = message.content
@@ -1301,7 +1326,6 @@ async def _process_gemini_response(
     """Extract content (including any tool calls) and usage info from Gemini response.
     Handles chaining of tool calls.
     """
-
     from google.genai import types
 
     if len(response.candidates) == 0:
@@ -1318,105 +1342,108 @@ async def _process_gemini_response(
         while True:
             total_input_tokens += response.usage_metadata.prompt_token_count
             total_output_tokens += response.usage_metadata.candidates_token_count
+            has_tool_calls = False
             if response.function_calls:
-                try:
-                    tool_call = response.function_calls[0]
-                    func_name = tool_call.name
-                    args = tool_call.args
-
-                    # set tool_id to None, as Gemini models do not return a tool_id by default
-                    # strangely, tool_call.id exists, but is always set to `None`
-                    tool_id = None
-
-                    tool_to_call = tool_dict.get(func_name)
-                    if tool_to_call is None:
-                        raise Exception(f"Tool `{func_name}` not found")
-
-                    # Execute tool depending on whether it is async
+                function_responses = []
+                for tool_call in response.function_calls:
                     try:
-                        if inspect.iscoroutinefunction(tool_to_call):
-                            result = await execute_tool_async(tool_to_call, args)
-                        else:
-                            result = execute_tool(tool_to_call, args)
-                    except Exception as e:
-                        raise Exception(f"Error executing tool `{func_name}`: {e}")
+                        print(f"Tool call: {tool_call}")
+                        has_tool_calls = True
+                        func_name = tool_call.name
+                        args = tool_call.args
 
-                    # Execute post-tool function if provided
-                    if post_tool_function:
+                        # set tool_id to None, as Gemini models do not return a tool_id by default
+                        # strangely, tool_call.id exists, but is always set to `None`
+                        tool_id = None
+
+                        tool_to_call = tool_dict.get(func_name)
+                        if tool_to_call is None:
+                            raise Exception(f"Tool `{func_name}` not found")
+
+                        # Execute tool depending on whether it is async
                         try:
-                            if inspect.iscoroutinefunction(post_tool_function):
-                                await post_tool_function(
-                                    function_name=func_name,
-                                    input_args=args,
-                                    tool_result=result,
-                                )
+                            if inspect.iscoroutinefunction(tool_to_call):
+                                result = await execute_tool_async(tool_to_call, args)
                             else:
-                                post_tool_function(
-                                    function_name=func_name,
-                                    input_args=args,
-                                    tool_result=result,
-                                )
+                                result = execute_tool(tool_to_call, args)
                         except Exception as e:
-                            raise Exception(f"Error executing post_tool_function: {e}")
+                            raise Exception(f"Error executing tool `{func_name}`: {e}")
 
-                    # Reset consecutive_exceptions when tool call is successful
-                    consecutive_exceptions = 0
-
-                    # Store the tool call, result, and text
-                    try:
-                        text = response.text
-                    except Exception as e:
-                        text = None
-                    tool_outputs.append(
-                        {
-                            "tool_id": tool_id,
-                            "name": func_name,
-                            "args": args,
-                            "result": result,
-                            "text": text,
-                        }
-                    )
-
-                    # Append the tool call content to messages
-                    tool_call_content = response.candidates[0].content
-                    messages.append(tool_call_content)
-
-                    # Append the tool result to messages
-                    messages.append(
-                        types.Content(
-                            role="tool",
-                            parts=[
-                                types.Part.from_function_response(
-                                    name=func_name,
-                                    response={"result": str(result)},
+                        # Execute post-tool function if provided
+                        if post_tool_function:
+                            try:
+                                if inspect.iscoroutinefunction(post_tool_function):
+                                    await post_tool_function(
+                                        function_name=func_name,
+                                        input_args=args,
+                                        tool_result=result,
+                                    )
+                                else:
+                                    post_tool_function(
+                                        function_name=func_name,
+                                        input_args=args,
+                                        tool_result=result,
+                                    )
+                            except Exception as e:
+                                raise Exception(
+                                    f"Error executing post_tool_function: {e}"
                                 )
-                            ],
+
+                        # Reset consecutive_exceptions when tool call is successful
+                        consecutive_exceptions = 0
+
+                        # Store the tool call, result, and text
+                        try:
+                            text = response.text
+                        except Exception as e:
+                            text = None
+                        tool_outputs.append(
+                            {
+                                "name": func_name,
+                                "args": args,
+                                "result": result,
+                                "text": text,
+                            }
                         )
-                    )
 
-                    # Set tool_choice to AUTO so that the next message will be generated normally without required tool calls
-                    request_params["automatic_function_calling"] = (
-                        types.AutomaticFunctionCallingConfig(disable=False)
-                    )
-                    request_params["tool_config"] = types.ToolConfig(
-                        function_calling_config=types.FunctionCallingConfig(mode="AUTO")
-                    )
-                except Exception as e:
-                    consecutive_exceptions += 1
-
-                    # Break the loop if consecutive exceptions exceed the threshold
-                    if consecutive_exceptions >= 3:
-                        raise Exception(f"Consecutive errors during tool chaining: {e}")
-
-                    print(f"{e}. Retries left: {3 - consecutive_exceptions}")
-
-                    # Append error message to messages and retry
-                    messages.append(
-                        types.Content(
-                            role="model",
-                            parts=[types.Part.from_text(text=str(e))],
+                        function_responses.append(
+                            types.Part.from_function_response(
+                                name=func_name,
+                                response={"content": str(result)},
+                            )
                         )
-                    )
+                    except Exception as e:
+                        consecutive_exceptions += 1
+
+                        # Append error message to messages and retry
+                        function_responses.append(
+                            types.Part.from_function_response(
+                                name=func_name,
+                                response={"content": str(e)},
+                            )
+                        )
+
+                        # Break the loop if consecutive exceptions exceed the threshold
+                        if consecutive_exceptions >= 3:
+                            raise Exception(
+                                f"Consecutive errors during tool chaining: {e}"
+                            )
+
+                        print(f"{e}. Retries left: {3 - consecutive_exceptions}")
+
+                messages.append(response.candidates[0].content)
+
+                # Combine function responses into a single message
+                messages.append(types.Content(role="tool", parts=function_responses))
+
+                # Set tool_choice to AUTO so that the next message will have the
+                # option to not return a tool call (i.e. a normal text response)
+                request_params["automatic_function_calling"] = (
+                    types.AutomaticFunctionCallingConfig(disable=False)
+                )
+                request_params["tool_config"] = types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(mode="AUTO")
+                )
 
                 # Make next call
                 if is_async:
@@ -1431,7 +1458,7 @@ async def _process_gemini_response(
                         contents=messages,
                         config=types.GenerateContentConfig(**request_params),
                     )
-            else:
+            if not has_tool_calls:
                 # Break out of loop when tool calls are finished
                 content = response.text.strip() if response.text else None
                 break
@@ -1458,7 +1485,7 @@ def _process_gemini_response_handler(
     client,
     response,
     request_params: Dict[str, Any],
-    messages: List,
+    messages: List[Dict[str, str]],
     tools: List[Callable],
     tool_dict: Dict[str, Callable],
     response_format,
@@ -1589,10 +1616,10 @@ def chat_gemini(
         client=client,
         response=response,
         request_params=request_params,
+        messages=messages,
         tools=tools,
         tool_dict=tool_dict,
         response_format=response_format,
-        messages=messages,
         model=model,
         is_async=False,
         post_tool_function=post_tool_function,
@@ -1717,28 +1744,40 @@ async def chat_gemini_async(
     )
 
 
-def map_model_to_chat_fn_async(model: str) -> Callable:
-    """
-    Returns the appropriate chat function based on the model.
-    """
+def map_model_to_provider(model: str) -> Provider:
     if model.startswith("claude"):
-        return chat_anthropic_async
+        return Provider.ANTHROPIC
     if model.startswith("gemini"):
-        return chat_gemini_async
+        return Provider.GEMINI
     if (
         model.startswith("gpt")
         or model.startswith("o1")
         or model.startswith("chatgpt")
         or model.startswith("o3")
+        or model.startswith("deepseek")
     ):
-        return chat_openai_async
-    if model.startswith("deepseek"):
-        return chat_openai_async
+        return Provider.OPENAI
     if (
         model.startswith("meta-llama")
         or model.startswith("mistralai")
         or model.startswith("Qwen")
     ):
+        return Provider.TOGETHER
+    raise ValueError(f"Unknown model: {model}")
+
+
+def map_model_to_chat_fn_async(model: str) -> Callable:
+    """
+    Returns the appropriate chat function based on the model.
+    """
+    provider = map_model_to_provider(model)
+    if provider == Provider.ANTHROPIC:
+        return chat_anthropic_async
+    if provider == Provider.GEMINI:
+        return chat_gemini_async
+    if provider == Provider.OPENAI:
+        return chat_openai_async
+    if provider == Provider.TOGETHER:
         return chat_together_async
     raise ValueError(f"Unknown model: {model}")
 
