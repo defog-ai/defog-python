@@ -156,14 +156,16 @@ def _build_anthropic_params(
         "stop_sequences": stop,
         "timeout": timeout,
     }
-    
+
     # Handle structured output for Anthropic models
     if response_format:
         # Add instructions to the system message to enforce structured output
-        if isinstance(response_format, type) and hasattr(response_format, 'model_json_schema'):
+        if isinstance(response_format, type) and hasattr(
+            response_format, "model_json_schema"
+        ):
             schema = response_format.model_json_schema()
             schema_str = json.dumps(schema, indent=2)
-            
+
             # Append structured output instructions to system prompt
             structured_instruction = f"""
 IMPORTANT: You must respond with ONLY a valid, properly formatted JSON object that conforms to the following JSON schema:
@@ -184,7 +186,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 params["system"] = sys_msg + "\n\n" + structured_instruction
             else:
                 params["system"] = structured_instruction
-    
+
     if tools:
         function_specs = get_function_specs(tools, model)
         params["tools"] = function_specs
@@ -359,7 +361,7 @@ async def _process_anthropic_response(
     else:
         # No tools provided
         content = response.content[0].text
-        
+
     # Parse structured output if response_format is provided
     if response_format and not tools:
         # Check if response_format is a Pydantic model
