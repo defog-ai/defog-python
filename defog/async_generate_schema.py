@@ -243,7 +243,10 @@ async def generate_mysql_schema(
     except:
         raise Exception("aiomysql not installed.")
 
-    conn = await aiomysql.connect(**self.db_creds)
+    db_creds = self.db_creds.copy()
+    db_creds["db"] = db_creds["database"]
+    del db_creds["database"]
+    conn = await aiomysql.connect(**db_creds)
     cur = await conn.cursor()
     schemas = {}
 

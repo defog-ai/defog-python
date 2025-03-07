@@ -206,6 +206,9 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
             import aiomysql
         except:
             raise Exception("aiomysql not installed.")
+        db_creds = self.db_creds.copy()
+        db_creds["db"] = db_creds["database"]
+        del db_creds["database"]
         conn = await aiomysql.connect(**db_creds)
         cur = await conn.cursor()
         await cur.execute(query)

@@ -338,8 +338,10 @@ async def create_empty_tables(self, dev: bool = False):
 
         elif self.db_type == "mysql":
             import aiomysql
-
-            conn = await aiomysql.connect(**self.db_creds)
+            db_creds = self.db_creds.copy()
+            db_creds["db"] = db_creds["database"]
+            del db_creds["database"]
+            conn = await aiomysql.connect(**db_creds)
             async with conn.cursor() as cur:
                 for statement in ddl.split(";"):
                     await cur.execute(statement)
