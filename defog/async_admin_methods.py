@@ -338,6 +338,7 @@ async def create_empty_tables(self, dev: bool = False):
 
         elif self.db_type == "mysql":
             import aiomysql
+
             db_creds = self.db_creds.copy()
             db_creds["db"] = db_creds["database"]
             del db_creds["database"]
