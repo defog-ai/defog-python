@@ -758,12 +758,12 @@ async def _process_openai_response(
                 hasattr(response.usage, "prompt_tokens_details")
                 and response.usage.prompt_tokens_details is not None
             ):
-                cached_tokens = response.usage.prompt_tokens_details.cached_tokens
-                total_input_tokens += response.usage.prompt_tokens - cached_tokens
+                cached_tokens = response.usage.prompt_tokens_details.cached_tokens or 0
+                total_input_tokens += response.usage.prompt_tokens or 0 - cached_tokens
                 total_cached_input_tokens += cached_tokens
             else:
                 # If prompt_tokens_details doesn't exist, assume all tokens are uncached
-                total_input_tokens += response.usage.prompt_tokens
+                total_input_tokens += response.usage.prompt_tokens or 0
 
             total_output_tokens += response.usage.completion_tokens
             message = response.choices[0].message
@@ -882,12 +882,12 @@ async def _process_openai_response(
         hasattr(usage, "prompt_tokens_details")
         and usage.prompt_tokens_details is not None
     ):
-        cached_tokens = usage.prompt_tokens_details.cached_tokens
+        cached_tokens = usage.prompt_tokens_details.cached_tokens or 0
         total_cached_input_tokens += cached_tokens
-        total_input_tokens += usage.prompt_tokens - cached_tokens
+        total_input_tokens += usage.prompt_tokens or 0 - cached_tokens
     else:
         # If prompt_tokens_details doesn't exist, assume all tokens are uncached
-        total_input_tokens += usage.prompt_tokens
+        total_input_tokens += usage.prompt_tokens or 0
 
     total_output_tokens += usage.completion_tokens
     return (
