@@ -319,7 +319,7 @@ class TestLiveMCPClient:
             # Query that should use the multiply tool
             query = "I need to multiply 12 and 34. Can you use the multiply tool to help me?"
             
-            # Use mcp_chat instead of process_query to test the full client API
+            # Use mcp_chat to test the full client API
             result, tool_outputs = await client.mcp_chat(query=query)
             
             # Verify result
@@ -365,7 +365,7 @@ class TestLiveMCPClient:
             # Query that should use the multiply tool
             query = "I need to multiply 12 and 34. Can you use the multiply tool to help me?"
             
-            # Use mcp_chat instead of process_query to test the full client API
+            # Use mcp_chat to test the full client API
             result, tool_outputs = await client.mcp_chat(query=query)
             
             # Verify result
@@ -396,3 +396,49 @@ class TestLiveMCPClient:
                 print("Cleaning up MCP client...")
                 await client.cleanup()
             print("End-to-end tool use test with Gemini completed")
+            
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), 
+                       reason="OPENAI_API_KEY environment variable not set")
+    async def test_end_to_end_with_tool_use_openai(self, arithmetic_stdio_server):
+        """End-to-end test with tool use using OpenAI (requires API key and server)"""
+        client = None
+        try:
+            print("Starting end-to-end tool use test with OpenAI...")
+            # Initialize client with GPT-4
+            client = await initialize_mcp_client(arithmetic_stdio_server, "o3-mini")
+            
+            # Query that should use the multiply tool
+            query = "I need to multiply 12 and 34. Can you use the multiply tool to help me?"
+            
+            # Use mcp_chat to test the full client API
+            result, tool_outputs = await client.mcp_chat(query=query)
+            
+            # Verify result
+            assert result is not None
+            assert isinstance(result, str)
+            print(f"End-to-end response from OpenAI: {result}")
+            
+            # Check if the tool was used (using the returned tool_outputs)
+            assert len(tool_outputs) > 0
+            tool_used = False
+            for tool in tool_outputs:
+                print(f"Tool used: {tool['name']}")
+                print(f"Tool args: {tool['args']}")
+                print(f"Tool result: {tool['result']}")
+                if tool['name'] == 'multiply':
+                    tool_used = True
+            
+            assert tool_used, "Multiply tool was not used"
+            
+            # Basic check for correct answer (408)
+            assert "408" in result
+            
+        except Exception as e:
+            pytest.fail(f"End-to-end test with OpenAI failed: {str(e)}")
+        finally:
+            # Clean up client
+            if client:
+                print("Cleaning up MCP client...")
+                await client.cleanup()
+            print("End-to-end tool use test with OpenAI completed")
