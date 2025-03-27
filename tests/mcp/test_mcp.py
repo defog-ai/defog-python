@@ -105,12 +105,21 @@ class TestMCPClient:
         assert client.model_provider == "anthropic"
         assert client.anthropic is not None
         assert client.openai is None
+        assert client.gemini is None
         
         client = MCPClient(model_name="gpt-4")
         assert client.model_name == "gpt-4"
         assert client.model_provider == "openai"
         assert client.anthropic is None
         assert client.openai is not None
+        assert client.gemini is None
+        
+        client = MCPClient(model_name="gemini-1.5-pro")
+        assert client.model_name == "gemini-1.5-pro"
+        assert client.model_provider == "gemini"
+        assert client.anthropic is None
+        assert client.openai is None
+        assert client.gemini is not None
         
         # Cleanup
         await client.cleanup()
@@ -199,6 +208,30 @@ class TestLiveMCPClient:
             await client.cleanup()
     
     @pytest.mark.asyncio
+    @pytest.mark.skipif(not os.environ.get("GEMINI_API_KEY"),
+                       reason="GEMINI_API_KEY environment variable not set")
+    async def test_gemini_live(self):
+        """Test live Gemini API integration (requires API key)"""
+        # Create client
+        client = MCPClient(model_name="gemini-1.5-pro")
+        
+        try:
+            # Simple query that should not use tools
+            result = await client.process_query("What is 2+2?")
+            
+            # Verify result
+            assert result is not None
+            assert isinstance(result, str)
+            assert len(result) > 0
+            print(f"Gemini response: {result}")
+            
+            # Basic check for correct answer
+            assert "4" in result
+        finally:
+            # Clean up
+            await client.cleanup()
+    
+    @pytest.mark.asyncio
     async def test_sse_server_connection(self, arithmetic_sse_server):
         """Test connection to SSE server"""
         client = None
@@ -275,11 +308,11 @@ class TestLiveMCPClient:
     @pytest.mark.asyncio
     @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), 
                        reason="ANTHROPIC_API_KEY environment variable not set")
-    async def test_end_to_end_with_tool_use(self, arithmetic_stdio_server):
-        """End-to-end test with tool use (requires API key and server)"""
+    async def test_end_to_end_with_tool_use_anthropic(self, arithmetic_stdio_server):
+        """End-to-end test with tool use using Anthropic (requires API key and server)"""
         client = None
         try:
-            print("Starting end-to-end tool use test...")
+            print("Starting end-to-end tool use test with Anthropic...")
             # Initialize client
             client = await initialize_mcp_client(arithmetic_stdio_server, "claude-3-7-sonnet-20250219")
             
@@ -292,7 +325,7 @@ class TestLiveMCPClient:
             # Verify result
             assert result is not None
             assert isinstance(result, str)
-            print(f"End-to-end response: {result}")
+            print(f"End-to-end response from Anthropic: {result}")
             
             # Check if the tool was used (using the returned tool_outputs)
             assert len(tool_outputs) > 0
@@ -310,10 +343,56 @@ class TestLiveMCPClient:
             assert "408" in result
             
         except Exception as e:
-            pytest.fail(f"End-to-end test failed: {str(e)}")
+            pytest.fail(f"End-to-end test with Anthropic failed: {str(e)}")
         finally:
             # Clean up client
             if client:
                 print("Cleaning up MCP client...")
                 await client.cleanup()
-            print("End-to-end tool use test completed")
+            print("End-to-end tool use test with Anthropic completed")
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(not os.environ.get("GEMINI_API_KEY"), 
+                       reason="GEMINI_API_KEY environment variable not set")
+    async def test_end_to_end_with_tool_use_gemini(self, arithmetic_stdio_server):
+        """End-to-end test with tool use using Gemini (requires API key and server)"""
+        client = None
+        try:
+            print("Starting end-to-end tool use test with Gemini...")
+            # Initialize client
+            client = await initialize_mcp_client(arithmetic_stdio_server, "gemini-1.5-pro")
+            
+            # Query that should use the multiply tool
+            query = "I need to multiply 12 and 34. Can you use the multiply tool to help me?"
+            
+            # Use mcp_chat instead of process_query to test the full client API
+            result, tool_outputs = await client.mcp_chat(query=query)
+            
+            # Verify result
+            assert result is not None
+            assert isinstance(result, str)
+            print(f"End-to-end response from Gemini: {result}")
+            
+            # Check if the tool was used (using the returned tool_outputs)
+            assert len(tool_outputs) > 0
+            tool_used = False
+            for tool in tool_outputs:
+                print(f"Tool used: {tool['name']}")
+                print(f"Tool args: {tool['args']}")
+                print(f"Tool result: {tool['result']}")
+                if tool['name'] == 'multiply':
+                    tool_used = True
+            
+            assert tool_used, "Multiply tool was not used"
+            
+            # Basic check for correct answer (408)
+            assert "408" in result
+            
+        except Exception as e:
+            pytest.fail(f"End-to-end test with Gemini failed: {str(e)}")
+        finally:
+            # Clean up client
+            if client:
+                print("Cleaning up MCP client...")
+                await client.cleanup()
+            print("End-to-end tool use test with Gemini completed")

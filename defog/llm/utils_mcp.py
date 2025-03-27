@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from typing import Optional, Any
 from contextlib import AsyncExitStack
 
@@ -31,16 +32,23 @@ class MCPClient:
             self.model_provider = "openai"
         elif self.model_name.startswith("claude"):
             self.model_provider = "anthropic"
+        elif self.model_name.startswith("gemini"):
+            self.model_provider = "gemini"
         else:
             raise ValueError(f"Unsupported model name: {self.model_name}")
 
         # Initialize appropriate client based on model provider
+        self.anthropic = None
+        self.openai = None
+        self.gemini = None
+        
         if self.model_provider == "anthropic":
             self.anthropic = AsyncAnthropic()
-            self.openai = None
         elif self.model_provider == "openai":
             self.openai = AsyncOpenAI()
-            self.anthropic = None
+        elif self.model_provider == "gemini":
+            from google import genai
+            self.gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
         else:
             raise ValueError(f"Unsupported model provider: {self.model_provider}")
 
@@ -239,6 +247,146 @@ class MCPClient:
                     )
                     await asyncio.sleep(backoff_time)
                     backoff_time *= 2
+
+    async def _process_gemini_query(self, messages: list, available_tools: list):
+        """Process a query using Google's Gemini API
+
+        Args:
+            messages (list): Message history for context (in Gemini Content format)
+            available_tools (list): Tools descriptions to make available to the model
+
+        Returns:
+            str: The final response text from the model or error message
+        """
+        if not self.gemini:
+            error_msg = "Gemini client not initialized"
+            print(error_msg)
+            return error_msg
+
+        # Convert tools format for Gemini
+        from google.genai import types
+        gemini_tools = []
+        for tool in available_tools:
+            # Make a deep copy of the input schema to avoid modifying the original
+            import copy
+            input_schema = copy.deepcopy(tool["input_schema"])
+            
+            # Change all "type" values to uppercase as required by Gemini
+            if "type" in input_schema:
+                input_schema["type"] = input_schema["type"].upper()
+            if "properties" in input_schema:
+                for prop in input_schema["properties"].values():
+                    if "type" in prop:
+                        prop["type"] = prop["type"].upper()
+            
+            func_spec = {
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": input_schema,
+            }
+            function_declaration = types.FunctionDeclaration(**func_spec)
+            gemini_tool = types.Tool(function_declarations=[function_declaration])
+            gemini_tools.append(gemini_tool)
+
+        # Initial Gemini API call
+        try:
+            request_params = {
+                "temperature": 0,
+                "max_output_tokens": self.max_tokens,
+                "tools": gemini_tools,
+            }
+            
+            response = await self.gemini.aio.models.generate_content(
+                model=self.model_name,
+                contents=messages,
+                config=types.GenerateContentConfig(**request_params),
+            )
+            
+            try:
+                response_text = response.text
+            except Exception:
+                response_text = None
+            
+            function_calls = getattr(response, "function_calls", [])
+        except Exception as e:
+            error_msg = f"Error calling Gemini API: {str(e)}"
+            print(error_msg)
+            return error_msg
+
+        # Process function calls if any
+        while function_calls:
+            for function_call in function_calls:
+                tool_name = function_call.name
+                # Handle args which might be a JSON string or already a dictionary
+                if isinstance(function_call.args, str):
+                    tool_args = json.loads(function_call.args)
+                else:
+                    tool_args = function_call.args
+                tool_id = function_call.name + "_" + str(len(self.tool_outputs))
+                
+                # Add tool call to message history
+                tool_call_content = response.candidates[0].content
+                self._add_to_message_history(tool_call_content, messages)
+                
+                # Handle the tool call
+                result, result_text = await self._handle_tool_call(tool_name, tool_args)
+                
+                # Add tool result to message history
+                tool_result_message = types.Content(
+                    role="function",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=tool_name, 
+                            response={"result": result_text}
+                        )
+                    ]
+                )
+                self._add_to_message_history(tool_result_message, messages)
+
+                # Add tool result to tool outputs
+                self.tool_outputs.append({
+                    "tool_call_id": tool_id,
+                    "name": tool_name,
+                    "args": tool_args,
+                    "result": result_text,
+                    "text": response_text
+                })
+            
+            # Get next response from Gemini
+            try:
+                response = await self.gemini.aio.models.generate_content(
+                    model=self.model_name,
+                    contents=messages,
+                    config=types.GenerateContentConfig(**request_params)
+                )
+
+                try:
+                    response_text = response.text
+                except Exception:
+                    response_text = None
+                
+                # Extract function calls
+                function_calls = getattr(response, "function_calls", [])
+            except Exception as e:
+                error_msg = f"Error calling Gemini API: {str(e)}"
+                print(error_msg)
+                return error_msg
+            
+            # If no more function calls, break
+            if not function_calls:
+                break
+                
+        # Final response with no tool calls
+        final_text = response_text
+        
+        # Add final assistant response to message history
+        final_message = types.Content(
+            role="model",
+            parts=[types.Part.from_text(final_text)]
+        )
+        self.message_history.append(final_message)
+        
+        return final_text
 
     async def _process_anthropic_query(self, messages: list, available_tools: list):
         """Process a query using Anthropic's API
@@ -574,8 +722,16 @@ class MCPClient:
         query = await self._process_prompt_templates(query)
         print(f"Processed query: {query}")
 
-        # Add user query to message history
-        user_message = {"role": "user", "content": query}
+        # Add user query to message history (format depends on provider)
+        if self.model_provider == "gemini":
+            from google.genai import types
+            user_message = types.Content(
+                role="user",
+                parts=[types.Part.from_text(query)]
+            )
+        else:
+            user_message = {"role": "user", "content": query}
+        
         self.message_history.append(user_message)
 
         # Use full message history for context
@@ -594,8 +750,12 @@ class MCPClient:
         # Process based on model provider
         if self.model_provider == "anthropic":
             final_text = await self._process_anthropic_query(messages, available_tools)
-        else:
+        elif self.model_provider == "openai":
             final_text = await self._process_openai_query(messages, available_tools)
+        elif self.model_provider == "gemini":
+            final_text = await self._process_gemini_query(messages, available_tools)
+        else:
+            raise ValueError(f"Unsupported model provider: {self.model_provider}")
 
         return final_text
 
