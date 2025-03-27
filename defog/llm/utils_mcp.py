@@ -41,13 +41,14 @@ class MCPClient:
         self.anthropic = None
         self.openai = None
         self.gemini = None
-        
+
         if self.model_provider == "anthropic":
             self.anthropic = AsyncAnthropic()
         elif self.model_provider == "openai":
             self.openai = AsyncOpenAI()
         elif self.model_provider == "gemini":
             from google import genai
+
             self.gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
         else:
             raise ValueError(f"Unsupported model provider: {self.model_provider}")
@@ -265,12 +266,14 @@ class MCPClient:
 
         # Convert tools format for Gemini
         from google.genai import types
+
         gemini_tools = []
         for tool in available_tools:
             # Make a deep copy of the input schema to avoid modifying the original
             import copy
+
             input_schema = copy.deepcopy(tool["input_schema"])
-            
+
             # Change all "type" values to uppercase as required by Gemini
             if "type" in input_schema:
                 input_schema["type"] = input_schema["type"].upper()
@@ -278,7 +281,7 @@ class MCPClient:
                 for prop in input_schema["properties"].values():
                     if "type" in prop:
                         prop["type"] = prop["type"].upper()
-            
+
             func_spec = {
                 "name": tool["name"],
                 "description": tool["description"],
@@ -295,18 +298,18 @@ class MCPClient:
                 "max_output_tokens": self.max_tokens,
                 "tools": gemini_tools,
             }
-            
+
             response = await self.gemini.aio.models.generate_content(
                 model=self.model_name,
                 contents=messages,
                 config=types.GenerateContentConfig(**request_params),
             )
-            
+
             try:
                 response_text = response.text
             except Exception:
                 response_text = None
-            
+
             function_calls = getattr(response, "function_calls", [])
         except Exception as e:
             error_msg = f"Error calling Gemini API: {str(e)}"
@@ -323,69 +326,69 @@ class MCPClient:
                 else:
                     tool_args = function_call.args
                 tool_id = function_call.name + "_" + str(len(self.tool_outputs))
-                
+
                 # Add tool call to message history
                 tool_call_content = response.candidates[0].content
                 self._add_to_message_history(tool_call_content, messages)
-                
+
                 # Handle the tool call
                 result, result_text = await self._handle_tool_call(tool_name, tool_args)
-                
+
                 # Add tool result to message history
                 tool_result_message = types.Content(
                     role="function",
                     parts=[
                         types.Part.from_function_response(
-                            name=tool_name, 
-                            response={"result": result_text}
+                            name=tool_name, response={"result": result_text}
                         )
-                    ]
+                    ],
                 )
                 self._add_to_message_history(tool_result_message, messages)
 
                 # Add tool result to tool outputs
-                self.tool_outputs.append({
-                    "tool_call_id": tool_id,
-                    "name": tool_name,
-                    "args": tool_args,
-                    "result": result_text,
-                    "text": response_text
-                })
-            
+                self.tool_outputs.append(
+                    {
+                        "tool_call_id": tool_id,
+                        "name": tool_name,
+                        "args": tool_args,
+                        "result": result_text,
+                        "text": response_text,
+                    }
+                )
+
             # Get next response from Gemini
             try:
                 response = await self.gemini.aio.models.generate_content(
                     model=self.model_name,
                     contents=messages,
-                    config=types.GenerateContentConfig(**request_params)
+                    config=types.GenerateContentConfig(**request_params),
                 )
 
                 try:
                     response_text = response.text
                 except Exception:
                     response_text = None
-                
+
                 # Extract function calls
                 function_calls = getattr(response, "function_calls", [])
             except Exception as e:
                 error_msg = f"Error calling Gemini API: {str(e)}"
                 print(error_msg)
                 return error_msg
-            
+
             # If no more function calls, break
             if not function_calls:
                 break
-                
+
         # Final response with no tool calls
         final_text = response_text
-        
+
         # Add final assistant response to message history
         final_message = types.Content(
-            role="model",
-            parts=[types.Part.from_text(final_text)]
+            role="model", parts=[types.Part.from_text(final_text)]
         )
         self.message_history.append(final_message)
-        
+
         return final_text
 
     async def _process_anthropic_query(self, messages: list, available_tools: list):
@@ -667,9 +670,7 @@ class MCPClient:
                         )
                         return query
                 except Exception as e:
-                    print(
-                        f"Error processing prompt template /{command}: {str(e)}"
-                    )
+                    print(f"Error processing prompt template /{command}: {str(e)}")
                     return query
 
             elif f"/{command}" in query:
@@ -695,9 +696,7 @@ class MCPClient:
                         )
                         return query_text
                 except Exception as e:
-                    print(
-                        f"Error processing prompt template /{command}: {str(e)}"
-                    )
+                    print(f"Error processing prompt template /{command}: {str(e)}")
                     return query_text
         except Exception as e:
             print(f"Unexpected error processing prompt template: {str(e)}")
@@ -725,13 +724,13 @@ class MCPClient:
         # Add user query to message history (format depends on provider)
         if self.model_provider == "gemini":
             from google.genai import types
+
             user_message = types.Content(
-                role="user",
-                parts=[types.Part.from_text(query)]
+                role="user", parts=[types.Part.from_text(query)]
             )
         else:
             user_message = {"role": "user", "content": query}
-        
+
         self.message_history.append(user_message)
 
         # Use full message history for context
@@ -814,9 +813,7 @@ class MCPClient:
                     self.all_tools.append(tool)
                     self.tool_to_server[tool.name] = server_name
             except Exception as e:
-                print(
-                    f"Failed to list tools from server '{server_name}': {str(e)}"
-                )
+                print(f"Failed to list tools from server '{server_name}': {str(e)}")
                 raise
 
             # List and register available prompts
@@ -898,9 +895,7 @@ class MCPClient:
                     self.all_tools.append(tool)
                     self.tool_to_server[tool.name] = server_name
             except Exception as e:
-                print(
-                    f"Failed to list tools from server '{server_name}': {str(e)}"
-                )
+                print(f"Failed to list tools from server '{server_name}': {str(e)}")
                 raise
 
             # List and register available prompts
@@ -925,9 +920,7 @@ class MCPClient:
                     f"Timeout connecting to server '{server_name}': {str(e)}"
                 )
             else:
-                print(
-                    f"Failed to connect to server '{server_name}': {str(e)}"
-                )
+                print(f"Failed to connect to server '{server_name}': {str(e)}")
                 raise
 
     async def connect_to_server_from_config(self, config: dict):

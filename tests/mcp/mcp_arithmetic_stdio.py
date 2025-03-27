@@ -2,13 +2,15 @@ from mcp.server.fastmcp import FastMCP
 
 
 mcp = FastMCP(
-    name = "arithmetic_sse",
-    )
+    name="arithmetic_sse",
+)
+
 
 @mcp.tool()
 def add(a: int, b: int) -> int:
     """Add two numbers together"""
     return a + b
+
 
 @mcp.tool()
 def multiply(a: int, b: int) -> int:

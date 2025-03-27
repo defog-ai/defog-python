@@ -3,15 +3,17 @@ from mcp.server.fastmcp import FastMCP
 host = "0.0.0.0"
 port = 8001
 mcp = FastMCP(
-    name = "arithmetic_sse",
-    host = host,
-    port = port,
-    )
+    name="arithmetic_sse",
+    host=host,
+    port=port,
+)
+
 
 @mcp.tool()
 def add(a: int, b: int) -> int:
     """Add two numbers together"""
     return a + b
+
 
 @mcp.tool()
 def multiply(a: int, b: int) -> int:
