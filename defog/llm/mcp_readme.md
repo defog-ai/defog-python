@@ -1,10 +1,10 @@
 # MCP Servers Guide
 
-This guide outlines the steps for setting up and using Model Context Protocol (MCP) servers, which allow external tools to be used within Introspect. This feature is currently not integrated into the application.
+This guide outlines the steps for setting up and using Model Context Protocol (MCP) servers, which allow external tools to be used by an LLM.
 
 ## 1. Set Up Your MCP Servers
 Set up your MCP servers by following the official [SDKs](https://github.com/modelcontextprotocol).
-If you're hosting them outside of this application, ensure that your servers operate with [SSE transport](https://modelcontextprotocol.io/docs/concepts/transports#server-sent-events-sse).
+If you're hosting them outside of your application, ensure that your servers operate with [SSE transport](https://modelcontextprotocol.io/docs/concepts/transports#server-sent-events-sse).
 
 ```python
 from mcp.server.fastmcp import FastMCP
@@ -49,22 +49,22 @@ After your servers are running, create `mcp_config.json` and add the servers to 
 1. **Remote Servers (SSE):**
    - Use `"command": "sse"` 
    - Use `"args": ["url_to_server"]` for remote servers
-   - Use `"args": ["http://host.docker.internal:PORT/sse"]` for servers running on your local machine
+   - Use `"args": ["http://host.docker.internal:PORT/sse"]` if your application is running in a Docker container and the servers are running on your local machine
    - Make sure the port matches your server's configuration
 
-2. **Local Servers in this Docker (stdio):**
+2. **Local Servers in your application (stdio):**
    - Specify the command to run the server (e.g., `"npx"`, `"python"`)
    - Provide arguments in an array (e.g., `["-y", "package-name"]`)
    - Optionally provide environment variables with `"env": {}`
 
 ## 3. Using MCPClient
 
-Once your servers are configured, use the `MCPClient` class from the defog library to interact with them:
+Once your servers are configured, use the `MCPClient` class to interact with them:
 
 ### Step 1: Initialize and Connect
 
 ```python
-from defog import MCPClient
+from defog.llm.utils_mcp import MCPClient
 import json
 
 # Load config
