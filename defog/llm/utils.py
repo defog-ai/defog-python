@@ -878,7 +878,7 @@ async def _process_openai_response(
             except Exception as e:
                 content = response.choices[0].message.content
                 # parse the content as json
-                try: 
+                try:
                     # clean up any markdown formatting
                     content = re.sub(r"```(.*)```", r"\1", content)
                     content = json.loads(content)
