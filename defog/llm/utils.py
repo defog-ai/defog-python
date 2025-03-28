@@ -2,6 +2,7 @@ import os
 import time
 import json
 import traceback
+import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Union, Callable
 
@@ -872,7 +873,17 @@ async def _process_openai_response(
     else:
         # No tools provided
         if response_format and model not in ["o1-mini", "o1-preview"]:
-            content = response.choices[0].message.parsed
+            try:
+                content = response.choices[0].message.parsed
+            except Exception as e:
+                content = response.choices[0].message.content
+                # parse the content as json
+                try: 
+                    # clean up any markdown formatting
+                    content = re.sub(r"```(.*)```", r"\1", content)
+                    content = json.loads(content)
+                except Exception as e:
+                    raise Exception(f"Error parsing content: {e}")
         else:
             content = response.choices[0].message.content
 
