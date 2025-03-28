@@ -314,6 +314,48 @@ class TestLiveMCPClient:
             print("stdio server connection test completed")
 
     @pytest.mark.asyncio
+    async def test_initialize_with_invalid_config_type(self):
+        """Test initializing MCP client with an invalid config type"""
+        try:
+            # Try to initialize with an invalid config type (integer)
+            await initialize_mcp_client(123, "claude-3-7-sonnet-20250219")
+            pytest.fail("Should have raised ValueError for invalid config type")
+        except ValueError as e:
+            # Ensure the error message mentions the invalid type
+            assert "must be a string path or dictionary" in str(e)
+            print(f"Correctly raised ValueError: {str(e)}")
+
+    @pytest.mark.asyncio
+    async def test_initialize_with_invalid_config_dict(self):
+        """Test initializing MCP client with an invalid config dictionary (missing mcpServers)"""
+        try:
+            # Create a dictionary without the mcpServers key
+            invalid_config = {"someOtherKey": "value"}
+
+            # Try to initialize with an invalid config dictionary
+            await initialize_mcp_client(invalid_config, "claude-3-7-sonnet-20250219")
+            pytest.fail("Should have raised ValueError for missing mcpServers key")
+        except ValueError as e:
+            # Ensure the error message mentions the missing key
+            assert "missing required 'mcpServers' key" in str(e)
+            print(f"Correctly raised ValueError: {str(e)}")
+
+    @pytest.mark.asyncio
+    async def test_initialize_with_empty_mcpservers(self):
+        """Test initializing MCP client with empty mcpServers dictionary"""
+        try:
+            # Create a dictionary with empty mcpServers
+            invalid_config = {"mcpServers": {}}
+
+            # Try to initialize with empty mcpServers
+            await initialize_mcp_client(invalid_config, "claude-3-7-sonnet-20250219")
+            pytest.fail("Should have raised ValueError for empty mcpServers")
+        except ValueError as e:
+            # Ensure the error message mentions empty mcpServers
+            assert "No MCP servers defined in config" in str(e)
+            print(f"Correctly raised ValueError: {str(e)}")
+
+    @pytest.mark.asyncio
     @pytest.mark.skipif(
         not os.environ.get("ANTHROPIC_API_KEY"),
         reason="ANTHROPIC_API_KEY environment variable not set",
