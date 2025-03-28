@@ -64,8 +64,6 @@ class MCPClient:
         """Route a tool call to the appropriate server
 
         This method attempts to call a tool on the appropriate server.
-        All errors are handled internally and converted to error responses
-        rather than exceptions to ensure the conversation can continue.
 
         Args:
             tool_name (str): Name of the tool to call
@@ -77,8 +75,7 @@ class MCPClient:
         Raises:
             ValueError: If no servers are connected or the tool is not found
             TimeoutError: If the tool call times out
-            ConnectionError: If connection to the server is lost
-            Exception: For other errors during tool execution
+            Exception: For connection errors or other errors during tool execution
         """
 
         # Handle no connections case
@@ -767,7 +764,6 @@ class MCPClient:
                 return response, self.tool_outputs
 
             except Exception as e:
-                print(f"Error: {str(e)}")
                 raise
 
     async def _connect_to_mcp_sse_server(self, server_name: str, server_url: str):
@@ -775,16 +771,14 @@ class MCPClient:
 
         Args:
             server_name: Unique name to identify this server
-            command: Command to run the server
-            args: Arguments for the command
-            env: Optional environment variables
+            server_url: URL of the SSE server to connect to
 
         Returns:
             int: Number of tools registered from this server
 
         Raises:
-            ConnectionError: If connection to server fails
             TimeoutError: If server connection times out
+            Exception: If connection to server fails
         """
         try:
             streams = await self.exit_stack.enter_async_context(sse_client(server_url))
@@ -838,9 +832,8 @@ class MCPClient:
                     f"Timeout connecting to server '{server_name}': {str(e)}"
                 )
             else:
-                raise ConnectionError(
-                    f"Failed to connect to server '{server_name}':\n{str(e)}"
-                ) from e
+                print(f"Failed to connect to server '{server_name}':\n{str(e)}")
+                raise
 
     async def _connect_to_mcp_stdio_server(
         self, server_name: str, command: str, args: list, env: Optional[dict] = None
@@ -857,8 +850,8 @@ class MCPClient:
             int: Number of tools registered from this server
 
         Raises:
-            ConnectionError: If connection to server fails
             TimeoutError: If server connection times out
+            Exception: If connection to server fails
         """
         server_params = StdioServerParameters(command=command, args=args, env=env)
 
@@ -931,9 +924,19 @@ class MCPClient:
 
         Raises:
             ValueError: If config is invalid or missing required fields
-            ConnectionError: If any server connection fails
+
+        Note:
+            Connection errors for individual servers are collected and reported
+            but do not stop the function from attempting to connect to other servers.
         """
-        if "mcpServers" not in config or not config["mcpServers"]:
+        # Validate config structure
+        if not config:
+            raise ValueError("Config cannot be empty")
+
+        if "mcpServers" not in config:
+            raise ValueError("Config is missing required 'mcpServers' key")
+
+        if not config["mcpServers"]:
             raise ValueError("No MCP servers defined in config")
 
         # Connect to all available servers
@@ -942,8 +945,13 @@ class MCPClient:
         connection_errors = []
 
         for server_name, server_info in config["mcpServers"].items():
-
             # Validate server configuration
+            if not server_info:
+                connection_errors.append(
+                    f"Server '{server_name}' has empty configuration"
+                )
+                continue
+
             if "command" not in server_info or not server_info["command"]:
                 connection_errors.append(
                     f"Server '{server_name}' missing required 'command' field"
@@ -1002,39 +1010,82 @@ class MCPClient:
         print("All MCP server connections closed.")
 
 
-async def initialize_mcp_client(config_path, model):
+async def initialize_mcp_client(config, model):
     """
-    Initialize MCP client with config loaded from the specified path.
+    Initialize MCP client with config loaded from the specified path or dictionary.
 
     Args:
-        config_path (str): Path to the MCP config file
+        config (Union[str, dict]): Path to the MCP config file or config dictionary
         model (str): Model name to use for the client
 
     Returns:
-        Union[MCPClient, dict]: The initialized MCP client or an error dict
+        MCPClient: The initialized MCP client
+
+    Raises:
+        ValueError: If config format is invalid or missing required fields
+        FileNotFoundError: If config file doesn't exist
+        PermissionError: If config file can't be accessed due to permissions
+        RuntimeError: If there's an error connecting to servers or initializing the client
     """
+    config_dict = None
+
+    # Validate inputs
+    if model is None or (isinstance(model, str) and not model.strip()):
+        raise ValueError("Model name must be provided")
+
+    # Load and validate config
     try:
-        print(f"Loading MCP config from {config_path}")
-        with open(config_path, "r") as f:
-            config = json.load(f)
+        # Handle config as either path string or dictionary
+        if isinstance(config, str):
+            if not os.path.exists(config):
+                raise FileNotFoundError(f"Config file not found: {config}")
 
-    except json.JSONDecodeError as e:
-        error_msg = f"Failed to parse MCP config file: {str(e)}"
-        print(error_msg)
-        raise ValueError(error_msg)
+            print(f"Loading MCP config from {config}")
+            try:
+                with open(config, "r") as f:
+                    config_dict = json.load(f)
+            except json.JSONDecodeError as e:
+                line_col = (
+                    f" (line {e.lineno}, column {e.colno})"
+                    if hasattr(e, "lineno")
+                    else ""
+                )
+                raise ValueError(f"Failed to parse MCP config file{line_col}: {str(e)}")
+            except PermissionError:
+                raise PermissionError(
+                    f"Permission denied when trying to read config file: {config}"
+                )
 
+        elif isinstance(config, dict):
+            print("Using provided config dictionary")
+            config_dict = config
+        else:
+            raise ValueError(
+                f"Config must be a string path or dictionary, got {type(config).__name__}"
+            )
+
+        if not config_dict:
+            raise ValueError("Config is empty")
+
+    except (ValueError, FileNotFoundError, PermissionError) as e:
+        print(f"Error: {str(e)}")
+        raise
     except Exception as e:
-        error_msg = f"Error loading MCP config: {str(e)}"
+        error_msg = f"Unexpected error loading MCP config: {str(e)}"
         print(error_msg)
-        raise RuntimeError(error_msg)
+        raise RuntimeError(error_msg) from e
 
+    # Initialize MCP client
     try:
         mcp_client = MCPClient(model_name=model)
-        await mcp_client.connect_to_server_from_config(config)
 
+        await mcp_client.connect_to_server_from_config(config_dict)
+
+        return mcp_client
+
+    except ValueError as e:
+        raise
     except Exception as e:
         error_msg = f"Failed to initialize MCP client: {str(e)}"
         print(error_msg)
-        raise RuntimeError(error_msg)
-
-    return mcp_client
+        raise RuntimeError(error_msg) from e
