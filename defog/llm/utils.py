@@ -28,6 +28,21 @@ LLM_COSTS_PER_TOKEN = {
         "cached_input_cost_per1k": 0.000075,
         "output_cost_per1k": 0.0006,
     },
+    "gpt-4.1": {
+        "input_cost_per1k": 0.002,
+        "cached_input_cost_per1k": 0.0005,
+        "output_cost_per1k": 0.008,
+    },
+    "gpt-4.1-mini": {
+        "input_cost_per1k": 0.0004,
+        "cached_input_cost_per1k": 0.0001,
+        "output_cost_per1k": 0.0016,
+    },
+    "gpt-4.1-nano": {
+        "input_cost_per1k": 0.0001,
+        "cached_input_cost_per1k": 0.000025,
+        "output_cost_per1k": 0.0004,
+    },
     "o1": {
         "input_cost_per1k": 0.015,
         "cached_input_cost_per1k": 0.0075,
@@ -42,6 +57,16 @@ LLM_COSTS_PER_TOKEN = {
     "o3-mini": {
         "input_cost_per1k": 0.0011,
         "cached_input_cost_per1k": 0.00055,
+        "output_cost_per1k": 0.0044,
+    },
+    "o3": {
+        "input_cost_per1k": 0.01,
+        "cached_input_cost_per1k": 0.0025,
+        "output_cost_per1k": 0.04,
+    },
+    "o4-mini": {
+        "input_cost_per1k": 0.0011,
+        "cached_input_cost_per1k": 0.000275,
         "output_cost_per1k": 0.0044,
     },
     "gpt-4-turbo": {"input_cost_per1k": 0.01, "output_cost_per1k": 0.03},
@@ -60,6 +85,14 @@ LLM_COSTS_PER_TOKEN = {
     "gemini-2.0-flash": {
         "input_cost_per1k": 0.00010,
         "output_cost_per1k": 0.0004,
+    },
+    "gemini-2.5-flash": {
+        "input_cost_per1k": 0.00015,
+        "output_cost_per1k": 0.0035,
+    },
+    "gemini-2.5-pro": {
+        "input_cost_per1k": 0.00125,
+        "output_cost_per1k": 0.01,
     },
     "deepseek-chat": {
         "input_cost_per1k": 0.00027,
@@ -130,7 +163,6 @@ def _build_anthropic_params(
     model: str,
     max_completion_tokens: int = None,
     temperature: float = 0.0,
-    stop: List[str] = [],
     tools: List[Callable] = None,
     tool_choice: str = None,
     timeout: int = 100,
@@ -154,7 +186,6 @@ def _build_anthropic_params(
         "model": model,
         "max_tokens": max_completion_tokens,
         "temperature": temperature,
-        "stop_sequences": stop,
         "timeout": timeout,
     }
 
@@ -448,7 +479,6 @@ def chat_anthropic(
     max_completion_tokens: int = None,
     model: str = "claude-3-5-sonnet-20241022",
     temperature: float = 0.0,
-    stop: List[str] = [],
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
@@ -463,7 +493,6 @@ def chat_anthropic(
     - model: The anthropic model to use for the chat.
     - max_completion_tokens: The maximum number of tokens for the completion.
     - temperature: Ranges from 0.0 to 1.0. Defaults to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
-    - stop: Custom text sequences that will cause the model to stop generating.
     - response_format: Format specification for structured output (Pydantic model).
         For Anthropic models, this will modify the system message to instruct the model to return valid JSON.
     - seed: NA
@@ -490,7 +519,6 @@ def chat_anthropic(
         model=model,
         max_completion_tokens=max_completion_tokens,
         temperature=temperature,
-        stop=stop,
         tools=tools,
         tool_choice=tool_choice,
         response_format=response_format,
@@ -530,7 +558,6 @@ async def chat_anthropic_async(
     max_completion_tokens: int = None,
     model: str = "claude-3-5-sonnet-20241022",
     temperature: float = 0.0,
-    stop: List[str] = [],
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
@@ -550,7 +577,6 @@ async def chat_anthropic_async(
     - model: The anthropic model to use for the chat.
     - max_completion_tokens: The maximum number of tokens for the completion.
     - temperature: Ranges from 0.0 to 1.0. Use temperature closer to 0.0 for analytical / multiple choice, and closer to 1.0 for creative and generative tasks.
-    - stop: Custom text sequences that will cause the model to stop generating.
     - response_format: Format specification for structured output (Pydantic model).
         For Anthropic models, this will modify the system message to instruct the model to return valid JSON.
     - seed: NA
@@ -581,7 +607,6 @@ async def chat_anthropic_async(
         model=model,
         max_completion_tokens=max_completion_tokens,
         temperature=temperature,
-        stop=stop,
         tools=tools,
         tool_choice=tool_choice,
         response_format=response_format,
@@ -628,7 +653,6 @@ def _build_openai_params(
     model: str,
     max_completion_tokens: int,
     temperature: float,
-    stop: List[str],
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
@@ -651,6 +675,8 @@ def _build_openai_params(
         "deepseek-chat",
         "deepseek-reasoner",
         "o3-mini",
+        "o3",
+        "o4-mini",
     ]:
         sys_msg = None
         for i in range(len(messages)):
@@ -668,7 +694,6 @@ def _build_openai_params(
         "model": model,
         "max_completion_tokens": max_completion_tokens,
         "temperature": temperature,
-        "stop": stop,
         "seed": seed,
         "store": store,
         "metadata": metadata,
@@ -720,8 +745,6 @@ def _build_openai_params(
     # Finally, set response_format if still relevant:
     if response_format:
         request_params["response_format"] = response_format
-        # cannot have stop when using response_format
-        request_params.pop("stop", None)
 
     return request_params
 
@@ -975,7 +998,6 @@ def chat_openai(
     max_completion_tokens: int = None,
     model: str = "gpt-4o",
     temperature: float = 0.0,
-    stop: List[str] = [],
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
@@ -997,7 +1019,6 @@ def chat_openai(
     - model: The OpenAI model to use for the chat.
     - max_completion_tokens: The maximum number of tokens to return in the response.
     - temperature: Between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
-    - stop: Up to 4 sequences where the API will stop generating further tokens.
     - response_format: The format that the model must output.
     - seed: If specified, OpenAI will try their best to sample deterministically
     - tools: The list of tools the model may call.
@@ -1029,7 +1050,6 @@ def chat_openai(
         model=model,
         max_completion_tokens=max_completion_tokens,
         temperature=temperature,
-        stop=stop,
         response_format=response_format,
         seed=seed,
         tools=tools,
@@ -1088,7 +1108,6 @@ async def chat_openai_async(
     max_completion_tokens: int = None,
     model: str = "gpt-4o",
     temperature: float = 0.0,
-    stop: List[str] = [],
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
@@ -1110,7 +1129,6 @@ async def chat_openai_async(
     - model: The OpenAI model to use for the chat.
     - max_completion_tokens: The maximum number of tokens to return in the response.
     - temperature: Between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
-    - stop: Up to 4 sequences where the API will stop generating further tokens.
     - response_format: The format that the model must output.
     - seed: If specified, OpenAI will try their best to sample deterministically
     - tools: The list of tools the model may call.
@@ -1139,7 +1157,6 @@ async def chat_openai_async(
         model=model,
         max_completion_tokens=max_completion_tokens,
         temperature=temperature,
-        stop=stop,
         response_format=response_format,
         seed=seed,
         tools=tools,
@@ -1205,7 +1222,6 @@ def _build_together_params(
     model: str,
     max_completion_tokens: int,
     temperature: float,
-    stop: List[str],
     seed: int = 0,
 ):
     return {
@@ -1213,7 +1229,6 @@ def _build_together_params(
         "model": model,
         "max_tokens": max_completion_tokens,
         "temperature": temperature,
-        "stop": stop,
         "seed": seed,
     }
 
@@ -1235,7 +1250,6 @@ def chat_together(
     max_completion_tokens: int = None,
     model: str = "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
     temperature: float = 0.0,
-    stop: List[str] = [],
     response_format=None,
     seed: int = 0,
     tools=None,
@@ -1252,7 +1266,6 @@ def chat_together(
         model=model,
         max_completion_tokens=max_completion_tokens,
         temperature=temperature,
-        stop=stop,
         seed=seed,
     )
     response = client_together.chat.completions.create(**params)
@@ -1272,7 +1285,6 @@ async def chat_together_async(
     max_completion_tokens: int = None,
     model: str = "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
     temperature: float = 0.0,
-    stop: List[str] = [],
     response_format=None,
     seed: int = 0,
     tools=None,
@@ -1294,7 +1306,6 @@ async def chat_together_async(
         model=model,
         max_completion_tokens=max_completion_tokens,
         temperature=temperature,
-        stop=stop,
         seed=seed,
     )
     response = await client_together.chat.completions.create(**params)
@@ -1321,7 +1332,6 @@ def _build_gemini_params(
     model: str,
     max_completion_tokens: int,
     temperature: float,
-    stop: List[str],
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
@@ -1348,7 +1358,6 @@ def _build_gemini_params(
         "temperature": temperature,
         "system_instruction": system_msg,
         "max_output_tokens": max_completion_tokens,
-        "stop_sequences": stop,
     }
 
     if tools:
@@ -1609,7 +1618,6 @@ def chat_gemini(
     max_completion_tokens: int = None,
     model: str = "gemini-2.0-flash",
     temperature: float = 0.0,
-    stop: List[str] = [],
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
@@ -1626,7 +1634,6 @@ def chat_gemini(
     - temperature: Higher values will make the output more random, while lower values like will make it more focused and deterministic.
         Between 0 to 2: gemini-1.5-flash, gemini-1.5-pro, gemini-1.0-pro-002, gemini-2.0-flash
         Between 0 to 1: gemini-1.0-pro-vision, gemini-1.0-pro-001
-    - stop: List of strings that will stop the model from generating further tokens.
     - response_format: The format that the model must output. See https://ai.google.dev/gemini-api/docs/structured-output?lang=python
     - seed: NA
     - tools: The list of tools the model may call.
@@ -1652,7 +1659,6 @@ def chat_gemini(
         model=model,
         max_completion_tokens=max_completion_tokens,
         temperature=temperature,
-        stop=stop,
         response_format=response_format,
         seed=seed,
         tools=tools,
@@ -1700,7 +1706,6 @@ async def chat_gemini_async(
     max_completion_tokens: int = None,
     model: str = "gemini-2.0-flash",
     temperature: float = 0.0,
-    stop: List[str] = [],
     response_format=None,
     seed: int = 0,
     tools: List[Callable] = None,
@@ -1722,7 +1727,6 @@ async def chat_gemini_async(
     - temperature: Higher values will make the output more random, while lower values like will make it more focused and deterministic.
         Between 0 to 2: gemini-1.5-flash, gemini-1.5-pro, gemini-1.0-pro-002, gemini-2.0-flash
         Between 0 to 1: gemini-1.0-pro-vision, gemini-1.0-pro-001
-    - stop: List of strings that will stop the model from generating further tokens.
     - response_format: The format that the model must output. See https://ai.google.dev/gemini-api/docs/structured-output?lang=python
     - seed: NA
     - tools: The list of tools the model may call.
@@ -1750,7 +1754,6 @@ async def chat_gemini_async(
         model=model,
         max_completion_tokens=max_completion_tokens,
         temperature=temperature,
-        stop=stop,
         response_format=response_format,
         seed=seed,
         tools=tools,
@@ -1818,6 +1821,7 @@ def map_model_to_chat_fn_async(model: str) -> Callable:
         or model.startswith("o1")
         or model.startswith("chatgpt")
         or model.startswith("o3")
+        or model.startswith("o4")
     ):
         return chat_openai_async
     if model.startswith("deepseek"):
@@ -1836,7 +1840,6 @@ async def chat_async(
     messages,
     max_completion_tokens=None,
     temperature=0.0,
-    stop=[],
     response_format=None,
     seed=0,
     store=True,
@@ -1873,7 +1876,6 @@ async def chat_async(
                     messages=messages,
                     max_completion_tokens=max_completion_tokens,
                     temperature=temperature,
-                    stop=stop,
                     response_format=response_format,
                     seed=seed,
                     tools=tools,
@@ -1893,7 +1895,6 @@ async def chat_async(
                     messages=messages,
                     max_completion_tokens=max_completion_tokens,
                     temperature=temperature,
-                    stop=stop,
                     response_format=response_format,
                     seed=seed,
                     store=store,

@@ -49,6 +49,7 @@ def get_function_specs(
             or model.startswith("o1")
             or model.startswith("chatgpt")
             or model.startswith("o3")
+            or model.startswith("o4")
         ):
             function_specs.append(
                 {
@@ -97,7 +98,7 @@ def convert_tool_choice(tool_choice: str, tool_name_list: List[str], model: str)
     """
     model_map = {
         "openai": {
-            "prefixes": ["gpt", "o1", "chatgpt", "o3"],
+            "prefixes": ["gpt", "o1", "chatgpt", "o3", "o4"],
             "choices": {
                 "auto": "auto",
                 "required": "required",
