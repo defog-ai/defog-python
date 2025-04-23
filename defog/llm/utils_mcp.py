@@ -28,6 +28,7 @@ class MCPClient:
             or self.model_name.startswith("o1")
             or self.model_name.startswith("chatgpt")
             or self.model_name.startswith("o3")
+            or self.model_name.startswith("o4")
         ):
             self.model_provider = "openai"
         elif self.model_name.startswith("claude"):
