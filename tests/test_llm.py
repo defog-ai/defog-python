@@ -6,7 +6,6 @@ from defog.llm.utils import (
     chat_anthropic_async,
     chat_gemini_async,
     chat_openai_async,
-    chat_together_async,
 )
 import re
 
@@ -86,14 +85,6 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(map_model_to_chat_fn_async("gpt-4o-mini"), chat_openai_async)
-        self.assertEqual(
-            map_model_to_chat_fn_async("meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"),
-            chat_together_async,
-        )
-        self.assertEqual(
-            map_model_to_chat_fn_async("Qwen/Qwen2.5-72B-Instruct-Turbo"),
-            chat_together_async,
-        )
 
         with self.assertRaises(ValueError):
             map_model_to_chat_fn_async("unknown-model")
@@ -101,14 +92,12 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_simple_chat_async(self):
         models = [
-            "claude-3-haiku-20240307",
-            "gpt-4o-mini",
-            "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
-            # "o1-mini", --o1-mini seems to be having issues, and o3-mini will be out soon anyway. so leaving out for now
-            "o1",
+            "claude-3-7-sonnet-latest",
+            "gpt-4.1-mini",
+            "o4-mini",
+            "o3",
             "gemini-2.0-flash",
-            # "deepseek-chat",
-            # "deepseek-reasoner"
+            "gemini-2.5-pro-preview-03-25",
         ]
         messages = [
             {"role": "user", "content": "Return a greeting in not more than 2 words\n"}
@@ -128,14 +117,14 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_sql_chat_async(self):
         models = [
-            # "claude-3-haiku-20240307",
             "gpt-4o-mini",
-            "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
-            # "o1-mini", --o1-mini seems to be having issues, and o3-mini will be out soon anyway. so leaving out for now
             "o1",
             "gemini-2.0-flash",
-            # "deepseek-chat",
-            # "deepseek-reasoner"
+            "gemini-2.5-pro-preview-03-25",
+            "o3",
+            "o4-mini",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano",
         ]
         for model in models:
             response = await chat_async(
@@ -172,7 +161,12 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             "gpt-4o",
             "o1",
             "gemini-2.0-flash",
+            "gemini-2.5-pro-preview-03-25",
             "claude-3-7-sonnet-latest",  # Added Anthropic model to test structured output
+            "o3",
+            "o4-mini",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano",
         ]
         for model in models:
             response = await chat_async(
