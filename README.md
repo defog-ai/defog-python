@@ -128,3 +128,13 @@ If submitting a PR, please use the `black` linter to lint your code. You can add
 echo -e '#!/bin/sh\n#\n# Run linter before commit\nblack $(git rev-parse --show-toplevel)' > .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
+
+# Publishing to pypi
+
+```bash
+# creates a publishable package, locally
+python setup.py sdist
+
+# uploads it to pypi
+twine upload dist/defog-[your-version-number].tar.gz
+```
