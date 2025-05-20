@@ -16,13 +16,11 @@ def execute_query_once(db_type: str, db_creds, query: str):
             import psycopg2
         except:
             raise Exception("psycopg2 not installed.")
-        conn = psycopg2.connect(**db_creds)
-        cur = conn.cursor()
-        cur.execute(query)
-        colnames = [desc[0] for desc in cur.description]
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+        with psycopg2.connect(**db_creds) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query)
+                colnames = [desc[0] for desc in cur.description]
+                rows = cur.fetchall()
         return colnames, rows
 
     elif db_type == "redshift":
@@ -33,29 +31,27 @@ def execute_query_once(db_type: str, db_creds, query: str):
 
         if "schema" not in db_creds:
             schema = "public"
-            conn = psycopg2.connect(**db_creds)
+            conn_args = db_creds
         else:
             schema = db_creds["schema"]
+            db_creds = db_creds.copy()
             del db_creds["schema"]
-            conn = psycopg2.connect(**db_creds)
+            conn_args = db_creds
 
-        cur = conn.cursor()
+        with psycopg2.connect(**conn_args) as conn:
+            with conn.cursor() as cur:
+                if schema is not None and schema != "public":
+                    cur.execute(f"SET search_path TO {schema}")
 
-        if schema is not None and schema != "public":
-            cur.execute(f"SET search_path TO {schema}")
+                cur.execute(query)
+                colnames = [desc[0] for desc in cur.description]
 
-        cur.execute(query)
-        colnames = [desc[0] for desc in cur.description]
-
-        # if there are any column names that are the same, we need to deduplicate them
-        colnames = [
-            f"{col}_{i}" if colnames.count(col) > 1 else col
-            for i, col in enumerate(colnames)
-        ]
-
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+                # if there are any column names that are the same, we need to deduplicate them
+                colnames = [
+                    f"{col}_{i}" if colnames.count(col) > 1 else col
+                    for i, col in enumerate(colnames)
+                ]
+                rows = cur.fetchall()
         return colnames, rows
 
     elif db_type == "mysql":
@@ -63,13 +59,11 @@ def execute_query_once(db_type: str, db_creds, query: str):
             import mysql.connector
         except:
             raise Exception("mysql.connector not installed.")
-        conn = mysql.connector.connect(**db_creds)
-        cur = conn.cursor()
-        cur.execute(query)
-        colnames = [desc[0] for desc in cur.description]
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+        with mysql.connector.connect(**db_creds) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query)
+                colnames = [desc[0] for desc in cur.description]
+                rows = cur.fetchall()
         return colnames, rows
 
     elif db_type == "bigquery":
@@ -93,20 +87,18 @@ def execute_query_once(db_type: str, db_creds, query: str):
             import snowflake.connector
         except:
             raise Exception("snowflake.connector not installed.")
-        conn = snowflake.connector.connect(
+        with snowflake.connector.connect(
             user=db_creds["user"],
             password=db_creds["password"],
             account=db_creds["account"],
-        )
-        cur = conn.cursor()
-        cur.execute(f"USE WAREHOUSE {db_creds['warehouse']}")  # set the warehouse
-        if "database" in db_creds:
-            cur.execute(f"USE DATABASE {db_creds['database']}")
-        cur.execute(query)
-        colnames = [desc[0] for desc in cur.description]
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"USE WAREHOUSE {db_creds['warehouse']}")  # set the warehouse
+                if "database" in db_creds:
+                    cur.execute(f"USE DATABASE {db_creds['database']}")
+                cur.execute(query)
+                colnames = [desc[0] for desc in cur.description]
+                rows = cur.fetchall()
         return colnames, rows
 
     elif db_type == "databricks":
@@ -114,11 +106,11 @@ def execute_query_once(db_type: str, db_creds, query: str):
             from databricks import sql
         except:
             raise Exception("databricks-sql-connector not installed.")
-        conn = sql.connect(**db_creds)
-        with conn.cursor() as cursor:
-            cursor.execute(query)
-            colnames = [desc[0] for desc in cursor.description]
-            rows = cursor.fetchall()
+        with sql.connect(**db_creds) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(query)
+                colnames = [desc[0] for desc in cursor.description]
+                rows = cursor.fetchall()
         return colnames, rows
 
     elif db_type == "sqlserver":
@@ -131,14 +123,13 @@ def execute_query_once(db_type: str, db_creds, query: str):
             connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};DATABASE={db_creds['database']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
         else:
             connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
-        conn = pyodbc.connect(connection_string)
-        cur = conn.cursor()
-        cur.execute(query)
-        colnames = [desc[0] for desc in cur.description]
-        results = cur.fetchall()
-        rows = [list(row) for row in results]
-        cur.close()
-        conn.close()
+        with pyodbc.connect(connection_string) as conn:
+            cur = conn.cursor()
+            cur.execute(query)
+            colnames = [desc[0] for desc in cur.description]
+            results = cur.fetchall()
+            rows = [list(row) for row in results]
+            cur.close()
         return colnames, rows
 
     else:
@@ -156,8 +147,10 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
             raise Exception("asyncpg not installed.")
 
         conn = await asyncpg.connect(**db_creds)
-        results = await conn.fetch(query)
-        await conn.close()
+        try:
+            results = await conn.fetch(query)
+        finally:
+            await conn.close()
 
         if results and len(results) > 0:
             colnames = list(results[0].keys())
@@ -176,29 +169,32 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
 
         if "schema" not in db_creds:
             schema = "public"
-            conn = await asyncpg.connect(**db_creds)
+            conn_args = db_creds
         else:
             schema = db_creds["schema"]
+            db_creds = db_creds.copy()
             del db_creds["schema"]
-            conn = await asyncpg.connect(**db_creds)
+            conn_args = db_creds
 
-        if schema is not None and schema != "public":
-            await conn.execute(f"SET search_path TO {schema}")
+        conn = await asyncpg.connect(**conn_args)
+        try:
+            if schema is not None and schema != "public":
+                await conn.execute(f"SET search_path TO {schema}")
 
-        results = await conn.fetch(query)
-        if results and len(results) > 0:
-            colnames = list(results[0].keys())
-        else:
-            colnames = []
+            results = await conn.fetch(query)
+            if results and len(results) > 0:
+                colnames = list(results[0].keys())
+            else:
+                colnames = []
 
-        # deduplicate the column names
-        colnames = [
-            f"{col}_{i}" if colnames.count(col) > 1 else col
-            for i, col in enumerate(colnames)
-        ]
-        rows = [list(row.values()) for row in results]
-
-        await conn.close()
+            # deduplicate the column names
+            colnames = [
+                f"{col}_{i}" if colnames.count(col) > 1 else col
+                for i, col in enumerate(colnames)
+            ]
+            rows = [list(row.values()) for row in results]
+        finally:
+            await conn.close()
         return colnames, rows
 
     elif db_type == "mysql":
@@ -209,13 +205,11 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
         db_creds = db_creds.copy()
         db_creds["db"] = db_creds["database"]
         del db_creds["database"]
-        conn = await aiomysql.connect(**db_creds)
-        cur = await conn.cursor()
-        await cur.execute(query)
-        colnames = [desc[0] for desc in cur.description]
-        rows = await cur.fetchall()
-        await cur.close()
-        await conn.ensure_closed()
+        async with aiomysql.connect(**db_creds) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query)
+                colnames = [desc[0] for desc in cur.description]
+                rows = await cur.fetchall()
         return colnames, rows
 
     elif db_type == "bigquery":
@@ -241,26 +235,24 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
             import snowflake.connector
         except:
             raise Exception("snowflake.connector not installed.")
-        conn = snowflake.connector.connect(
+        with snowflake.connector.connect(
             user=db_creds["user"],
             password=db_creds["password"],
             account=db_creds["account"],
-        )
-        cur = conn.cursor()
-        cur.execute(f"USE WAREHOUSE {db_creds['warehouse']}")  # set the warehouse
+        ) as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"USE WAREHOUSE {db_creds['warehouse']}")  # set the warehouse
 
-        if "database" in db_creds:
-            cur.execute(f"USE DATABASE {db_creds['database']}")  # set the database
+                if "database" in db_creds:
+                    cur.execute(f"USE DATABASE {db_creds['database']}")  # set the database
 
-        cur.execute_async(query)
-        query_id = cur.sfqid
-        while conn.is_still_running(conn.get_query_status(query_id)):
-            await asyncio.sleep(1)
+                cur.execute_async(query)
+                query_id = cur.sfqid
+                while conn.is_still_running(conn.get_query_status(query_id)):
+                    await asyncio.sleep(1)
 
-        colnames = [desc[0] for desc in cur.description]
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+                colnames = [desc[0] for desc in cur.description]
+                rows = cur.fetchall()
         return colnames, rows
 
     elif db_type == "databricks":
@@ -269,11 +261,16 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
         except:
             raise Exception("databricks-sql-connector not installed.")
         conn = await asyncio.to_thread(sql.connect, **db_creds)
-        cursor = await asyncio.to_thread(conn.cursor)
-
-        await asyncio.to_thread(cursor.execute, query)
-        colnames = [desc[0] for desc in cursor.description]
-        rows = await asyncio.to_thread(cursor.fetchall)
+        try:
+            cursor = await asyncio.to_thread(conn.cursor)
+            try:
+                await asyncio.to_thread(cursor.execute, query)
+                colnames = [desc[0] for desc in cursor.description]
+                rows = await asyncio.to_thread(cursor.fetchall)
+            finally:
+                await asyncio.to_thread(cursor.close)
+        finally:
+            await asyncio.to_thread(conn.close)
         return colnames, rows
 
     elif db_type == "sqlserver":
@@ -286,15 +283,12 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
             connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};DATABASE={db_creds['database']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
         else:
             connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={db_creds['server']};UID={db_creds['user']};PWD={db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
-        conn = await aioodbc.connect(dsn=connection_string)
-        cur = await conn.cursor()
-
-        await cur.execute(query)
-        colnames = [desc[0] for desc in cur.description]
-        results = await cur.fetchall()
-        rows = [list(row) for row in results]
-        await cur.close()
-        await conn.close()
+        async with aioodbc.connect(dsn=connection_string) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(query)
+                colnames = [desc[0] for desc in cur.description]
+                results = await cur.fetchall()
+                rows = [list(row) for row in results]
         return colnames, rows
     else:
         raise Exception(f"Database type {db_type} not yet supported.")
