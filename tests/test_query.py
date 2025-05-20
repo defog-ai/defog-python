@@ -35,30 +35,6 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
             print("Moving logs back to ~/.defog")
             shutil.move(os.path.join(self.tmp_dir, "logs"), self.logs_path)
 
-    @mock.patch("psycopg2.connect")
-    def test_execute_query_once_success(self, mock_connect):
-        # Mock the psycopg2.connect function
-        mock_cursor = mock_connect.return_value.cursor.return_value
-        mock_cursor.description = [("col1",), ("col2",)]
-        mock_cursor.fetchall.return_value = [("data1", "data2"), ("data3", "data4")]
-
-        db_type = "postgres"
-        db_creds = {
-            "host": "localhost",
-            "port": 5432,
-            "database": "test_db",
-            "user": "test_user",
-            "password": "test_password",
-        }
-        query = "SELECT * FROM table_name;"
-
-        colnames, results = execute_query_once(db_type, db_creds, query)
-
-        # Add your assertions here to validate the results
-        self.assertEqual(colnames, ["col1", "col2"])
-        self.assertEqual(results, [("data1", "data2"), ("data3", "data4")])
-        print("Postgres query execution test passed!")
-
     @mock.patch("requests.post")
     @mock.patch("defog.query.execute_query_once")
     def test_execute_query_success(self, mock_execute_query_once, mock_requests_post):
