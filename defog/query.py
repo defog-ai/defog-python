@@ -19,7 +19,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
         with psycopg2.connect(**db_creds) as conn:
             with conn.cursor() as cur:
                 cur.execute(query)
-                colnames = [desc[0] for desc in cur.description]
+                colnames = [desc.name for desc in cur.description]
                 rows = cur.fetchall()
         return colnames, rows
 
@@ -44,7 +44,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
                     cur.execute(f"SET search_path TO {schema}")
 
                 cur.execute(query)
-                colnames = [desc[0] for desc in cur.description]
+                colnames = [desc.name for desc in cur.description]
 
                 # if there are any column names that are the same, we need to deduplicate them
                 colnames = [
