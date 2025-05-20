@@ -93,7 +93,9 @@ def execute_query_once(db_type: str, db_creds, query: str):
             account=db_creds["account"],
         ) as conn:
             with conn.cursor() as cur:
-                cur.execute(f"USE WAREHOUSE {db_creds['warehouse']}")  # set the warehouse
+                cur.execute(
+                    f"USE WAREHOUSE {db_creds['warehouse']}"
+                )  # set the warehouse
                 if "database" in db_creds:
                     cur.execute(f"USE DATABASE {db_creds['database']}")
                 cur.execute(query)
@@ -241,10 +243,14 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
             account=db_creds["account"],
         ) as conn:
             with conn.cursor() as cur:
-                cur.execute(f"USE WAREHOUSE {db_creds['warehouse']}")  # set the warehouse
+                cur.execute(
+                    f"USE WAREHOUSE {db_creds['warehouse']}"
+                )  # set the warehouse
 
                 if "database" in db_creds:
-                    cur.execute(f"USE DATABASE {db_creds['database']}")  # set the database
+                    cur.execute(
+                        f"USE DATABASE {db_creds['database']}"
+                    )  # set the database
 
                 cur.execute_async(query)
                 query_id = cur.sfqid
