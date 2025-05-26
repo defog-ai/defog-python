@@ -1,4 +1,5 @@
 import warnings
+
 warnings.filterwarnings("ignore")
 
 import unittest
@@ -20,19 +21,19 @@ Charlie Wilson,32,48000,Marketing"""
 
         self.complex_question = "What is the average salary by department? Show the results in a table format."
 
-    @pytest.mark.asyncio  
+    @pytest.mark.asyncio
     async def test_openai_complex_analysis(self):
         """Test OpenAI provider with complex aggregation question."""
         if not os.getenv("OPENAI_API_KEY"):
             self.skipTest("OPENAI_API_KEY not set")
-            
+
         response = await code_interpreter_tool(
             question=self.complex_question,
             model="gpt-4o",
             provider=LLMProvider.OPENAI,
-            csv_string=self.sample_csv
+            csv_string=self.sample_csv,
         )
-        
+
         self.assertIsInstance(response, dict)
         self.assertIn("code", response)
         self.assertIn("output", response)
@@ -48,14 +49,14 @@ Charlie Wilson,32,48000,Marketing"""
         """Test Anthropic provider with complex aggregation question."""
         if not os.getenv("ANTHROPIC_API_KEY"):
             self.skipTest("ANTHROPIC_API_KEY not set")
-            
+
         response = await code_interpreter_tool(
             question=self.complex_question,
             model="claude-3-7-sonnet-latest",
             provider=LLMProvider.ANTHROPIC,
-            csv_string=self.sample_csv
+            csv_string=self.sample_csv,
         )
-        
+
         self.assertIsInstance(response, dict)
         self.assertIn("code", response)
         self.assertIn("output", response)
@@ -71,14 +72,14 @@ Charlie Wilson,32,48000,Marketing"""
         """Test Gemini provider with complex aggregation question."""
         if not os.getenv("GEMINI_API_KEY"):
             self.skipTest("GEMINI_API_KEY not set")
-            
+
         response = await code_interpreter_tool(
             question=self.complex_question,
             model="gemini-2.0-flash",
             provider=LLMProvider.GEMINI,
-            csv_string=self.sample_csv
+            csv_string=self.sample_csv,
         )
-        
+
         self.assertIsInstance(response, dict)
         self.assertIn("code", response)
         self.assertIn("output", response)
@@ -90,39 +91,42 @@ Charlie Wilson,32,48000,Marketing"""
         """Test analysis with larger dataset."""
         if not os.getenv("OPENAI_API_KEY"):
             self.skipTest("OPENAI_API_KEY not set")
-            
+
         # Generate larger CSV with 100 rows
         large_csv_header = "id,name,age,salary,department,years_experience\n"
         large_csv_rows = []
         departments = ["Engineering", "Marketing", "Sales", "HR", "Finance"]
-        
+
         for i in range(100):
             dept = departments[i % len(departments)]
             age = 22 + (i % 40)
             salary = 40000 + (i * 500)
             experience = max(0, age - 22)
-            large_csv_rows.append(f"{i+1},Employee{i+1},{age},{salary},{dept},{experience}")
-        
+            large_csv_rows.append(
+                f"{i+1},Employee{i+1},{age},{salary},{dept},{experience}"
+            )
+
         large_csv = large_csv_header + "\n".join(large_csv_rows)
-        
+
         response = await code_interpreter_tool(
             question="What are the key insights about salary distribution across departments? Include summary statistics.",
             model="gpt-4o",
             provider=LLMProvider.OPENAI,
-            csv_string=large_csv
+            csv_string=large_csv,
         )
-        
+
         self.assertIsInstance(response, dict)
         self.assertIn("code", response)
         self.assertIn("output", response)
         self.assertGreater(len(response["output"]), 0)
         # Should contain department names and statistical terms in output
         output_lower = response["output"].lower()
+        self.assertTrue(any(dept.lower() in output_lower for dept in departments))
         self.assertTrue(
-            any(dept.lower() in output_lower for dept in departments)
-        )
-        self.assertTrue(
-            any(word in output_lower for word in ["mean", "median", "average", "distribution"])
+            any(
+                word in output_lower
+                for word in ["mean", "median", "average", "distribution"]
+            )
         )
 
     @pytest.mark.asyncio
@@ -130,20 +134,20 @@ Charlie Wilson,32,48000,Marketing"""
         """Test mathematical calculations and formulas."""
         if not os.getenv("ANTHROPIC_API_KEY"):
             self.skipTest("ANTHROPIC_API_KEY not set")
-            
+
         math_csv = """product,price,quantity,discount_rate
 Laptop,1000,5,0.1
 Mouse,25,100,0.05
 Keyboard,75,50,0.15
 Monitor,300,20,0.08"""
-        
+
         response = await code_interpreter_tool(
             question="Calculate the total revenue after applying discounts for each product, and find which product generates the most revenue.",
             model="claude-3-7-sonnet-latest",
             provider=LLMProvider.ANTHROPIC,
-            csv_string=math_csv
+            csv_string=math_csv,
         )
-        
+
         self.assertIsInstance(response, dict)
         self.assertIn("code", response)
         self.assertIn("output", response)
@@ -158,7 +162,7 @@ Monitor,300,20,0.08"""
         """Test analysis with time-based data."""
         if not os.getenv("OPENAI_API_KEY"):
             self.skipTest("OPENAI_API_KEY not set")
-            
+
         time_series_csv = """date,sales,customers
 2024-01-01,1000,50
 2024-01-02,1200,60
@@ -167,14 +171,14 @@ Monitor,300,20,0.08"""
 2024-01-05,1100,55
 2024-01-06,1300,65
 2024-01-07,900,45"""
-        
+
         response = await code_interpreter_tool(
             question="Analyze the sales trend over time and calculate the daily growth rate.",
             model="gpt-4o",
             provider=LLMProvider.OPENAI,
-            csv_string=time_series_csv
+            csv_string=time_series_csv,
         )
-        
+
         self.assertIsInstance(response, dict)
         self.assertIn("code", response)
         self.assertIn("output", response)

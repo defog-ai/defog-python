@@ -2,6 +2,7 @@ from defog.llm.llm_providers import LLMProvider
 import os
 from io import BytesIO
 
+
 async def code_interpreter_tool(
     question: str,
     model: str,
@@ -19,31 +20,28 @@ async def code_interpreter_tool(
 
     if provider == LLMProvider.OPENAI:
         from openai import AsyncOpenAI
-        from openai.types.responses import ResponseCodeInterpreterToolCall, ResponseOutputMessage
+        from openai.types.responses import (
+            ResponseCodeInterpreterToolCall,
+            ResponseOutputMessage,
+        )
 
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         file = await client.files.create(
             file=csv_file,
             purpose="user_data",
         )
-        
+
         response = await client.responses.create(
             model=model,
-            tools=[{
-                "type": "code_interpreter",
-                "container": { "type": "auto", "file_ids": [file.id] }
-            }],
+            tools=[
+                {
+                    "type": "code_interpreter",
+                    "container": {"type": "auto", "file_ids": [file.id]},
+                }
+            ],
             tool_choice="required",
             input=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": question
-                        }
-                    ]
-                }
+                {"role": "user", "content": [{"type": "input_text", "text": question}]}
             ],
             instructions=instructions,
         )
@@ -56,25 +54,20 @@ async def code_interpreter_tool(
             elif isinstance(chunk, ResponseOutputMessage):
                 for content in chunk.content:
                     output_text += content.text
-        
-        return {
-            "code": code,
-            "output": output_text
-        }
+
+        return {"code": code, "output": output_text}
     elif provider == LLMProvider.ANTHROPIC:
         from anthropic import AsyncAnthropic
-        
+
         client = AsyncAnthropic(
             api_key=os.getenv("ANTHROPIC_API_KEY"),
-            default_headers={
-                "anthropic-beta": "code-execution-2025-05-22"
-            }
+            default_headers={"anthropic-beta": "code-execution-2025-05-22"},
         )
-        
+
         file_object = await client.beta.files.upload(
             file=csv_file,
         )
-        
+
         response = await client.messages.create(
             model=model,
             max_tokens=8192,
@@ -82,15 +75,17 @@ async def code_interpreter_tool(
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": instructions + "\n\nThe question you must answer is: " + question},
-                        {"type": "container_upload", "file_id": file_object.id}
-                    ]
+                        {
+                            "type": "text",
+                            "text": instructions
+                            + "\n\nThe question you must answer is: "
+                            + question,
+                        },
+                        {"type": "container_upload", "file_id": file_object.id},
+                    ],
                 }
             ],
-            tools=[{
-                "type": "code_execution_20250522",
-                "name": "code_execution"
-            }],
+            tools=[{"type": "code_execution_20250522", "name": "code_execution"}],
             tool_choice={"type": "any"},
         )
         code = ""
@@ -101,14 +96,11 @@ async def code_interpreter_tool(
             elif chunk.type == "text":
                 output_text += chunk.text
 
-        return {
-            "code": code,
-            "output": output_text
-        }
+        return {"code": code, "output": output_text}
     elif provider == LLMProvider.GEMINI:
         from google import genai
         from google.genai import types
-        
+
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         file_csv = await client.aio.files.upload(
             file=csv_file,
@@ -117,7 +109,7 @@ async def code_interpreter_tool(
                 display_name="data.csv",
             ),
         )
-        
+
         response = await client.aio.models.generate_content(
             model=model,
             contents=[file_csv, question],
@@ -136,9 +128,5 @@ async def code_interpreter_tool(
                 code += part.executable_code.code
             if hasattr(part, "text") and part.text is not None:
                 output_text += part.text
-            
 
-        return {
-            "code": code,
-            "output": output_text
-        }
+        return {"code": code, "output": output_text}
