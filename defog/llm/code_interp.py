@@ -18,7 +18,7 @@ async def code_interpreter_tool(
     csv_file = BytesIO(csv_string.encode("utf-8"))
     csv_file.name = "data.csv"
 
-    if provider == LLMProvider.OPENAI:
+    if provider in [LLMProvider.OPENAI, LLMProvider.OPENAI.value]:
         from openai import AsyncOpenAI
         from openai.types.responses import (
             ResponseCodeInterpreterToolCall,
@@ -56,7 +56,7 @@ async def code_interpreter_tool(
                     output_text += content.text
 
         return {"code": code, "output": output_text}
-    elif provider == LLMProvider.ANTHROPIC:
+    elif provider in [LLMProvider.ANTHROPIC, LLMProvider.ANTHROPIC.value]:
         from anthropic import AsyncAnthropic
 
         client = AsyncAnthropic(
@@ -97,7 +97,7 @@ async def code_interpreter_tool(
                 output_text += chunk.text
 
         return {"code": code, "output": output_text}
-    elif provider == LLMProvider.GEMINI:
+    elif provider in [LLMProvider.GEMINI, LLMProvider.GEMINI.value]:
         from google import genai
         from google.genai import types
 

@@ -11,7 +11,7 @@ async def web_search_tool(
     """
     Search the web for the answer to the question.
     """
-    if provider == LLMProvider.OPENAI:
+    if provider in [LLMProvider.OPENAI, LLMProvider.OPENAI.value]:
         from openai import AsyncOpenAI
 
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -47,7 +47,7 @@ async def web_search_tool(
             "websites_cited": websites_cited,
         }
 
-    elif provider == LLMProvider.ANTHROPIC:
+    elif provider in [LLMProvider.ANTHROPIC, LLMProvider.ANTHROPIC.value]:
         from anthropic import AsyncAnthropic
         from anthropic.types import TextBlock
 
@@ -99,7 +99,7 @@ async def web_search_tool(
             "search_results": search_results,
             "websites_cited": websites_cited,
         }
-    elif provider == LLMProvider.GEMINI:
+    elif provider in [LLMProvider.GEMINI, LLMProvider.GEMINI.value]:
         from google import genai
         from google.genai.types import (
             Tool,
