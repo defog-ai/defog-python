@@ -9,7 +9,7 @@ This library used to be an SDK for accessing Defog's cloud hosted text-to-SQL se
 1. Making convenient, cross-provider LLM calls (including server-hosted tools)
 2. Easily extracting information from databases to make them easy to use
 
-If you are looking for text-to-SQL or deep-research like capabilities, check out [introspect](https://github.com/defog-ai/introspect), our open-source, MIT licensed repo.
+If you are looking for text-to-SQL or deep-research like capabilities, check out [introspect](https://github.com/defog-ai/introspect), our open-source, MIT licensed repo that uses this library as a dependency.
 
 # Using this library
 
