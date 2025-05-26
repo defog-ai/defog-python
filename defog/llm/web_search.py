@@ -19,7 +19,7 @@ async def web_search_tool(
             model=model,
             tools=[{"type": "web_search_preview"}],
             input=question,
-            max_tokens=max_tokens,
+            max_completion_tokens=max_tokens,
         )
         usage = {
             "input_tokens": response.usage.input_tokens,
