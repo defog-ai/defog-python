@@ -115,8 +115,8 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         ]
 
         providers_config = [
-            (LLMProvider.OPENAI, "gpt-4o-mini", "OPENAI_API_KEY"),
-            (LLMProvider.ANTHROPIC, "claude-3-5-sonnet-20241022", "ANTHROPIC_API_KEY"),
+            (LLMProvider.OPENAI, "gpt-4.1-mini", "OPENAI_API_KEY"),
+            (LLMProvider.ANTHROPIC, "claude-3-7-sonnet-latest", "ANTHROPIC_API_KEY"),
             (LLMProvider.GEMINI, "gemini-2.0-flash", "GEMINI_API_KEY"),
         ]
 
@@ -136,7 +136,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
                         question=question,
                         model=model,
                         provider=provider,
-                        max_tokens=512,
+                        max_tokens=1024,
                     )
 
                     self._validate_basic_structure(result)
@@ -145,8 +145,8 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_web_search_custom_max_tokens(self):
         providers_config = [
-            (LLMProvider.OPENAI, "gpt-4o-mini", "OPENAI_API_KEY"),
-            (LLMProvider.ANTHROPIC, "claude-3-5-sonnet-20241022", "ANTHROPIC_API_KEY"),
+            (LLMProvider.OPENAI, "gpt-4.1-mini", "OPENAI_API_KEY"),
+            (LLMProvider.ANTHROPIC, "claude-3-7-sonnet-latest", "ANTHROPIC_API_KEY"),
             (LLMProvider.GEMINI, "gemini-2.0-flash", "GEMINI_API_KEY"),
         ]
 
@@ -165,7 +165,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
                     question="Brief summary of Python programming language",
                     model=model,
                     provider=provider,
-                    max_tokens=100,
+                    max_tokens=1024,
                 )
 
                 self._validate_basic_structure(result)

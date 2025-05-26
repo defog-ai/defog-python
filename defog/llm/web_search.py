@@ -111,10 +111,10 @@ async def web_search_tool(
             config=GenerateContentConfig(
                 tools=[google_search_tool],
                 response_modalities=["TEXT"],
-            ),
-            tool_config=ToolConfig(
-                function_calling_config=FunctionCallingConfig(
-                    function_calling_mode="ANY",
+                tool_config=ToolConfig(
+                    function_calling_config=FunctionCallingConfig(
+                        mode="ANY",
+                    ),
                 ),
             ),
         )
