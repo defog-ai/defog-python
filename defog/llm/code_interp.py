@@ -1,0 +1,108 @@
+from defog.llm.llm_providers import LLMProvider
+import os
+from io import BytesIO
+
+async def code_interp_tool(
+    question: str,
+    model: str,
+    provider: LLMProvider,
+    csv_string: str = "",
+    instructions: str = "You are a Python programmer. You are given a question and a CSV string of data. You need to answer the question using the data. You are also given a sandboxed server environment where you can run the code.",
+):
+    """
+    Creates a python script to answer the question, where the python script is executed in a sandboxed server environment.
+    """
+
+    # create a csv file from the csv_string
+    csv_file = BytesIO(csv_string.encode("utf-8"))
+    csv_file.name = "data.csv"
+
+    if provider == LLMProvider.OPENAI:
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        file = await client.files.create(
+            file=csv_file,
+            purpose="user_data",
+        )
+        
+        response = await client.responses.create(
+            model=model,
+            tools=[{
+                "type": "code_interpreter",
+                "container": { "type": "auto", "file_ids": [file.id] }
+            }],
+            tool_choice="required",
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": question
+                        }
+                    ]
+                }
+            ],
+            instructions=instructions,
+        )
+
+        print(response)
+        output_text = response.output_text
+        return output_text
+    elif provider == LLMProvider.ANTHROPIC:
+        from anthropic import AsyncAnthropic
+
+        client = AsyncAnthropic(
+            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            default_headers={
+                "anthropic-beta": "code-execution-2025-05-22"
+            }
+        )
+        
+        file_object = await client.beta.files.upload(
+            file=csv_file,
+        )
+        
+        response = await client.messages.create(
+            model=model,
+            max_tokens=8192,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": instructions + "\n\nThe question you must answer is: " + question},
+                        {"type": "container_upload", "file_id": file_object.id}
+                    ]
+                }
+            ],
+            tools=[{
+                "type": "code_execution_20250522",
+                "name": "code_execution"
+            }],
+            tool_choice={"type": "any"},
+        )
+        
+        print(response)
+        return response
+    elif provider == LLMProvider.GEMINI:
+        from google import genai
+        from google.genai import types
+        
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        file_csv = await client.aio.files.upload(
+            file=csv_file,
+            config=types.UploadFileConfig(
+                mime_type="text/csv",
+            ),
+        )
+        
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=[file_csv, question],
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(code_execution=types.ToolCodeExecution())],
+            ),
+        )
+        print(response)
+        return response
