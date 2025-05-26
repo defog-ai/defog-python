@@ -96,7 +96,7 @@ async def web_search_tool(
 
         return {
             "usage": usage,
-            "search_results": search_results,
+            "search_results": output_text,
             "websites_cited": websites_cited,
         }
     elif provider in [LLMProvider.GEMINI, LLMProvider.GEMINI.value]:
