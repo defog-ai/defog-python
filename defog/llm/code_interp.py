@@ -54,8 +54,9 @@ async def code_interpreter_tool(
             if isinstance(chunk, ResponseCodeInterpreterToolCall):
                 code += chunk.code
             elif isinstance(chunk, ResponseOutputMessage):
-                output_text += chunk.text
-
+                for content in chunk.content:
+                    output_text += content.text
+        
         return {
             "code": code,
             "output": output_text
@@ -94,9 +95,9 @@ async def code_interpreter_tool(
         )
         code = ""
         output_text = ""
-        for chunk in response.output:
+        for chunk in response.content:
             if chunk.type == "server_tool_use":
-                code += chunk.code
+                code += chunk.input["code"]
             elif chunk.type == "text":
                 output_text += chunk.text
 
@@ -125,16 +126,17 @@ async def code_interpreter_tool(
             ),
         )
 
-        parts = response.candidates[0].content
+        parts = response.candidates[0].content.parts
 
         code = ""
         output_text = ""
 
         for part in parts:
-            if hasattr(part, "executable_code"):
-                code += part.executable_code
-            if hasattr(part, "text"):
+            if hasattr(part, "executable_code") and part.executable_code is not None:
+                code += part.executable_code.code
+            if hasattr(part, "text") and part.text is not None:
                 output_text += part.text
+            
 
         return {
             "code": code,
