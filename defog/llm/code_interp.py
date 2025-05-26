@@ -2,7 +2,7 @@ from defog.llm.llm_providers import LLMProvider
 import os
 from io import BytesIO
 
-async def code_interp_tool(
+async def code_interpreter_tool(
     question: str,
     model: str,
     provider: LLMProvider,
@@ -19,6 +19,7 @@ async def code_interp_tool(
 
     if provider == LLMProvider.OPENAI:
         from openai import AsyncOpenAI
+        from openai.types.responses import ResponseCodeInterpreterToolCall, ResponseOutputMessage
 
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         file = await client.files.create(
@@ -46,13 +47,22 @@ async def code_interp_tool(
             ],
             instructions=instructions,
         )
+        code = ""
+        output_text = ""
 
-        print(response)
-        output_text = response.output_text
-        return output_text
+        for chunk in response.output:
+            if isinstance(chunk, ResponseCodeInterpreterToolCall):
+                code += chunk.code
+            elif isinstance(chunk, ResponseOutputMessage):
+                output_text += chunk.text
+
+        return {
+            "code": code,
+            "output": output_text
+        }
     elif provider == LLMProvider.ANTHROPIC:
         from anthropic import AsyncAnthropic
-
+        
         client = AsyncAnthropic(
             api_key=os.getenv("ANTHROPIC_API_KEY"),
             default_headers={
@@ -82,9 +92,18 @@ async def code_interp_tool(
             }],
             tool_choice={"type": "any"},
         )
-        
-        print(response)
-        return response
+        code = ""
+        output_text = ""
+        for chunk in response.output:
+            if chunk.type == "server_tool_use":
+                code += chunk.code
+            elif chunk.type == "text":
+                output_text += chunk.text
+
+        return {
+            "code": code,
+            "output": output_text
+        }
     elif provider == LLMProvider.GEMINI:
         from google import genai
         from google.genai import types
@@ -94,6 +113,7 @@ async def code_interp_tool(
             file=csv_file,
             config=types.UploadFileConfig(
                 mime_type="text/csv",
+                display_name="data.csv",
             ),
         )
         
@@ -104,5 +124,19 @@ async def code_interp_tool(
                 tools=[types.Tool(code_execution=types.ToolCodeExecution())],
             ),
         )
-        print(response)
-        return response
+
+        parts = response.candidates[0].content
+
+        code = ""
+        output_text = ""
+
+        for part in parts:
+            if hasattr(part, "executable_code"):
+                code += part.executable_code
+            if hasattr(part, "text"):
+                output_text += part.text
+
+        return {
+            "code": code,
+            "output": output_text
+        }
