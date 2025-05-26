@@ -18,6 +18,7 @@ async def web_search_tool(
         response = await client.responses.create(
             model=model,
             tools=[{"type": "web_search_preview"}],
+            tool_choice="required",
             input=question,
             # in the responses API, this means both the reasoning and the output tokens
             max_output_tokens=max_tokens,
@@ -29,7 +30,7 @@ async def web_search_tool(
         output_text = response.output_text
         websites_cited = []
         for output in response.output:
-            if output.content:
+            if hasattr(output, "content") and output.content:
                 for content in output.content:
                     if content.annotations:
                         for annotation in content.annotations:
@@ -64,6 +65,7 @@ async def web_search_tool(
                     # can also use blocked_domains to exclude specific domains
                 }
             ],
+            tool_choice={"type": "any"},
         )
 
         usage = {
@@ -99,7 +101,7 @@ async def web_search_tool(
         }
     elif provider == LLMProvider.GEMINI:
         from google import genai
-        from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
+        from google.genai.types import Tool, GenerateContentConfig, GoogleSearch, ToolConfig, FunctionCallingConfig
 
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         google_search_tool = Tool(google_search=GoogleSearch())
@@ -109,6 +111,11 @@ async def web_search_tool(
             config=GenerateContentConfig(
                 tools=[google_search_tool],
                 response_modalities=["TEXT"],
+            ),
+            tool_config=ToolConfig(
+                function_calling_config=FunctionCallingConfig(
+                    function_calling_mode="ANY",
+                ),
             ),
         )
         usage = {
