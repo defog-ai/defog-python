@@ -1,17 +1,19 @@
 from defog.llm.llm_providers import LLMProvider
 import os
 
+
 async def web_search_tool(
-        question: str,
-        model: str,
-        provider: LLMProvider,
-        max_tokens: int = 2048,
-    ):
+    question: str,
+    model: str,
+    provider: LLMProvider,
+    max_tokens: int = 2048,
+):
     """
     Search the web for the answer to the question.
     """
     if provider == LLMProvider.OPENAI:
         from openai import AsyncOpenAI
+
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         response = await client.responses.create(
             model=model,
@@ -19,7 +21,10 @@ async def web_search_tool(
             input=question,
             max_tokens=max_tokens,
         )
-        usage = {"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens}
+        usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+        }
         output_text = response.output_text
         websites_cited = []
         for output in response.output:
@@ -27,46 +32,64 @@ async def web_search_tool(
                 for content in output.content:
                     if content.annotations:
                         for annotation in content.annotations:
-                            websites_cited.append({
-                                "url": annotation.url,
-                                "title": annotation.title,
-                            })
+                            websites_cited.append(
+                                {
+                                    "url": annotation.url,
+                                    "title": annotation.title,
+                                }
+                            )
 
         return {
             "usage": usage,
             "search_results": output_text,
             "websites_cited": websites_cited,
         }
-    
+
     elif provider == LLMProvider.ANTHROPIC:
         from anthropic import AsyncAnthropic
         from anthropic.types import TextBlock
+
         client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         response = await client.messages.create(
             model=model,
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": question}],
-            tools=[{
-                "type": "web_search_20250305",
-                "name": "web_search",
-                "max_uses": 5,
-                # can also use allowed_domains to limit the search to specific domains
-                # can also use blocked_domains to exclude specific domains
-            }]
+            tools=[
+                {
+                    "type": "web_search_20250305",
+                    "name": "web_search",
+                    "max_uses": 5,
+                    # can also use allowed_domains to limit the search to specific domains
+                    # can also use blocked_domains to exclude specific domains
+                }
+            ],
         )
 
-        usage = {"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens}
+        usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+        }
         search_results = response.content
         # we want to use only the TextBlock class in the search results
-        search_results = [block for block in search_results if isinstance(block, TextBlock)]
+        search_results = [
+            block for block in search_results if isinstance(block, TextBlock)
+        ]
 
         # convert the search_results into simple text with citations
         # (where citations = text + hyperlinks
-        output_text = [f'<a href="{block.citations[0].url}">' + block.text + '</a>' if block.citations else block.text for block in search_results]
-        websites_cited = [{
-            "url": block.citations[0].url,
-            "title": block.citations[0].title
-        } for block in search_results if block.citations]
+        output_text = [
+            (
+                f'<a href="{block.citations[0].url}">' + block.text + "</a>"
+                if block.citations
+                else block.text
+            )
+            for block in search_results
+        ]
+        websites_cited = [
+            {"url": block.citations[0].url, "title": block.citations[0].title}
+            for block in search_results
+            if block.citations
+        ]
 
         return {
             "usage": usage,
@@ -78,33 +101,33 @@ async def web_search_tool(
         from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        google_search_tool = Tool(
-            google_search = GoogleSearch()
-        )
+        google_search_tool = Tool(google_search=GoogleSearch())
         response = await client.aio.models.generate_content(
             model=model,
             contents=question,
             config=GenerateContentConfig(
                 tools=[google_search_tool],
                 response_modalities=["TEXT"],
-            )
+            ),
         )
         usage = {
             "input_tokens": response.usage_metadata.prompt_token_count,
             "thinking_tokens": response.usage_metadata.thoughts_token_count or 0,
-            "output_tokens": response.usage_metadata.candidates_token_count
+            "output_tokens": response.usage_metadata.candidates_token_count,
         }
 
         websites_cited = []
         if response.candidates:
             for candidate in response.candidates:
-                if candidate.grounding_metadata and candidate.grounding_metadata.grounding_chunks:
+                if (
+                    candidate.grounding_metadata
+                    and candidate.grounding_metadata.grounding_chunks
+                ):
                     for chunk in candidate.grounding_metadata.grounding_chunks:
-                        websites_cited.append({
-                            "source": chunk.web.title,
-                            "url": chunk.web.uri
-                        })
-        
+                        websites_cited.append(
+                            {"source": chunk.web.title, "url": chunk.web.uri}
+                        )
+
         output_text = response.text
 
         return {
