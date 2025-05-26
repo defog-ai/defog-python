@@ -101,7 +101,13 @@ async def web_search_tool(
         }
     elif provider == LLMProvider.GEMINI:
         from google import genai
-        from google.genai.types import Tool, GenerateContentConfig, GoogleSearch, ToolConfig, FunctionCallingConfig
+        from google.genai.types import (
+            Tool,
+            GenerateContentConfig,
+            GoogleSearch,
+            ToolConfig,
+            FunctionCallingConfig,
+        )
 
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         google_search_tool = Tool(google_search=GoogleSearch())
