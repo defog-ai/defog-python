@@ -19,7 +19,8 @@ async def web_search_tool(
             model=model,
             tools=[{"type": "web_search_preview"}],
             input=question,
-            max_completion_tokens=max_tokens,
+            # in the responses API, this means both the reasoning and the output tokens
+            max_output_tokens=max_tokens,
         )
         usage = {
             "input_tokens": response.usage.input_tokens,
