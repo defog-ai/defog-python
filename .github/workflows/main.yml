@@ -1,16 +1,41 @@
 name: tests
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      defog: ${{ steps.filter.outputs.defog }}
+      tests: ${{ steps.filter.outputs.tests }}
+      requirements: ${{ steps.filter.outputs.requirements }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            defog:
+              - 'defog/**'
+            tests:
+              - 'tests/**'
+            requirements:
+              - 'requirements.txt'
+              - 'setup.py'
+              - 'setup.cfg'
+
   lint:
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.defog == 'true' || needs.changes.outputs.tests == 'true'
     steps:
       - uses: actions/checkout@v2
       - uses: psf/black@stable
+
   test:
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [changes, lint]
+    if: needs.changes.outputs.defog == 'true' || needs.changes.outputs.tests == 'true' || needs.changes.outputs.requirements == 'true'
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python
@@ -21,8 +46,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run tests
-        run: pytest tests
+      - name: Run affected tests
+        run: |
+          if [ "${{ needs.changes.outputs.defog }}" == "true" ] || [ "${{ needs.changes.outputs.requirements }}" == "true" ]; then
+            pytest tests
+          elif [ "${{ needs.changes.outputs.tests }}" == "true" ]; then
+            pytest $(git diff --name-only HEAD~1 -- tests/ | grep -E '\.py$' | sed 's/^tests\//tests\//' | tr '\n' ' ')
+          fi
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
