@@ -48,10 +48,60 @@ jobs:
           pip install -r requirements.txt
       - name: Run affected tests
         run: |
-          if [ "${{ needs.changes.outputs.defog }}" == "true" ] || [ "${{ needs.changes.outputs.requirements }}" == "true" ]; then
+          if [ "${{ needs.changes.outputs.requirements }}" == "true" ]; then
             pytest tests
-          elif [ "${{ needs.changes.outputs.tests }}" == "true" ]; then
-            pytest $(git diff --name-only HEAD~1 -- tests/ | grep -E '\.py$' | sed 's/^tests\//tests\//' | tr '\n' ' ')
+          elif [ "${{ needs.changes.outputs.defog }}" == "true" ] || [ "${{ needs.changes.outputs.tests }}" == "true" ]; then
+            CHANGED_FILES=$(git diff --name-only HEAD~1)
+            TEST_FILES=""
+            
+            # Map defog files to their corresponding tests
+            for file in $CHANGED_FILES; do
+              case $file in
+                defog/query.py|defog/query_methods.py|defog/async_query_methods.py)
+                  TEST_FILES="$TEST_FILES tests/test_query.py"
+                  ;;
+                defog/util.py)
+                  TEST_FILES="$TEST_FILES tests/test_util.py"
+                  ;;
+                defog/admin_methods.py|defog/async_admin_methods.py)
+                  TEST_FILES="$TEST_FILES tests/test_async_defog.py tests/test_defog.py"
+                  ;;
+                defog/health_methods.py|defog/async_health_methods.py)
+                  TEST_FILES="$TEST_FILES tests/test_async_defog.py tests/test_defog.py"
+                  ;;
+                defog/generate_schema.py|defog/async_generate_schema.py)
+                  TEST_FILES="$TEST_FILES tests/test_async_defog.py tests/test_defog.py"
+                  ;;
+                defog/llm/*)
+                  TEST_FILES="$TEST_FILES tests/test_llm.py tests/test_llm_response.py tests/test_llm_tool_calls.py"
+                  ;;
+                defog/llm/web_search.py)
+                  TEST_FILES="$TEST_FILES tests/test_web_search.py"
+                  ;;
+                defog/llm/code_interp.py)
+                  TEST_FILES="$TEST_FILES tests/test_code_interp.py"
+                  ;;
+                defog/llm/citations.py)
+                  TEST_FILES="$TEST_FILES tests/test_citations.py"
+                  ;;
+                tests/*)
+                  if [[ $file == tests/*.py ]]; then
+                    TEST_FILES="$TEST_FILES $file"
+                  fi
+                  ;;
+                defog/__init__.py|defog/serve.py|defog/cli.py)
+                  TEST_FILES="$TEST_FILES tests/test_defog.py"
+                  ;;
+              esac
+            done
+            
+            # Remove duplicates and run tests
+            TEST_FILES=$(echo $TEST_FILES | tr ' ' '\n' | sort -u | tr '\n' ' ')
+            if [ -n "$TEST_FILES" ]; then
+              pytest $TEST_FILES
+            else
+              echo "No relevant tests found for changed files"
+            fi
           fi
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
