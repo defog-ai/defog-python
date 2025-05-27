@@ -25,7 +25,7 @@ next_static_files = package_files("defog/static")
 setup(
     name="defog",
     packages=find_packages(),
-    package_data={"defog": ["gcp/*", "aws/*"] + next_static_files},
+    package_data={"defog": next_static_files},
     version="0.69.3",
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",

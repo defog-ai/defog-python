@@ -24,7 +24,6 @@ Available commands:
     gen <table1> <table2>\tSpecify tables to generate schema for
     update <csv>\t\tupdate schema (path to CSV) to defog
     query\t\t\tRun a query
-    deploy <gcp|aws>\t\tDeploy a defog server as a cloud function
     quota\t\t\tCheck your API quota limits
     docs\t\t\tPrint documentation
     serve\t\t\tServe a defog server locally
@@ -643,97 +642,6 @@ def golden():
                 dfg.delete_golden_queries(golden_queries=golden_queries)
         elif path.endswith(".csv"):
             dfg.delete_golden_queries(golden_queries_path=path)
-
-
-def deploy():
-    """
-    Deploy a cloud function that can be used to run queries.
-    """
-    # check args for gcp or aws
-    if len(sys.argv) < 3:
-        print("defog deploy requires a cloud provider. Please enter 'gcp' or 'aws':")
-        cloud_provider = prompt().strip().lower()
-    else:
-        cloud_provider = sys.argv[2].lower()
-
-    if len(sys.argv) >= 4:
-        function_name = sys.argv[3]
-    else:
-        function_name = f"defog-{cloud_provider}"
-
-    # load config from .defog/connection.json
-    df = defog.Defog()
-
-    if cloud_provider == "gcp":
-        # base64 encode defog credentials for ease of passing around in cli
-        creds64_str = df.to_base64_creds()
-        source_path = os.path.join(defog.__path__[0], "gcp")
-        cmd = [
-            "gcloud",
-            "functions",
-            "deploy",
-            function_name,
-            "--runtime",
-            "python310",
-            "--region",
-            "us-central1",
-            "--source",
-            source_path,
-            "--entry-point",
-            "defog_query_http",
-            "--max-instances",
-            "1",
-            "--set-env-vars",
-            f"DEFOG_CREDS_64={creds64_str}",
-            "--trigger-http",
-            "--gen2",
-            "--allow-unauthenticated",
-        ]
-        try:
-            cmd_str = " ".join(cmd)
-            print(f"executing gcloud command:\n{cmd_str}")
-            subprocess.check_call(cmd)
-            print("gcloud command executed successfully")
-        except subprocess.CalledProcessError as e:
-            print(f"Error deploying Cloud Function:\n{e}")
-    elif cloud_provider == "aws":
-        # base64 encode defog credentials for ease of passing around in cli
-        creds64_str = df.to_base64_creds()
-        # get base config from defog package, add env vars
-        base_config_path = os.path.join(defog.__path__[0], "aws", "base_config.json")
-        with open(base_config_path, "r") as f:
-            chalice_config = json.load(f)
-        chalice_config["environment_variables"] = {"DEFOG_CREDS_64": creds64_str}
-        chalice_config = parse_update(
-            sys.argv[3:], ["app_name", "version"], chalice_config
-        )
-        aws_path = os.path.join(home_dir, ".defog", "aws")
-        chalice_path = os.path.join(aws_path, ".chalice")
-        if not os.path.exists(chalice_path):
-            print(f"creating {chalice_path}")
-            os.makedirs(chalice_path)
-        chalice_config_path = os.path.join(chalice_path, "config.json")
-        # save to .defog/aws/.chalice/config.json
-        with open(chalice_config_path, "w") as f:
-            json.dump(chalice_config, f)
-        # copy over app.py and requirements.txt to .defog/aws
-        app_path = os.path.join(defog.__path__[0], "aws", "app.py")
-        req_path = os.path.join(defog.__path__[0], "aws", "requirements.txt")
-        shutil.copy(app_path, aws_path)
-        shutil.copy(req_path, aws_path)
-
-        # deploy with chalice
-        try:
-            print("deploying with Chalice...")
-            os.chdir(aws_path)
-            subprocess.check_call(["chalice", "deploy"])
-            os.chdir("../..")
-            print("deployed aws lambda successfully with Chalice.")
-            print(f"You can find the chalice deployment artifacts in {aws_path}")
-        except subprocess.CalledProcessError as e:
-            print(f"Error deploying with Chalice:\n{e}")
-    else:
-        raise ValueError("Cloud provider must be 'gcp' or 'aws'.")
 
 
 def quota():
