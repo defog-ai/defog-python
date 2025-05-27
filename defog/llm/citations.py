@@ -2,10 +2,12 @@ from defog.llm.llm_providers import LLMProvider
 import os
 import asyncio
 
+
 async def upload_document_to_openai_vector_store(document, store_id):
     from openai import AsyncOpenAI
+
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    
+
     file_name = document["document_name"]
     if not file_name.endswith(".txt"):
         file_name = file_name + ".txt"
@@ -16,8 +18,7 @@ async def upload_document_to_openai_vector_store(document, store_id):
 
     # first, upload the file to the vector store
     file = await client.files.create(
-        file=(file_name, file_content),
-        purpose="assistants"
+        file=(file_name, file_content), purpose="assistants"
     )
 
     # then add it to the vector store
@@ -25,7 +26,6 @@ async def upload_document_to_openai_vector_store(document, store_id):
         vector_store_id=store_id,
         file_id=file.id,
     )
-    
 
 
 async def citations_tool(
@@ -43,34 +43,43 @@ async def citations_tool(
         from openai import AsyncOpenAI
 
         client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        
+
         # create an ephemeral vector store
         store = await client.vector_stores.create()
         store_id = store.id
 
         # Upload all documents in parallel
-        await asyncio.gather(*[
-            upload_document_to_openai_vector_store(document, store_id) for document in documents
-        ])
+        await asyncio.gather(
+            *[
+                upload_document_to_openai_vector_store(document, store_id)
+                for document in documents
+            ]
+        )
 
         # keep polling until the vector store is ready
         is_ready = False
         while not is_ready:
             store = await client.vector_stores.files.list(vector_store_id=store_id)
-            total_completed = sum(1 for file in store.data if file.status == "completed")
+            total_completed = sum(
+                1 for file in store.data if file.status == "completed"
+            )
             is_ready = total_completed == len(documents)
             if not is_ready:
-                print(f"Waiting for vector store to be ready before proceeding... {total_completed}/{len(documents)} files completed")
+                print(
+                    f"Waiting for vector store to be ready before proceeding... {total_completed}/{len(documents)} files completed"
+                )
                 await asyncio.sleep(1)
 
         # get the answer
         response = await client.responses.create(
             model=model,
             input=question,
-            tools=[{
-                "type": "file_search",
-                "vector_store_ids": [store_id],
-            }],
+            tools=[
+                {
+                    "type": "file_search",
+                    "vector_store_ids": [store_id],
+                }
+            ],
             tool_choice="required",
             instructions=instructions,
         )
@@ -83,42 +92,47 @@ async def citations_tool(
                 contents = part.content
                 for item in contents:
                     if item.type == "output_text":
-                        blocks.append({
-                            "text": item.text,
-                            "type": "text",
-                            "citations": [ { "document_title": i.filename } for i in item.annotations ]
-                        })
+                        blocks.append(
+                            {
+                                "text": item.text,
+                                "type": "text",
+                                "citations": [
+                                    {"document_title": i.filename}
+                                    for i in item.annotations
+                                ],
+                            }
+                        )
         return blocks
-    
+
     elif provider in [LLMProvider.ANTHROPIC, LLMProvider.ANTHROPIC.value]:
         from anthropic import AsyncAnthropic
+
         client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        
+
         document_contents = []
         for document in documents:
-            document_contents.append({
-                "type": "document",
-                "source": {
-                    "type": "text",
-                    "media_type": "text/plain",
-                    "data": document["document_content"]
-                },
-                "title": document["document_name"],
-                "citations": {"enabled": True},
-            })
-        
+            document_contents.append(
+                {
+                    "type": "document",
+                    "source": {
+                        "type": "text",
+                        "media_type": "text/plain",
+                        "data": document["document_content"],
+                    },
+                    "title": document["document_name"],
+                    "citations": {"enabled": True},
+                }
+            )
+
         # Create content messages with citations enabled for individual tool calls
         messages = [
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "text",
-                        "text": question
-                    },
+                    {"type": "text", "text": question},
                     # Add all individual document contents
-                    *document_contents
-                ]
+                    *document_contents,
+                ],
             }
         ]
 
