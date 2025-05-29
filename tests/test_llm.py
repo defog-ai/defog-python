@@ -93,7 +93,10 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(map_model_to_provider("deepseek-chat"), LLMProvider.DEEPSEEK)
 
-        self.assertEqual(map_model_to_provider("meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"), LLMProvider.TOGETHER)
+        self.assertEqual(
+            map_model_to_provider("meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"),
+            LLMProvider.TOGETHER,
+        )
 
         with self.assertRaises(Exception):
             map_model_to_provider("unknown-model")

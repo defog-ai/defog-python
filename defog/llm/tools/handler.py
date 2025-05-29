@@ -11,22 +11,22 @@ from ..utils_function_calling import (
 
 class ToolHandler:
     """Handles tool calling logic for LLM providers."""
-    
+
     def __init__(self, max_consecutive_errors: int = 3):
         self.max_consecutive_errors = max_consecutive_errors
-    
+
     async def execute_tool_call(
         self,
         tool_name: str,
         args: Dict[str, Any],
         tool_dict: Dict[str, Callable],
-        post_tool_function: Optional[Callable] = None
+        post_tool_function: Optional[Callable] = None,
     ) -> Any:
         """Execute a single tool call."""
         tool_to_call = tool_dict.get(tool_name)
         if tool_to_call is None:
             raise ToolError(tool_name, "Tool not found")
-        
+
         try:
             # Execute tool depending on whether it is async
             if inspect.iscoroutinefunction(tool_to_call):
@@ -35,7 +35,7 @@ class ToolHandler:
                 result = execute_tool(tool_to_call, args)
         except Exception as e:
             raise ToolError(tool_name, f"Error executing tool: {e}", e)
-        
+
         # Execute post-tool function if provided
         if post_tool_function:
             try:
@@ -52,15 +52,19 @@ class ToolHandler:
                         tool_result=result,
                     )
             except Exception as e:
-                raise ToolError(tool_name, f"Error executing post_tool_function: {e}", e)
-        
+                raise ToolError(
+                    tool_name, f"Error executing post_tool_function: {e}", e
+                )
+
         return result
-    
+
     def build_tool_dict(self, tools: List[Callable]) -> Dict[str, Callable]:
         """Build a dictionary mapping tool names to functions."""
         return {tool.__name__: tool for tool in tools}
-    
-    def validate_post_tool_function(self, post_tool_function: Optional[Callable]) -> None:
+
+    def validate_post_tool_function(
+        self, post_tool_function: Optional[Callable]
+    ) -> None:
         """Validate the post-tool function signature."""
         if post_tool_function:
             verify_post_tool_function(post_tool_function)

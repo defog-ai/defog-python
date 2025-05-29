@@ -9,15 +9,15 @@ class TestLLMResponse(unittest.TestCase):
         self.assertAlmostEqual(
             CostCalculator.calculate_cost("gpt-4o", 1000, 1000, 500),
             (0.0025 * 1 + 0.00125 * 0.5 + 0.01 * 1) * 100,
-            places=10
+            places=10,
         )
-        
+
         self.assertAlmostEqual(
             CostCalculator.calculate_cost("claude-3-5-sonnet", 1000, 1000),
             (0.003 * 1 + 0.015 * 1) * 100,
-            places=10
+            places=10,
         )
-        
+
         # Test unsupported model
         self.assertIsNone(CostCalculator.calculate_cost("unknown-model", 1000, 1000))
 

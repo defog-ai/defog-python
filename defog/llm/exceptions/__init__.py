@@ -5,15 +5,15 @@ from .llm_exceptions import (
     MaxTokensError,
     ConfigurationError,
     AuthenticationError,
-    APIError
+    APIError,
 )
 
 __all__ = [
     "LLMError",
-    "ProviderError", 
+    "ProviderError",
     "ToolError",
     "MaxTokensError",
     "ConfigurationError",
     "AuthenticationError",
-    "APIError"
+    "APIError",
 ]

@@ -18,16 +18,16 @@ class LLMResponse:
 
 class BaseLLMProvider(ABC):
     """Abstract base class for all LLM providers."""
-    
+
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         self.api_key = api_key
         self.base_url = base_url
-    
+
     @abstractmethod
     def get_provider_name(self) -> str:
         """Return the name of the provider."""
         pass
-    
+
     @abstractmethod
     def build_params(
         self,
@@ -48,7 +48,7 @@ class BaseLLMProvider(ABC):
     ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
         """Build parameters for the provider's API call."""
         pass
-    
+
     @abstractmethod
     async def process_response(
         self,
@@ -60,10 +60,12 @@ class BaseLLMProvider(ABC):
         response_format=None,
         post_tool_function: Optional[Callable] = None,
         **kwargs
-    ) -> Tuple[Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]]:
+    ) -> Tuple[
+        Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
+    ]:
         """Process the response from the provider."""
         pass
-    
+
     @abstractmethod
     async def execute_chat(
         self,
@@ -85,12 +87,12 @@ class BaseLLMProvider(ABC):
     ) -> LLMResponse:
         """Execute a chat completion with the provider."""
         pass
-    
+
     @abstractmethod
     def supports_tools(self, model: str) -> bool:
         """Check if the model supports tool calling."""
         pass
-    
+
     @abstractmethod
     def supports_response_format(self, model: str) -> bool:
         """Check if the model supports structured response formats."""

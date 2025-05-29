@@ -9,19 +9,21 @@ from ..cost import CostCalculator
 
 class TogetherProvider(BaseLLMProvider):
     """Together AI provider implementation."""
-    
+
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key or os.getenv("TOGETHER_API_KEY"))
-    
+
     def get_provider_name(self) -> str:
         return "together"
-    
+
     def supports_tools(self, model: str) -> bool:
-        return False  # Currently Together models don't support tools in our implementation
-    
+        return (
+            False  # Currently Together models don't support tools in our implementation
+        )
+
     def supports_response_format(self, model: str) -> bool:
         return False  # Currently Together models don't support structured output in our implementation
-    
+
     def build_params(
         self,
         messages: List[Dict[str, str]],
@@ -37,7 +39,7 @@ class TogetherProvider(BaseLLMProvider):
         timeout: int = 100,
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
         """Build parameters for Together's API call."""
         return {
@@ -57,18 +59,20 @@ class TogetherProvider(BaseLLMProvider):
         tool_dict: Dict[str, Callable],
         response_format=None,
         post_tool_function: Optional[Callable] = None,
-        **kwargs
-    ) -> Tuple[Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]]:
+        **kwargs,
+    ) -> Tuple[
+        Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
+    ]:
         """Process Together API response."""
         if response.choices[0].finish_reason == "length":
             raise MaxTokensError("Max tokens reached")
         if len(response.choices) == 0:
             raise MaxTokensError("Max tokens reached")
-        
+
         content = response.choices[0].message.content
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
-        
+
         return content, [], input_tokens, output_tokens, None, None
 
     async def execute_chat(
@@ -87,7 +91,7 @@ class TogetherProvider(BaseLLMProvider):
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
         post_tool_function: Optional[Callable] = None,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with Together."""
         from together import AsyncTogether
@@ -101,25 +105,32 @@ class TogetherProvider(BaseLLMProvider):
             temperature=temperature,
             seed=seed,
         )
-        
+
         try:
             response = await client_together.chat.completions.create(**params)
-            content, tool_outputs, input_toks, output_toks, cached_toks, output_details = (
-                await self.process_response(
-                    client=client_together,
-                    response=response,
-                    request_params=params,
-                    tools=tools,
-                    tool_dict={},
-                    response_format=response_format,
-                    post_tool_function=post_tool_function,
-                )
+            (
+                content,
+                tool_outputs,
+                input_toks,
+                output_toks,
+                cached_toks,
+                output_details,
+            ) = await self.process_response(
+                client=client_together,
+                response=response,
+                request_params=params,
+                tools=tools,
+                tool_dict={},
+                response_format=response_format,
+                post_tool_function=post_tool_function,
             )
         except Exception as e:
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
 
         # Calculate cost
-        cost = CostCalculator.calculate_cost(model, input_toks, output_toks, cached_toks)
+        cost = CostCalculator.calculate_cost(
+            model, input_toks, output_toks, cached_toks
+        )
 
         return LLMResponse(
             model=model,

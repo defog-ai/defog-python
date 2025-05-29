@@ -13,29 +13,35 @@ from ..utils_function_calling import get_function_specs, convert_tool_choice
 
 class OpenAIProvider(BaseLLMProvider):
     """OpenAI GPT provider implementation."""
-    
+
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         super().__init__(
             api_key or os.getenv("OPENAI_API_KEY"),
-            base_url or "https://api.openai.com/v1/"
+            base_url or "https://api.openai.com/v1/",
         )
         self.tool_handler = ToolHandler()
-    
+
     def get_provider_name(self) -> str:
         return "openai"
-    
+
     def supports_tools(self, model: str) -> bool:
         # Tools are not supported for o1-mini, o1-preview, deepseek-chat, deepseek-reasoner
         return model not in [
-            "o1-mini", "o1-preview", "deepseek-chat", "deepseek-reasoner"
+            "o1-mini",
+            "o1-preview",
+            "deepseek-chat",
+            "deepseek-reasoner",
         ]
-    
+
     def supports_response_format(self, model: str) -> bool:
         # Response format not supported for o1-mini, o1-preview, deepseek-chat, deepseek-reasoner
         return model not in [
-            "o1-mini", "o1-preview", "deepseek-chat", "deepseek-reasoner"
+            "o1-mini",
+            "o1-preview",
+            "deepseek-chat",
+            "deepseek-reasoner",
         ]
-    
+
     def build_params(
         self,
         messages: List[Dict[str, str]],
@@ -51,7 +57,7 @@ class OpenAIProvider(BaseLLMProvider):
         timeout: int = 100,
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
         """
         Build the parameter dictionary for OpenAI's chat.completions.create().
@@ -59,8 +65,14 @@ class OpenAIProvider(BaseLLMProvider):
         """
         # Potentially move system message to user message for certain model families:
         if model in [
-            "o1-mini", "o1-preview", "o1", "deepseek-chat", "deepseek-reasoner", 
-            "o3-mini", "o3", "o4-mini",
+            "o1-mini",
+            "o1-preview",
+            "o1",
+            "deepseek-chat",
+            "deepseek-reasoner",
+            "o3-mini",
+            "o3",
+            "o4-mini",
         ]:
             sys_msg = None
             for i in range(len(messages)):
@@ -88,7 +100,8 @@ class OpenAIProvider(BaseLLMProvider):
         if (
             tools
             and len(tools) > 0
-            and model not in ["o1-mini", "o1-preview", "deepseek-chat", "deepseek-reasoner"]
+            and model
+            not in ["o1-mini", "o1-preview", "deepseek-chat", "deepseek-reasoner"]
         ):
             function_specs = get_function_specs(tools, model)
             request_params["tools"] = function_specs
@@ -136,8 +149,10 @@ class OpenAIProvider(BaseLLMProvider):
         response_format=None,
         model: str = "",
         post_tool_function: Optional[Callable] = None,
-        **kwargs
-    ) -> Tuple[Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]]:
+        **kwargs,
+    ) -> Tuple[
+        Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
+    ]:
         """
         Extract content (including any tool calls) and usage info from OpenAI response.
         Handles chaining of tool calls.
@@ -160,8 +175,12 @@ class OpenAIProvider(BaseLLMProvider):
                     hasattr(response.usage, "prompt_tokens_details")
                     and response.usage.prompt_tokens_details is not None
                 ):
-                    cached_tokens = response.usage.prompt_tokens_details.cached_tokens or 0
-                    total_input_tokens += response.usage.prompt_tokens or 0 - cached_tokens
+                    cached_tokens = (
+                        response.usage.prompt_tokens_details.cached_tokens or 0
+                    )
+                    total_input_tokens += (
+                        response.usage.prompt_tokens or 0 - cached_tokens
+                    )
                     total_cached_input_tokens += cached_tokens
                 else:
                     # If prompt_tokens_details doesn't exist, assume all tokens are uncached
@@ -222,10 +241,19 @@ class OpenAIProvider(BaseLLMProvider):
                         consecutive_exceptions += 1
 
                         # Break the loop if consecutive exceptions exceed the threshold
-                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
-                            raise ProviderError(self.get_provider_name(), f"Consecutive errors during tool chaining: {e}", e)
+                        if (
+                            consecutive_exceptions
+                            >= self.tool_handler.max_consecutive_errors
+                        ):
+                            raise ProviderError(
+                                self.get_provider_name(),
+                                f"Consecutive errors during tool chaining: {e}",
+                                e,
+                            )
 
-                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
+                        print(
+                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                        )
 
                         # Append error message to request_params and retry
                         request_params["messages"].append(
@@ -254,7 +282,9 @@ class OpenAIProvider(BaseLLMProvider):
                         content = re.sub(r"```(.*)```", r"\1", content)
                         content = json.loads(content)
                     except Exception as e:
-                        raise ProviderError(self.get_provider_name(), f"Error parsing content: {e}", e)
+                        raise ProviderError(
+                            self.get_provider_name(), f"Error parsing content: {e}", e
+                        )
             else:
                 content = response.choices[0].message.content
 
@@ -297,7 +327,7 @@ class OpenAIProvider(BaseLLMProvider):
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
         post_tool_function: Optional[Callable] = None,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with OpenAI."""
         from openai import AsyncOpenAI
@@ -331,7 +361,9 @@ class OpenAIProvider(BaseLLMProvider):
         try:
             # If response_format is set, we do parse
             if request_params.get("response_format"):
-                response = await client_openai.beta.chat.completions.parse(**request_params)
+                response = await client_openai.beta.chat.completions.parse(
+                    **request_params
+                )
             else:
                 response = await client_openai.chat.completions.create(**request_params)
 
@@ -356,7 +388,9 @@ class OpenAIProvider(BaseLLMProvider):
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
 
         # Calculate cost
-        cost = CostCalculator.calculate_cost(model, input_tokens, output_tokens, cached_input_tokens)
+        cost = CostCalculator.calculate_cost(
+            model, input_tokens, output_tokens, cached_input_tokens
+        )
 
         return LLMResponse(
             model=model,
