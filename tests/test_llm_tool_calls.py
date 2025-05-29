@@ -1,7 +1,7 @@
 import unittest
 import pytest
 from defog.llm.utils import (
-    chat_async
+    chat_async_legacy as chat_async
 )
 from defog.llm.utils_function_calling import get_function_specs
 from pydantic import BaseModel, Field

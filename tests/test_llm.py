@@ -1,11 +1,16 @@
 import unittest
 import pytest
 from defog.llm.utils import (
-    map_model_to_chat_fn_async,
+    map_model_to_provider,
     chat_async,
-    chat_anthropic_async,
-    chat_gemini_async,
-    chat_openai_async,
+    get_provider_instance,
+)
+from defog.llm.llm_providers import LLMProvider
+from defog.llm.providers import (
+    AnthropicProvider,
+    OpenAIProvider,
+    GeminiProvider,
+    TogetherProvider,
 )
 import re
 
@@ -73,21 +78,25 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         sql = re.sub(r"(\s+)", " ", sql)
         self.assertIn(sql, acceptable_sql)
 
-    def test_map_model_to_chat_fn_async(self):
+    def test_map_model_to_provider(self):
         self.assertEqual(
-            map_model_to_chat_fn_async("claude-3-5-sonnet-20241022"),
-            chat_anthropic_async,
+            map_model_to_provider("claude-3-5-sonnet-20241022"),
+            LLMProvider.ANTHROPIC,
         )
 
         self.assertEqual(
-            map_model_to_chat_fn_async("gemini-1.5-flash-002"),
-            chat_gemini_async,
+            map_model_to_provider("gemini-1.5-flash-002"),
+            LLMProvider.GEMINI,
         )
 
-        self.assertEqual(map_model_to_chat_fn_async("gpt-4o-mini"), chat_openai_async)
+        self.assertEqual(map_model_to_provider("gpt-4o-mini"), LLMProvider.OPENAI)
 
-        with self.assertRaises(ValueError):
-            map_model_to_chat_fn_async("unknown-model")
+        self.assertEqual(map_model_to_provider("deepseek-chat"), LLMProvider.DEEPSEEK)
+
+        self.assertEqual(map_model_to_provider("meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"), LLMProvider.TOGETHER)
+
+        with self.assertRaises(Exception):
+            map_model_to_provider("unknown-model")
 
     @pytest.mark.asyncio
     async def test_simple_chat_async(self):
@@ -103,9 +112,11 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             {"role": "user", "content": "Return a greeting in not more than 2 words\n"}
         ]
         for model in models:
+            provider = map_model_to_provider(model)
             response = await chat_async(
-                model,
-                messages,
+                provider=provider,
+                model=model,
+                messages=messages,
                 max_completion_tokens=4000,
                 temperature=0.0,
                 seed=0,
@@ -127,9 +138,11 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             "gpt-4.1-nano",
         ]
         for model in models:
+            provider = map_model_to_provider(model)
             response = await chat_async(
-                model,
-                messages_sql,
+                provider=provider,
+                model=model,
+                messages=messages_sql,
                 max_completion_tokens=4000,
                 temperature=0.0,
                 seed=0,
@@ -143,6 +156,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         reasoning_effort = ["low", "medium", "high", None]
         for effort in reasoning_effort:
             response = await chat_async(
+                provider=LLMProvider.OPENAI,
                 model="o1",
                 messages=messages_sql_structured,
                 max_completion_tokens=4000,
@@ -169,9 +183,11 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             "gpt-4.1-nano",
         ]
         for model in models:
+            provider = map_model_to_provider(model)
             response = await chat_async(
-                model,
-                messages_sql_structured,
+                provider=provider,
+                model=model,
+                messages=messages_sql_structured,
                 max_completion_tokens=4000,
                 temperature=0.0,
                 seed=0,
