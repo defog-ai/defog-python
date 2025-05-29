@@ -17,14 +17,18 @@ If you are looking for text-to-SQL or deep-research like capabilities, check out
 
 The `defog.llm` module provides cross-provider LLM functionality with support for function calling, structured output, and specialized tools.
 
+**Note:** As of the latest version, all LLM functions are async-only. Synchronous methods have been removed to improve performance and consistency.
+
 ### Core Chat Functions
 
 ```python
-from defog.llm.utils import chat_async, LLMResponse
+from defog.llm.utils import chat_async, chat_async_legacy, LLMResponse
+from defog.llm.llm_providers import LLMProvider
 
-# Unified async interface for all providers
+# Unified async interface with explicit provider specification
 response: LLMResponse = await chat_async(
-    model="gpt-4o",  # or "claude-3-7-sonnet-latest", "gemini-2.0-flash", etc.
+    provider=LLMProvider.OPENAI,  # or "openai", LLMProvider.ANTHROPIC, etc.
+    model="gpt-4o",
     messages=[{"role": "user", "content": "Hello!"}],
     max_completion_tokens=1000,
     temperature=0.0
@@ -32,30 +36,41 @@ response: LLMResponse = await chat_async(
 
 print(response.content)  # Response text
 print(f"Cost: ${response.cost_in_cents/100:.4f}")
+
+# Alternative: Legacy model-to-provider inference
+
+response = await chat_async_legacy(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
 ```
 
-### Provider-Specific Functions
+### Provider-Specific Examples
 
 ```python
-from defog.llm.utils import chat_openai, chat_anthropic, chat_gemini
+from defog.llm.utils import chat_async
+from defog.llm.llm_providers import LLMProvider
 
-# OpenAI
-response = chat_openai(
+# OpenAI with function calling
+response = await chat_async(
+    provider=LLMProvider.OPENAI,
     model="gpt-4o",
-    messages=[{"role": "user", "content": "Hello!"}],
+    messages=[{"role": "user", "content": "What's the weather in Paris?"}],
     tools=[my_function],  # Optional function calling
     tool_choice="auto"
 )
 
-# Anthropic
-response = chat_anthropic(
+# Anthropic with structured output
+response = await chat_async(
+    provider=LLMProvider.ANTHROPIC,
     model="claude-3-5-sonnet",
     messages=[{"role": "user", "content": "Hello!"}],
     response_format=MyPydanticModel  # Structured output
 )
 
 # Gemini
-response = chat_gemini(
+response = await chat_async(
+    provider=LLMProvider.GEMINI,
     model="gemini-2.0-flash",
     messages=[{"role": "user", "content": "Hello!"}]
 )
