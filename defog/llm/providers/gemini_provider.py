@@ -11,20 +11,20 @@ from ..utils_function_calling import get_function_specs, convert_tool_choice
 
 class GeminiProvider(BaseLLMProvider):
     """Google Gemini provider implementation."""
-    
+
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key or os.getenv("GEMINI_API_KEY"))
         self.tool_handler = ToolHandler()
-    
+
     def get_provider_name(self) -> str:
         return "gemini"
-    
+
     def supports_tools(self, model: str) -> bool:
         return True  # All current Gemini models support tools
-    
+
     def supports_response_format(self, model: str) -> bool:
         return True  # All current Gemini models support structured output
-    
+
     def build_params(
         self,
         messages: List[Dict[str, str]],
@@ -40,10 +40,10 @@ class GeminiProvider(BaseLLMProvider):
         timeout: int = 100,
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
         """Construct parameters for Gemini's generate_content call."""
-        
+
         from google.genai import types
 
         if messages[0]["role"] == "system":
@@ -98,12 +98,14 @@ class GeminiProvider(BaseLLMProvider):
         response_format=None,
         model: str = "",
         post_tool_function: Optional[Callable] = None,
-        **kwargs
-    ) -> Tuple[Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]]:
+        **kwargs,
+    ) -> Tuple[
+        Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
+    ]:
         """Extract content (including any tool calls) and usage info from Gemini response.
         Handles chaining of tool calls.
         """
-        
+
         from google.genai import types
 
         if len(response.candidates) == 0:
@@ -174,16 +176,27 @@ class GeminiProvider(BaseLLMProvider):
                             types.AutomaticFunctionCallingConfig(disable=False)
                         )
                         request_params["tool_config"] = types.ToolConfig(
-                            function_calling_config=types.FunctionCallingConfig(mode="AUTO")
+                            function_calling_config=types.FunctionCallingConfig(
+                                mode="AUTO"
+                            )
                         )
                     except Exception as e:
                         consecutive_exceptions += 1
 
                         # Break the loop if consecutive exceptions exceed the threshold
-                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
-                            raise ProviderError(self.get_provider_name(), f"Consecutive errors during tool chaining: {e}", e)
+                        if (
+                            consecutive_exceptions
+                            >= self.tool_handler.max_consecutive_errors
+                        ):
+                            raise ProviderError(
+                                self.get_provider_name(),
+                                f"Consecutive errors during tool chaining: {e}",
+                                e,
+                            )
 
-                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
+                        print(
+                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                        )
 
                         # Append error message to messages and retry
                         messages.append(
@@ -239,7 +252,7 @@ class GeminiProvider(BaseLLMProvider):
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
         post_tool_function: Optional[Callable] = None,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with Gemini."""
         from google import genai
@@ -282,25 +295,32 @@ class GeminiProvider(BaseLLMProvider):
                 contents=messages,
                 config=types.GenerateContentConfig(**request_params),
             )
-            
-            content, tool_outputs, input_toks, output_toks, cached_toks, output_details = (
-                await self.process_response(
-                    client=client,
-                    response=response,
-                    request_params=request_params,
-                    messages=messages,
-                    tools=tools,
-                    tool_dict=tool_dict,
-                    response_format=response_format,
-                    model=model,
-                    post_tool_function=post_tool_function,
-                )
+
+            (
+                content,
+                tool_outputs,
+                input_toks,
+                output_toks,
+                cached_toks,
+                output_details,
+            ) = await self.process_response(
+                client=client,
+                response=response,
+                request_params=request_params,
+                messages=messages,
+                tools=tools,
+                tool_dict=tool_dict,
+                response_format=response_format,
+                model=model,
+                post_tool_function=post_tool_function,
             )
         except Exception as e:
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
 
         # Calculate cost
-        cost = CostCalculator.calculate_cost(model, input_toks, output_toks, cached_toks)
+        cost = CostCalculator.calculate_cost(
+            model, input_toks, output_toks, cached_toks
+        )
 
         return LLMResponse(
             model=model,

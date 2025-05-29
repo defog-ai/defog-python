@@ -6,9 +6,9 @@ from typing import Dict, List, Optional, Any, Union, Callable
 from .providers import (
     BaseLLMProvider,
     AnthropicProvider,
-    OpenAIProvider, 
+    OpenAIProvider,
     GeminiProvider,
-    TogetherProvider
+    TogetherProvider,
 )
 from .providers.base import LLMResponse
 from .exceptions import LLMError, ProviderError, ConfigurationError
@@ -17,39 +17,43 @@ from .llm_providers import LLMProvider
 
 # Keep the original LLMResponse for backwards compatibility
 # (it's now defined in providers.base but we re-export it here)
-__all__ = ["LLMResponse", "chat_async", "map_model_to_provider", "get_provider_instance"]
+__all__ = [
+    "LLMResponse",
+    "chat_async",
+    "map_model_to_provider",
+    "get_provider_instance",
+]
 
 
 def get_provider_instance(
-    provider: Union[LLMProvider, str], 
-    config: Optional[LLMConfig] = None
+    provider: Union[LLMProvider, str], config: Optional[LLMConfig] = None
 ) -> BaseLLMProvider:
     """
     Get a provider instance based on the provider enum or string.
-    
+
     Args:
         provider: LLMProvider enum or string name
         config: Optional configuration object
-        
+
     Returns:
         BaseLLMProvider instance
-        
+
     Raises:
         ConfigurationError: If provider is not supported or misconfigured
     """
     if config is None:
         config = LLMConfig()
-    
+
     # Handle both enum and string values
     if isinstance(provider, LLMProvider):
         provider_name = provider.value
     else:
         provider_name = provider.lower()
-    
+
     # Validate provider config
     if not config.validate_provider_config(provider_name):
         raise ConfigurationError(f"No API key found for provider '{provider_name}'")
-    
+
     # Create provider instances
     provider_classes = {
         "anthropic": AnthropicProvider,
@@ -58,22 +62,21 @@ def get_provider_instance(
         "together": TogetherProvider,
         "deepseek": OpenAIProvider,  # DeepSeek uses OpenAI-compatible API
     }
-    
+
     if provider_name not in provider_classes:
         raise ConfigurationError(f"Unsupported provider: {provider_name}")
-    
+
     provider_class = provider_classes[provider_name]
-    
+
     # Handle special cases for providers that need custom configuration
     if provider_name == "deepseek":
         return provider_class(
             api_key=config.get_api_key("deepseek"),
-            base_url=config.get_base_url("deepseek")
+            base_url=config.get_base_url("deepseek"),
         )
     elif provider_name == "openai":
         return provider_class(
-            api_key=config.get_api_key("openai"),
-            base_url=config.get_base_url("openai")
+            api_key=config.get_api_key("openai"), base_url=config.get_base_url("openai")
         )
     else:
         return provider_class(api_key=config.get_api_key(provider_name))
@@ -102,7 +105,7 @@ async def chat_async(
 ) -> LLMResponse:
     """
     Execute a chat completion with explicit provider parameter.
-    
+
     Args:
         provider: LLMProvider enum or string specifying which provider to use
         model: Model name to use
@@ -123,10 +126,10 @@ async def chat_async(
         max_retries: Maximum number of retry attempts
         post_tool_function: Function to call after each tool execution
         config: LLM configuration object
-        
+
     Returns:
         LLMResponse object containing the result
-        
+
     Raises:
         ConfigurationError: If provider configuration is invalid
         ProviderError: If the provider API call fails
@@ -134,10 +137,10 @@ async def chat_async(
     """
     if config is None:
         config = LLMConfig()
-    
+
     if max_retries is None:
         max_retries = config.max_retries
-    
+
     base_delay = 1  # Initial delay in seconds
     error_trace = None
 
@@ -146,16 +149,16 @@ async def chat_async(
             # Use backup provider/model on subsequent attempts
             current_provider = provider
             current_model = model
-            
+
             if attempt > 0:
                 if backup_provider is not None:
                     current_provider = backup_provider
                 if backup_model is not None:
                     current_model = backup_model
-            
+
             # Get provider instance
             provider_instance = get_provider_instance(current_provider, config)
-            
+
             # Execute the chat completion
             return await provider_instance.execute_chat(
                 messages=messages,
@@ -173,11 +176,11 @@ async def chat_async(
                 reasoning_effort=reasoning_effort,
                 post_tool_function=post_tool_function,
             )
-        
+
         except Exception as e:
             error_trace = traceback.format_exc()
             delay = base_delay * (2**attempt)  # Exponential backoff
-            
+
             if attempt < max_retries - 1:  # Don't log on final attempt
                 print(
                     f"Attempt {attempt + 1} failed. Retrying in {delay} seconds...",
@@ -203,13 +206,13 @@ async def chat_async(
 def map_model_to_provider(model: str) -> LLMProvider:
     """
     Map a model name to its provider for backwards compatibility.
-    
+
     Args:
         model: Model name
-        
+
     Returns:
         LLMProvider enum value
-        
+
     Raises:
         ConfigurationError: If model cannot be mapped to a provider
     """
@@ -257,14 +260,14 @@ async def chat_async_legacy(
 ) -> LLMResponse:
     """
     Legacy function that infers provider from model name.
-    
+
     Deprecated: Use chat_async with explicit provider parameter instead.
     """
     provider = map_model_to_provider(model)
     backup_provider = None
     if backup_model:
         backup_provider = map_model_to_provider(backup_model)
-    
+
     return await chat_async(
         provider=provider,
         model=model,

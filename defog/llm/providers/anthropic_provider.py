@@ -12,20 +12,20 @@ from ..utils_function_calling import get_function_specs, convert_tool_choice
 
 class AnthropicProvider(BaseLLMProvider):
     """Anthropic Claude provider implementation."""
-    
+
     def __init__(self, api_key: Optional[str] = None):
         super().__init__(api_key or os.getenv("ANTHROPIC_API_KEY"))
         self.tool_handler = ToolHandler()
-    
+
     def get_provider_name(self) -> str:
         return "anthropic"
-    
+
     def supports_tools(self, model: str) -> bool:
         return True  # All current Claude models support tools
-    
+
     def supports_response_format(self, model: str) -> bool:
         return True  # All current Claude models support structured output via system prompts
-    
+
     def build_params(
         self,
         messages: List[Dict[str, str]],
@@ -41,7 +41,7 @@ class AnthropicProvider(BaseLLMProvider):
         timeout: int = 100,
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
         """Create the parameter dict for Anthropic's .messages.create()."""
         if len(messages) >= 1 and messages[0].get("role") == "system":
@@ -115,8 +115,10 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         tool_dict: Dict[str, Callable],
         response_format=None,
         post_tool_function: Optional[Callable] = None,
-        **kwargs
-    ) -> Tuple[Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]]:
+        **kwargs,
+    ) -> Tuple[
+        Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
+    ]:
         """
         Extract content (including any tool calls) and usage info from Anthropic response.
         Handles chaining of tool calls and structured output parsing.
@@ -147,7 +149,11 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                     None,
                 )
                 text_block = next(
-                    (block for block in response.content if isinstance(block, TextBlock)),
+                    (
+                        block
+                        for block in response.content
+                        if isinstance(block, TextBlock)
+                    ),
                     None,
                 )
                 if tool_call_block:
@@ -157,7 +163,11 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                             args = tool_call_block.input
                             tool_id = tool_call_block.id
                         except Exception as e:
-                            raise ProviderError(self.get_provider_name(), f"Error parsing tool call: {e}", e)
+                            raise ProviderError(
+                                self.get_provider_name(),
+                                f"Error parsing tool call: {e}",
+                                e,
+                            )
 
                         result = await self.tool_handler.execute_tool_call(
                             func_name, args, tool_dict, post_tool_function
@@ -216,10 +226,19 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                         consecutive_exceptions += 1
 
                         # Break the loop if consecutive exceptions exceed the threshold
-                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
-                            raise ProviderError(self.get_provider_name(), f"Consecutive errors during tool chaining: {e}", e)
+                        if (
+                            consecutive_exceptions
+                            >= self.tool_handler.max_consecutive_errors
+                        ):
+                            raise ProviderError(
+                                self.get_provider_name(),
+                                f"Consecutive errors during tool chaining: {e}",
+                                e,
+                            )
 
-                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
+                        print(
+                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                        )
 
                         # Append error message to request_params and retry
                         request_params["messages"].append(
@@ -259,7 +278,14 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         usage = response.usage
         total_input_tokens += usage.input_tokens
         total_output_tokens += usage.output_tokens
-        return content, tool_outputs, total_input_tokens, total_output_tokens, None, None
+        return (
+            content,
+            tool_outputs,
+            total_input_tokens,
+            total_output_tokens,
+            None,
+            None,
+        )
 
     async def execute_chat(
         self,
@@ -277,7 +303,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
         post_tool_function: Optional[Callable] = None,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with Anthropic."""
         from anthropic import AsyncAnthropic
@@ -305,22 +331,29 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
 
         try:
             response = await client.messages.create(**params)
-            content, tool_outputs, input_toks, output_toks, cached_toks, output_details = (
-                await self.process_response(
-                    client=client,
-                    response=response,
-                    request_params=params,
-                    tools=tools,
-                    tool_dict=tool_dict,
-                    response_format=response_format,
-                    post_tool_function=post_tool_function,
-                )
+            (
+                content,
+                tool_outputs,
+                input_toks,
+                output_toks,
+                cached_toks,
+                output_details,
+            ) = await self.process_response(
+                client=client,
+                response=response,
+                request_params=params,
+                tools=tools,
+                tool_dict=tool_dict,
+                response_format=response_format,
+                post_tool_function=post_tool_function,
             )
         except Exception as e:
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
 
         # Calculate cost
-        cost = CostCalculator.calculate_cost(model, input_toks, output_toks, cached_toks)
+        cost = CostCalculator.calculate_cost(
+            model, input_toks, output_toks, cached_toks
+        )
 
         return LLMResponse(
             model=model,
