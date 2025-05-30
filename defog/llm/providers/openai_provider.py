@@ -55,8 +55,9 @@ class OpenAIProvider(BaseLLMProvider):
         # if a message is called "system", rename it to "developer"
         # create a new list of messages
         import copy
+
         messages = copy.deepcopy(messages)
-        
+
         for i in range(len(messages)):
             if model not in ["gpt-4o", "gpt-4o-mini"]:
                 if messages[i].get("role") == "system":

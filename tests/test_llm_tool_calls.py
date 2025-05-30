@@ -273,7 +273,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
         self.assertGreaterEqual(float(result.content), 21)
         self.assertLessEqual(float(result.content), 38)
-    
+
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_anthropic_reasoning_effort(self):
         result = await chat_async(

@@ -9,6 +9,7 @@ from ..cost import CostCalculator
 from ..tools import ToolHandler
 from ..utils_function_calling import get_function_specs, convert_tool_choice
 
+
 class AnthropicProvider(BaseLLMProvider):
     """Anthropic Claude provider implementation."""
 
@@ -219,7 +220,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                         assistant_content = []
                         if thinking_block:
                             assistant_content.append(thinking_block)
-                        
+
                         assistant_content.append(tool_call_block)
 
                         # Append the tool call as an assistant response
