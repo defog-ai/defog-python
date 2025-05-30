@@ -496,7 +496,7 @@ class TestLongConversationWithMemory:
             
             # Check if compactification occurred
             if current_compactifications > compactification_count:
-                # Verify token count decreased (may not always be 20% due to summary size)
+                # Verify token count decreased
                 assert current_token_count < previous_token_count
                 
                 # Find and verify summary message
