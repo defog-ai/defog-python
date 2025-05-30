@@ -34,6 +34,7 @@ async def citations_tool(
     documents: list[dict],
     model: str,
     provider: LLMProvider,
+    max_tokens: int = 16000,
 ):
     """
     Use this tool to get an answer to a well-cited answer to a question,
@@ -82,6 +83,7 @@ async def citations_tool(
             ],
             tool_choice="required",
             instructions=instructions,
+            max_output_tokens=max_tokens,
         )
 
         # convert the response to a list of blocks
@@ -137,10 +139,10 @@ async def citations_tool(
         ]
 
         response = await client.messages.create(
-            model="claude-4-sonnet-20250514",
+            model=model,
             messages=messages,
             system=instructions,
-            max_tokens=32000,
+            max_tokens=max_tokens,
         )
 
         response_with_citations = [item.to_dict() for item in response.content]
