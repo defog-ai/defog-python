@@ -9,7 +9,6 @@ from ..cost import CostCalculator
 from ..tools import ToolHandler
 from ..utils_function_calling import get_function_specs, convert_tool_choice
 
-
 class AnthropicProvider(BaseLLMProvider):
     """Anthropic Claude provider implementation."""
 
@@ -50,10 +49,35 @@ class AnthropicProvider(BaseLLMProvider):
         else:
             sys_msg = ""
 
+        if reasoning_effort is not None and (
+            model.startswith("claude-3-7")
+            or model.startswith("claude-sonnet-4")
+            or model.startswith("claude-opus-4")
+        ):
+            temperature = 1.0
+            if reasoning_effort == "low":
+                thinking = {
+                    "type": "enabled",
+                    "budget_tokens": 2048,
+                }
+            elif reasoning_effort == "medium":
+                thinking = {
+                    "type": "enabled",
+                    "budget_tokens": 4096,
+                }
+            elif reasoning_effort == "high":
+                thinking = {
+                    "type": "enabled",
+                    "budget_tokens": 8192,
+                }
+        else:
+            thinking = {
+                "type": "disabled",
+            }
+
         # Anthropic does not allow `None` as a value for max_completion_tokens
-        # Therefore, set it to 8191, which is the max output tokens limit for 3.5 sonnet right now
         if max_completion_tokens is None:
-            max_completion_tokens = 8191
+            max_completion_tokens = 32000
 
         params = {
             "system": sys_msg,
@@ -62,6 +86,7 @@ class AnthropicProvider(BaseLLMProvider):
             "max_tokens": max_completion_tokens,
             "temperature": temperature,
             "timeout": timeout,
+            "thinking": thinking,
         }
 
         # Handle structured output for Anthropic models
@@ -123,7 +148,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         Extract content (including any tool calls) and usage info from Anthropic response.
         Handles chaining of tool calls and structured output parsing.
         """
-        from anthropic.types import ToolUseBlock, TextBlock
+        from anthropic.types import ToolUseBlock, TextBlock, ThinkingBlock
 
         if response.stop_reason == "max_tokens":
             raise MaxTokensError("Max tokens reached")
@@ -145,6 +170,14 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                         block
                         for block in response.content
                         if isinstance(block, ToolUseBlock)
+                    ),
+                    None,
+                )
+                thinking_block = next(
+                    (
+                        block
+                        for block in response.content
+                        if isinstance(block, ThinkingBlock)
                     ),
                     None,
                 )
@@ -187,18 +220,17 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                             }
                         )
 
+                        assistant_content = []
+                        if thinking_block:
+                            assistant_content.append(thinking_block)
+                        
+                        assistant_content.append(tool_call_block)
+
                         # Append the tool call as an assistant response
                         request_params["messages"].append(
                             {
                                 "role": "assistant",
-                                "content": [
-                                    {
-                                        "type": "tool_use",
-                                        "id": tool_id,
-                                        "name": func_name,
-                                        "input": args,
-                                    }
-                                ],
+                                "content": assistant_content,
                             }
                         )
 
@@ -250,13 +282,19 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
 
                     # Make next call
                     response = await client.messages.create(**request_params)
+                elif thinking_block:
+                    # do nothing
+                    pass
                 else:
                     # Break out of loop when tool calls are finished
                     content = response.content[0].text
                     break
         else:
             # No tools provided
-            content = response.content[0].text
+            for block in response.content:
+                if isinstance(block, TextBlock):
+                    content = block.text
+                    break
 
         # Parse structured output if response_format is provided
         if response_format and not tools:
@@ -321,6 +359,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             tools=tools,
             tool_choice=tool_choice,
             response_format=response_format,
+            reasoning_effort=reasoning_effort,
             timeout=timeout,
         )
 
