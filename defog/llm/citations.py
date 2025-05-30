@@ -140,7 +140,7 @@ async def citations_tool(
             model="claude-4-sonnet-20250514",
             messages=messages,
             system=instructions,
-            max_tokens=8191,
+            max_tokens=32000,
         )
 
         response_with_citations = [item.to_dict() for item in response.content]
