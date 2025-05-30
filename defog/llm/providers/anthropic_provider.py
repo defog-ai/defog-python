@@ -349,7 +349,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         t = time.time()
         client = AsyncAnthropic(
             api_key=self.api_key,
-            default_headers={"anthropic-beta": "interleaved-thinking-2025-05-14"}
+            default_headers={"anthropic-beta": "interleaved-thinking-2025-05-14"},
         )
         params, _ = self.build_params(
             messages=messages,
