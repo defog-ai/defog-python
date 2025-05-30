@@ -146,8 +146,6 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             )
             self.check_sql(response.content)
             self.assertIsInstance(response.time, float)
-    
-
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_sql_chat_structured_reasoning_effort_async(self):
