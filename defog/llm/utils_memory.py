@@ -13,6 +13,7 @@ from .memory import MemoryManager, compactify_messages, TokenCounter
 @dataclass
 class MemoryConfig:
     """Configuration for memory management."""
+
     enabled: bool = True
     token_threshold: int = 50000  # ~50k tokens before compactifying
     preserve_last_n_messages: int = 10
@@ -46,10 +47,10 @@ async def chat_async_with_memory(
 ) -> LLMResponse:
     """
     Execute a chat completion with memory management support.
-    
+
     This function extends chat_async with automatic conversation memory management
     and compactification when approaching token limits.
-    
+
     Args:
         provider: LLM provider to use
         model: Model name
@@ -58,23 +59,23 @@ async def chat_async_with_memory(
         memory_config: Memory configuration settings
         auto_compactify: Whether to automatically compactify when needed
         ... (all other chat_async parameters)
-        
+
     Returns:
         LLMResponse object with the result
     """
     # Initialize memory config if not provided
     if memory_config is None:
         memory_config = MemoryConfig()
-    
+
     # Initialize memory manager if not provided and memory is enabled
     if memory_manager is None and memory_config.enabled:
         memory_manager = MemoryManager(
             token_threshold=memory_config.token_threshold,
             preserve_last_n_messages=memory_config.preserve_last_n_messages,
             summary_max_tokens=memory_config.summary_max_tokens,
-            enabled=memory_config.enabled
+            enabled=memory_config.enabled,
         )
-    
+
     # If memory is disabled, just pass through to regular chat_async
     if not memory_config.enabled or memory_manager is None:
         return await chat_async(
@@ -98,20 +99,22 @@ async def chat_async_with_memory(
             post_tool_function=post_tool_function,
             config=config,
         )
-    
+
     # Get current messages from memory manager
     current_messages = memory_manager.get_current_messages()
-    
+
     # Add new messages to memory
     token_counter = TokenCounter()
     new_tokens = token_counter.count_tokens(messages, model, str(provider))
     memory_manager.add_messages(messages, new_tokens)
-    
+
     # Check if we should compactify
     if auto_compactify and memory_manager.should_compactify():
         # Get messages to summarize and preserve
-        system_messages, messages_to_summarize, preserved_messages = memory_manager.get_messages_for_compactification()
-        
+        system_messages, messages_to_summarize, preserved_messages = (
+            memory_manager.get_messages_for_compactification()
+        )
+
         # Compactify messages
         compactified_messages, new_token_count = await compactify_messages(
             system_messages=system_messages,
@@ -122,7 +125,7 @@ async def chat_async_with_memory(
             max_summary_tokens=memory_config.summary_max_tokens,
             config=config,  # Pass config for API credentials
         )
-        
+
         # Update memory manager with compactified messages
         if compactified_messages and len(compactified_messages) > len(system_messages):
             # Find the summary message (first non-system message in the result)
@@ -132,15 +135,15 @@ async def chat_async_with_memory(
                 system_messages=system_messages,
                 summary_message=summary_message,
                 preserved_messages=preserved_messages,
-                new_token_count=new_token_count
+                new_token_count=new_token_count,
             )
-        
+
         # Use compactified messages for the API call
         messages_for_api = compactified_messages
     else:
         # Use all messages from memory
         messages_for_api = memory_manager.get_current_messages()
-    
+
     # Make the API call with the potentially compactified messages
     response = await chat_async(
         provider=provider,
@@ -163,16 +166,16 @@ async def chat_async_with_memory(
         post_tool_function=post_tool_function,
         config=config,
     )
-    
+
     # Add the assistant's response to memory
     assistant_message = {"role": "assistant", "content": response.content}
     response_tokens = response.output_tokens or 0
     memory_manager.add_messages([assistant_message], response_tokens)
-    
+
     # Add memory stats to response metadata
-    if hasattr(response, '_memory_stats'):
+    if hasattr(response, "_memory_stats"):
         response._memory_stats = memory_manager.get_stats()
-    
+
     return response
 
 
@@ -181,17 +184,17 @@ def create_memory_manager(
     token_threshold: int = 100000,
     preserve_last_n_messages: int = 10,
     summary_max_tokens: int = 2000,
-    enabled: bool = True
+    enabled: bool = True,
 ) -> MemoryManager:
     """
     Create a new MemoryManager instance.
-    
+
     Args:
         token_threshold: Token count threshold for triggering compactification
         preserve_last_n_messages: Number of recent messages to always preserve
         summary_max_tokens: Maximum tokens for the summary
         enabled: Whether memory management is enabled
-        
+
     Returns:
         Configured MemoryManager instance
     """
@@ -199,5 +202,5 @@ def create_memory_manager(
         token_threshold=token_threshold,
         preserve_last_n_messages=preserve_last_n_messages,
         summary_max_tokens=summary_max_tokens,
-        enabled=enabled
+        enabled=enabled,
     )

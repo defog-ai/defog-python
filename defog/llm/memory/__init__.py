@@ -6,7 +6,7 @@ from .token_counter import TokenCounter
 
 __all__ = [
     "MemoryManager",
-    "ConversationHistory", 
+    "ConversationHistory",
     "compactify_messages",
     "TokenCounter",
 ]
