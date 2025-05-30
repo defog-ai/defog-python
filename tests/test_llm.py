@@ -3,15 +3,8 @@ import pytest
 from defog.llm.utils import (
     map_model_to_provider,
     chat_async,
-    get_provider_instance,
 )
 from defog.llm.llm_providers import LLMProvider
-from defog.llm.providers import (
-    AnthropicProvider,
-    OpenAIProvider,
-    GeminiProvider,
-    TogetherProvider,
-)
 import re
 
 from pydantic import BaseModel
@@ -101,7 +94,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(Exception):
             map_model_to_provider("unknown-model")
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(loop_scope="session")
     async def test_simple_chat_async(self):
         models = [
             "claude-3-7-sonnet-latest",
@@ -128,7 +121,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(response.content, str)
             self.assertIsInstance(response.time, float)
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(loop_scope="session")
     async def test_sql_chat_async(self):
         models = [
             "gpt-4o-mini",
@@ -153,26 +146,30 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             )
             self.check_sql(response.content)
             self.assertIsInstance(response.time, float)
+    
 
-    @pytest.mark.asyncio
+
+    @pytest.mark.asyncio(loop_scope="session")
     async def test_sql_chat_structured_reasoning_effort_async(self):
         reasoning_effort = ["low", "medium", "high", None]
         for effort in reasoning_effort:
-            response = await chat_async(
-                provider=LLMProvider.OPENAI,
-                model="o1",
-                messages=messages_sql_structured,
-                max_completion_tokens=4000,
-                temperature=0.0,
-                seed=0,
-                response_format=ResponseFormat,
-                reasoning_effort=effort,
-                max_retries=1,
-            )
-            self.check_sql(response.content.sql)
-            self.assertIsInstance(response.content.reasoning, str)
+            for model in ["o4-mini", "claude-3-7-sonnet-latest"]:
+                provider = map_model_to_provider(model)
+                response = await chat_async(
+                    provider=provider,
+                    model=model,
+                    messages=messages_sql_structured,
+                    max_completion_tokens=32000,
+                    temperature=0.0,
+                    seed=0,
+                    response_format=ResponseFormat,
+                    reasoning_effort=effort,
+                    max_retries=1,
+                )
+                self.check_sql(response.content.sql)
+                self.assertIsInstance(response.content.reasoning, str)
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(loop_scope="session")
     async def test_sql_chat_structured_async(self):
         models = [
             "gpt-4o",
