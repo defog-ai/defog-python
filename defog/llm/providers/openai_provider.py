@@ -25,22 +25,10 @@ class OpenAIProvider(BaseLLMProvider):
         return "openai"
 
     def supports_tools(self, model: str) -> bool:
-        # Tools are not supported for o1-mini, o1-preview, deepseek-chat, deepseek-reasoner
-        return model not in [
-            "o1-mini",
-            "o1-preview",
-            "deepseek-chat",
-            "deepseek-reasoner",
-        ]
+        True
 
     def supports_response_format(self, model: str) -> bool:
-        # Response format not supported for o1-mini, o1-preview, deepseek-chat, deepseek-reasoner
-        return model not in [
-            "o1-mini",
-            "o1-preview",
-            "deepseek-chat",
-            "deepseek-reasoner",
-        ]
+        True
 
     def build_params(
         self,
@@ -64,26 +52,15 @@ class OpenAIProvider(BaseLLMProvider):
         Also handles special logic for o1-mini, o1-preview, deepseek-chat, etc.
         """
         # Potentially move system message to user message for certain model families:
-        if model in [
-            "o1-mini",
-            "o1-preview",
-            "o1",
-            "deepseek-chat",
-            "deepseek-reasoner",
-            "o3-mini",
-            "o3",
-            "o4-mini",
-        ]:
-            sys_msg = None
-            for i in range(len(messages)):
+        # if a message is called "system", rename it to "developer"
+        # create a new list of messages
+        import copy
+        messages = copy.deepcopy(messages)
+        
+        for i in range(len(messages)):
+            if model not in ["gpt-4o", "gpt-4o-mini"]:
                 if messages[i].get("role") == "system":
-                    sys_msg = messages.pop(i)["content"]
-                    break
-            if sys_msg:
-                for i in range(len(messages)):
-                    if messages[i].get("role") == "user":
-                        messages[i]["content"] = sys_msg + "\n" + messages[i]["content"]
-                        break
+                    messages[i]["role"] = "developer"
 
         request_params = {
             "messages": messages,
@@ -97,12 +74,7 @@ class OpenAIProvider(BaseLLMProvider):
         }
 
         # Tools are only supported for certain models
-        if (
-            tools
-            and len(tools) > 0
-            and model
-            not in ["o1-mini", "o1-preview", "deepseek-chat", "deepseek-reasoner"]
-        ):
+        if tools and len(tools) > 0:
             function_specs = get_function_specs(tools, model)
             request_params["tools"] = function_specs
             if tool_choice:
@@ -120,8 +92,6 @@ class OpenAIProvider(BaseLLMProvider):
         # Some models do not allow temperature or response_format:
         if model.startswith("o") or model == "deepseek-reasoner":
             request_params.pop("temperature", None)
-        if model in ["o1-mini", "o1-preview", "deepseek-chat", "deepseek-reasoner"]:
-            request_params.pop("response_format", None)
 
         # Reasoning effort
         if model.startswith("o") and reasoning_effort is not None:
