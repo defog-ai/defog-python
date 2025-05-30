@@ -72,8 +72,8 @@ def numprod(input: Numbers):
 # ==================================================================================================
 class TestGetFunctionSpecs(unittest.TestCase):
     def setUp(self):
-        self.openai_model = "gpt-4o"
-        self.anthropic_model = "claude-3-5-sonnet-20241022"
+        self.openai_model = "gpt-4.1"
+        self.anthropic_model = "claude-3-7-sonnet-latest"
         self.tools = [get_weather, numsum, numprod]
         self.maxDiff = None
         self.openai_specs = [
@@ -234,7 +234,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_anthropic(self):
         result = await chat_async(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-3-7-sonnet-latest",
             messages=[
                 {
                     "role": "user",
@@ -257,7 +257,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_tool_use_weather_async_anthropic(self):
         result = await chat_async(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-3-7-sonnet-latest",
             messages=[
                 {
                     "role": "user",
@@ -273,6 +273,30 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
         self.assertGreaterEqual(float(result.content), 21)
         self.assertLessEqual(float(result.content), 38)
+    
+    @pytest.mark.asyncio
+    async def test_tool_use_arithmetic_async_anthropic_reasoning_effort(self):
+        result = await chat_async(
+            model="claude-3-7-sonnet-latest",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ],
+            tools=self.tools,
+            reasoning_effort="low",
+            max_retries=1,
+        )
+        print(result)
+        self.assertEqual(result.content, self.arithmetic_answer)
+        for expected, actual in zip(
+            self.arithmetic_expected_tool_outputs, result.tool_outputs
+        ):
+            self.assertEqual(expected["name"], actual["name"])
+            self.assertEqual(expected["args"], actual["args"])
+            self.assertEqual(expected["result"], actual["result"])
+        self.assertEqual(result.content, self.arithmetic_answer)
 
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_gemini(self):
@@ -371,7 +395,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
 
     async def test_post_tool_calls_anthropic(self):
         result = await chat_async(
-            model="claude-3-5-sonnet-latest",
+            model="claude-3-7-sonnet-latest",
             messages=[
                 {
                     "role": "user",
