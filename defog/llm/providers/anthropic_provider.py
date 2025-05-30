@@ -49,11 +49,7 @@ class AnthropicProvider(BaseLLMProvider):
         else:
             sys_msg = ""
 
-        if reasoning_effort is not None and (
-            model.startswith("claude-3-7")
-            or model.startswith("claude-sonnet-4")
-            or model.startswith("claude-opus-4")
-        ):
+        if reasoning_effort is not None:
             temperature = 1.0
             if reasoning_effort == "low":
                 thinking = {
