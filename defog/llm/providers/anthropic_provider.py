@@ -347,7 +347,10 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             self.tool_handler.validate_post_tool_function(post_tool_function)
 
         t = time.time()
-        client = AsyncAnthropic(api_key=self.api_key)
+        client = AsyncAnthropic(
+            api_key=self.api_key,
+            default_headers={"anthropic-beta": "interleaved-thinking-2025-05-14"}
+        )
         params, _ = self.build_params(
             messages=messages,
             model=model,
