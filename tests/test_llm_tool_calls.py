@@ -729,9 +729,10 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         print(f"\nAnthropic Timing Results:")
         print(f"  Parallel execution: {parallel_time:.2f}s")
         print(f"  Sequential execution: {sequential_time:.2f}s")
-        print(f"  Difference: {abs(parallel_time - sequential_time):.2f}s")
+        print(f"  Speedup: {sequential_time/parallel_time:.2f}x")
 
-        # we can't really test Gemini, as it always has parallel tool calls enabled
+    # we can't really test Gemini, as it always has parallel tool calls enabled
+
     def test_provider_config_propagation(self):
         """Test that config properly propagates to all providers."""
         from defog.llm.config.settings import LLMConfig
