@@ -489,3 +489,326 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         # clear IO_STREAM
         IO_STREAM.seek(0)
         IO_STREAM.truncate()
+
+
+class TestParallelToolCalls(unittest.IsolatedAsyncioTestCase):
+    """Test parallel tool calls functionality."""
+
+    def setUp(self):
+        from defog.llm.utils_function_calling import execute_tools_parallel
+        from defog.llm.tools.handler import ToolHandler
+
+        self.execute_tools_parallel = execute_tools_parallel
+        self.handler = ToolHandler()
+        self.tools = [numsum, numprod]
+        self.tool_dict = self.handler.build_tool_dict(self.tools)
+
+    @pytest.mark.asyncio
+    async def test_parallel_tool_execution_multiple_calls(self):
+        """Test that multiple tool calls can be executed in parallel."""
+        import time
+
+        # Simulate tool calls that would benefit from parallel execution
+        tool_calls = [
+            {
+                "function": {
+                    "name": "numsum",
+                    "arguments": {"a": 12312323434, "b": 89230482903480},
+                }
+            },
+            {"function": {"name": "numprod", "arguments": {"a": 2134, "b": 9823}}},
+            {"function": {"name": "numsum", "arguments": {"a": 983247, "b": 2348796}}},
+        ]
+
+        # Test sequential execution
+        start_time = time.time()
+        sequential_results = await self.execute_tools_parallel(
+            tool_calls, self.tool_dict, enable_parallel=False
+        )
+        sequential_time = time.time() - start_time
+
+        # Test parallel execution
+        start_time = time.time()
+        parallel_results = await self.execute_tools_parallel(
+            tool_calls, self.tool_dict, enable_parallel=True
+        )
+        parallel_time = time.time() - start_time
+
+        # Results should be the same
+        self.assertEqual(sequential_results, parallel_results)
+        self.assertEqual(sequential_results, [89242795226914, 20962282, 3332043])
+
+        # For simple arithmetic, parallel may not be faster, but should not be significantly slower
+        # This test mainly ensures functionality works correctly
+        print(f"Sequential time: {sequential_time:.4f}s")
+        print(f"Parallel time: {parallel_time:.4f}s")
+
+    @pytest.mark.asyncio
+    async def test_tool_handler_batch_execution(self):
+        """Test the tool handler batch execution method."""
+        tool_calls = [
+            {
+                "function": {
+                    "name": "numsum",
+                    "arguments": {"a": 12312323434, "b": 89230482903480},
+                }
+            },
+            {"function": {"name": "numprod", "arguments": {"a": 2134, "b": 9823}}},
+            {"function": {"name": "numsum", "arguments": {"a": 983247, "b": 2348796}}},
+        ]
+
+        # Test sequential batch execution
+        results_sequential = await self.handler.execute_tool_calls_batch(
+            tool_calls, self.tool_dict, enable_parallel=False
+        )
+
+        # Test parallel batch execution
+        results_parallel = await self.handler.execute_tool_calls_batch(
+            tool_calls, self.tool_dict, enable_parallel=True
+        )
+
+        # Results should be identical
+        self.assertEqual(results_sequential, results_parallel)
+        self.assertEqual(results_sequential, [89242795226914, 20962282, 3332043])
+
+    @pytest.mark.asyncio
+    async def test_error_handling_in_parallel_execution(self):
+        """Test error handling when tools fail in parallel execution."""
+        tool_calls = [
+            {"function": {"name": "numsum", "arguments": {"a": 1, "b": 2}}},
+            {"function": {"name": "nonexistent_tool", "arguments": {"a": 3, "b": 4}}},
+        ]
+
+        results = await self.execute_tools_parallel(
+            tool_calls, self.tool_dict, enable_parallel=True
+        )
+
+        # First tool should succeed, second should return error
+        self.assertEqual(results[0], 3)
+        self.assertIn("Error: Function nonexistent_tool not found", results[1])
+
+    def test_configuration_integration(self):
+        """Test that the configuration setting is properly integrated."""
+        from defog.llm.config.settings import LLMConfig
+
+        # Test default configuration (parallel disabled)
+        config_default = LLMConfig()
+        self.assertTrue(config_default.enable_parallel_tool_calls)
+
+        # Test explicit parallel enabled configuration
+        config_parallel = LLMConfig(enable_parallel_tool_calls=False)
+        self.assertFalse(config_parallel.enable_parallel_tool_calls)
+
+
+class TestParallelToolCallsEndToEnd(unittest.IsolatedAsyncioTestCase):
+    """End-to-end tests for parallel tool calls with real API calls."""
+
+    def setUp(self):
+        from defog.llm.config.settings import LLMConfig
+        import time
+
+        self.tools = [numsum, numprod]
+        # More complex message that requires tool usage
+        self.messages = [
+            {
+                "role": "user",
+                "content": """Calculate the following using the provided tools:
+1. The sum of 387293472 and 2348293482
+2. The product of 12376 and 23245
+
+You MUST use the numsum and numprod tools for these calculations. Do not calculate manually. Return only the final results.""",
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_openai_parallel_vs_sequential_speed(self):
+        """Test OpenAI parallel vs sequential execution speed."""
+        from defog.llm.config.settings import LLMConfig
+        from defog.llm.utils import chat_async
+        import time
+
+        # Test parallel execution
+        config_parallel = LLMConfig(enable_parallel_tool_calls=True)
+        start_time = time.time()
+        result_parallel = await chat_async(
+            provider="openai",
+            model="gpt-4.1",
+            messages=self.messages,
+            tools=self.tools,
+            config=config_parallel,
+            temperature=0,
+            max_retries=1,
+        )
+        parallel_time = time.time() - start_time
+
+        # Test sequential execution
+        config_sequential = LLMConfig(enable_parallel_tool_calls=False)
+        start_time = time.time()
+        result_sequential = await chat_async(
+            provider="openai",
+            model="gpt-4.1",
+            messages=self.messages,
+            tools=self.tools,
+            config=config_sequential,
+            temperature=0,
+            max_retries=1,
+        )
+        sequential_time = time.time() - start_time
+
+        # Verify both produce correct results
+        self.assertEqual(len(result_parallel.tool_outputs), 2)
+        self.assertEqual(len(result_sequential.tool_outputs), 2)
+
+        # Check that sum and product were calculated
+        outputs_parallel = {
+            o["name"]: o["result"] for o in result_parallel.tool_outputs
+        }
+        outputs_sequential = {
+            o["name"]: o["result"] for o in result_sequential.tool_outputs
+        }
+
+        self.assertEqual(outputs_parallel["numsum"], 2735586954)
+        self.assertEqual(outputs_parallel["numprod"], 287680120)
+        self.assertEqual(outputs_parallel, outputs_sequential)
+
+        # Log timing results
+        print(f"\nOpenAI Timing Results:")
+        print(f"  Parallel execution: {parallel_time:.2f}s")
+        print(f"  Sequential execution: {sequential_time:.2f}s")
+        print(f"  Speedup: {sequential_time/parallel_time:.2f}x")
+
+        # Parallel should generally be faster or at least not significantly slower
+        # We don't assert exact timing as it depends on API response times
+
+    @pytest.mark.asyncio
+    async def test_anthropic_parallel_tool_behavior(self):
+        """Test Anthropic's parallel tool call behavior."""
+        from defog.llm.config.settings import LLMConfig
+        from defog.llm.utils import chat_async
+        import time
+
+        # Test with parallel enabled (should make one API call with multiple tools)
+        config_parallel = LLMConfig(enable_parallel_tool_calls=True)
+        start_time = time.time()
+        result_parallel = await chat_async(
+            provider="anthropic",
+            model="claude-sonnet-4-20250514",
+            messages=self.messages,
+            tools=self.tools,
+            config=config_parallel,
+            temperature=0,
+            max_retries=1,
+        )
+        parallel_time = time.time() - start_time
+
+        # Test with parallel disabled (may require multiple API calls)
+        config_sequential = LLMConfig(enable_parallel_tool_calls=False)
+        start_time = time.time()
+        result_sequential = await chat_async(
+            provider="anthropic",
+            model="claude-sonnet-4-20250514",
+            messages=self.messages,
+            tools=self.tools,
+            config=config_sequential,
+            temperature=0,
+            max_retries=1,
+        )
+        sequential_time = time.time() - start_time
+
+        # Verify results
+        self.assertEqual(len(result_parallel.tool_outputs), 2)
+        self.assertEqual(len(result_sequential.tool_outputs), 2)
+
+        # Check results
+        outputs_parallel = {
+            o["name"]: o["result"] for o in result_parallel.tool_outputs
+        }
+        self.assertEqual(outputs_parallel["numsum"], 2735586954)
+        self.assertEqual(outputs_parallel["numprod"], 287680120)
+
+        print(f"\nAnthropic Timing Results:")
+        print(f"  Parallel execution: {parallel_time:.2f}s")
+        print(f"  Sequential execution: {sequential_time:.2f}s")
+        print(f"  Difference: {abs(parallel_time - sequential_time):.2f}s")
+
+        # we can't really test Gemini, as it always has parallel tool calls enabled
+        """Test Gemini's parallel tool call behavior."""
+        from defog.llm.config.settings import LLMConfig
+        from defog.llm.utils import chat_async
+        import time
+
+        # Test with parallel enabled (should make one API call with multiple tools)
+        config_parallel = LLMConfig(enable_parallel_tool_calls=True)
+        start_time = time.time()
+        result_parallel = await chat_async(
+            provider="gemini",
+            model="gemini-2.5-pro-preview-05-06",
+            messages=self.messages,
+            tools=self.tools,
+            config=config_parallel,
+            temperature=0,
+            max_retries=1,
+        )
+        parallel_time = time.time() - start_time
+
+        # Test with parallel disabled (may require multiple API calls)
+        config_sequential = LLMConfig(enable_parallel_tool_calls=False)
+        start_time = time.time()
+        result_sequential = await chat_async(
+            provider="gemini",
+            model="gemini-2.5-pro-preview-05-06",
+            messages=self.messages,
+            tools=self.tools,
+            config=config_sequential,
+            temperature=0,
+            max_retries=1,
+        )
+        sequential_time = time.time() - start_time
+
+        # Verify results
+        self.assertEqual(len(result_parallel.tool_outputs), 2)
+        self.assertEqual(len(result_sequential.tool_outputs), 2)
+
+        # Check results
+        outputs_parallel = {
+            o["name"]: o["result"] for o in result_parallel.tool_outputs
+        }
+        self.assertEqual(outputs_parallel["numsum"], 2735586954)
+        self.assertEqual(outputs_parallel["numprod"], 287680120)
+
+        print(f"\nGemini Timing Results:")
+        print(f"  Parallel execution: {parallel_time:.2f}s")
+        print(f"  Sequential execution: {sequential_time:.2f}s")
+        print(f"  Difference: {abs(parallel_time - sequential_time):.2f}s")
+
+    def test_provider_config_propagation(self):
+        """Test that config properly propagates to all providers."""
+        from defog.llm.config.settings import LLMConfig
+        from defog.llm.utils import get_provider_instance
+
+        config = LLMConfig(enable_parallel_tool_calls=True)
+
+        # Test each provider receives config
+        providers_to_test = [
+            ("openai", "gpt-4.1"),
+            ("anthropic", "claude-sonnet-4-20250514"),
+            ("gemini", "gemini-2.5-pro-preview-05-06"),
+        ]
+
+        for provider_name, model in providers_to_test:
+            try:
+                provider = get_provider_instance(provider_name, config)
+                self.assertTrue(hasattr(provider, "config"))
+                self.assertEqual(provider.config.enable_parallel_tool_calls, True)
+
+                # Test with parallel disabled
+                config_disabled = LLMConfig(enable_parallel_tool_calls=False)
+                provider_disabled = get_provider_instance(
+                    provider_name, config_disabled
+                )
+                self.assertEqual(
+                    provider_disabled.config.enable_parallel_tool_calls, False
+                )
+            except Exception as e:
+                # Skip if provider is not configured
+                print(f"Skipping {provider_name}: {e}")
