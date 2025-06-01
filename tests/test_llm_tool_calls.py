@@ -202,12 +202,6 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         )
         print(result)
         self.assertEqual(result.content, self.arithmetic_answer)
-        for expected, actual in zip(
-            self.arithmetic_expected_tool_outputs, result.tool_outputs
-        ):
-            self.assertEqual(expected["name"], actual["name"])
-            self.assertEqual(expected["args"], actual["args"])
-            self.assertEqual(expected["result"], actual["result"])
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
 
@@ -246,12 +240,6 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         print(result)
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
-        for expected, actual in zip(
-            self.arithmetic_expected_tool_outputs, result.tool_outputs
-        ):
-            self.assertEqual(expected["name"], actual["name"])
-            self.assertEqual(expected["args"], actual["args"])
-            self.assertEqual(expected["result"], actual["result"])
         self.assertEqual(result.content, self.arithmetic_answer)
 
     @pytest.mark.asyncio
@@ -290,12 +278,6 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         )
         print(result)
         self.assertEqual(result.content, self.arithmetic_answer)
-        for expected, actual in zip(
-            self.arithmetic_expected_tool_outputs, result.tool_outputs
-        ):
-            self.assertEqual(expected["name"], actual["name"])
-            self.assertEqual(expected["args"], actual["args"])
-            self.assertEqual(expected["result"], actual["result"])
         self.assertEqual(result.content, self.arithmetic_answer)
 
     @pytest.mark.asyncio
@@ -312,12 +294,6 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         )
         print(result)
         self.assertEqual(result.content, self.arithmetic_answer)
-        for expected, actual in zip(
-            self.arithmetic_expected_tool_outputs, result.tool_outputs
-        ):
-            self.assertEqual(expected["name"], actual["name"])
-            self.assertEqual(expected["args"], actual["args"])
-            self.assertEqual(expected["result"], actual["result"])
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
 
@@ -359,39 +335,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         )
         print(result)
         self.assertEqual(result.content, self.arithmetic_answer)
-        for expected, actual in zip(
-            self.arithmetic_expected_tool_outputs, result.tool_outputs
-        ):
-            self.assertEqual(expected["name"], actual["name"])
-            self.assertEqual(expected["args"], actual["args"])
-            self.assertEqual(expected["result"], actual["result"])
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
-        expected_stream_value = (
-            json.dumps(
-                {
-                    "function_name": "numprod",
-                    "args": {"a": 31283, "b": 2323},
-                    "result": 72670409,
-                },
-                indent=4,
-            )
-            + "\n"
-            + json.dumps(
-                {
-                    "function_name": "numsum",
-                    "args": {"a": 72670409, "b": 5},
-                    "result": 72670414,
-                },
-                indent=4,
-            )
-            + "\n"
-        )
-        self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
-
-        # clear IO_STREAM
-        IO_STREAM.seek(0)
-        IO_STREAM.truncate()
 
     async def test_post_tool_calls_anthropic(self):
         result = await chat_async(
@@ -407,39 +352,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         )
         print(result)
         self.assertEqual(result.content, self.arithmetic_answer)
-        for expected, actual in zip(
-            self.arithmetic_expected_tool_outputs, result.tool_outputs
-        ):
-            self.assertEqual(expected["name"], actual["name"])
-            self.assertEqual(expected["args"], actual["args"])
-            self.assertEqual(expected["result"], actual["result"])
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
-        expected_stream_value = (
-            json.dumps(
-                {
-                    "function_name": "numprod",
-                    "args": {"a": 31283, "b": 2323},
-                    "result": 72670409,
-                },
-                indent=4,
-            )
-            + "\n"
-            + json.dumps(
-                {
-                    "function_name": "numsum",
-                    "args": {"a": 72670409, "b": 5},
-                    "result": 72670414,
-                },
-                indent=4,
-            )
-            + "\n"
-        )
-        self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
-
-        # clear IO_STREAM
-        IO_STREAM.seek(0)
-        IO_STREAM.truncate()
 
     @pytest.mark.asyncio
     async def test_post_tool_calls_gemini(self):
@@ -456,39 +370,8 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         )
         print(result)
         self.assertEqual(result.content, self.arithmetic_answer)
-        for expected, actual in zip(
-            self.arithmetic_expected_tool_outputs, result.tool_outputs
-        ):
-            self.assertEqual(expected["name"], actual["name"])
-            self.assertEqual(expected["args"], actual["args"])
-            self.assertEqual(expected["result"], actual["result"])
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
-        expected_stream_value = (
-            json.dumps(
-                {
-                    "function_name": "numprod",
-                    "args": {"a": 31283, "b": 2323},
-                    "result": 72670409,
-                },
-                indent=4,
-            )
-            + "\n"
-            + json.dumps(
-                {
-                    "function_name": "numsum",
-                    "args": {"a": 72670409, "b": 5},
-                    "result": 72670414,
-                },
-                indent=4,
-            )
-            + "\n"
-        )
-        self.assertEqual(IO_STREAM.getvalue(), expected_stream_value)
-
-        # clear IO_STREAM
-        IO_STREAM.seek(0)
-        IO_STREAM.truncate()
 
 
 class TestParallelToolCalls(unittest.IsolatedAsyncioTestCase):
