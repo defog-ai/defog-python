@@ -5,6 +5,7 @@ from ..exceptions import ToolError
 from ..utils_function_calling import (
     execute_tool,
     execute_tool_async,
+    execute_tools_parallel,
     verify_post_tool_function,
 )
 
@@ -57,6 +58,52 @@ class ToolHandler:
                 )
 
         return result
+
+    async def execute_tool_calls_batch(
+        self,
+        tool_calls: List[Dict[str, Any]],
+        tool_dict: Dict[str, Callable],
+        enable_parallel: bool = False,
+        post_tool_function: Optional[Callable] = None,
+    ) -> List[Any]:
+        """Execute multiple tool calls either in parallel or sequentially."""
+        try:
+            results = await execute_tools_parallel(
+                tool_calls, tool_dict, enable_parallel
+            )
+
+            # Execute post-tool function for each result if provided
+            if post_tool_function:
+                for i, (tool_call, result) in enumerate(zip(tool_calls, results)):
+                    func_name = tool_call.get("function", {}).get(
+                        "name"
+                    ) or tool_call.get("name")
+                    func_args = tool_call.get("function", {}).get(
+                        "arguments"
+                    ) or tool_call.get("arguments", {})
+
+                    try:
+                        if inspect.iscoroutinefunction(post_tool_function):
+                            await post_tool_function(
+                                function_name=func_name,
+                                input_args=func_args,
+                                tool_result=result,
+                            )
+                        else:
+                            post_tool_function(
+                                function_name=func_name,
+                                input_args=func_args,
+                                tool_result=result,
+                            )
+                    except Exception as e:
+                        # Don't fail the entire batch for post-tool function errors
+                        print(
+                            f"Warning: Error executing post_tool_function for {func_name}: {e}"
+                        )
+
+            return results
+        except Exception as e:
+            raise ToolError("batch", f"Error executing tool batch: {e}", e)
 
     def build_tool_dict(self, tools: List[Callable]) -> Dict[str, Callable]:
         """Build a dictionary mapping tool names to functions."""
