@@ -89,9 +89,11 @@ class OpenAIProvider(BaseLLMProvider):
                 request_params["tool_choice"] = "auto"
 
             # Set parallel_tool_calls based on configuration
-            request_params["parallel_tool_calls"] = (
-                self.config.enable_parallel_tool_calls
-            )
+            # this parameter is not available on the o-series models, though
+            if not model.startswith("o"):
+                request_params["parallel_tool_calls"] = (
+                    self.config.enable_parallel_tool_calls
+                )
 
         # Some models do not allow temperature or response_format:
         if model.startswith("o") or model == "deepseek-reasoner":
