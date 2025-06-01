@@ -1,4 +1,5 @@
 import inspect
+import asyncio
 from typing import Callable, List, Dict, Any, Union
 from pydantic import BaseModel
 from defog.llm.models import OpenAIFunctionSpecs, AnthropicFunctionSpecs
@@ -197,6 +198,84 @@ async def execute_tool_async(tool: Callable, inputs: Dict[str, Any]):
     model = model_class.model_validate(inputs)
     # Call the tool function with the Pydantic model
     return await tool(model)
+
+
+async def execute_tools_parallel(
+    tool_calls: List[Dict[str, Any]],
+    tool_dict: Dict[str, Callable],
+    enable_parallel: bool = False,
+) -> List[Any]:
+    """
+    Execute multiple tool calls either in parallel or sequentially.
+
+    Args:
+        tool_calls: List of tool call dictionaries with function name and arguments
+        tool_dict: Dictionary mapping function names to callable functions
+        enable_parallel: Whether to execute tools in parallel (True) or sequentially (False)
+
+    Returns:
+        List of tool execution results in the same order as input tool_calls
+    """
+    if not enable_parallel:
+        # Sequential execution (current behavior)
+        results = []
+        for tool_call in tool_calls:
+            func_name = tool_call.get("function", {}).get("name") or tool_call.get(
+                "name"
+            )
+            func_args = tool_call.get("function", {}).get("arguments") or tool_call.get(
+                "arguments", {}
+            )
+
+            if func_name in tool_dict:
+                tool = tool_dict[func_name]
+                if inspect.iscoroutinefunction(tool):
+                    result = await execute_tool_async(tool, func_args)
+                else:
+                    result = execute_tool(tool, func_args)
+                results.append(result)
+            else:
+                results.append(f"Error: Function {func_name} not found")
+        return results
+    else:
+        # Parallel execution
+        async def execute_single_tool(tool_call):
+            try:
+                func_name = tool_call.get("function", {}).get("name") or tool_call.get(
+                    "name"
+                )
+                func_args = tool_call.get("function", {}).get(
+                    "arguments"
+                ) or tool_call.get("arguments", {})
+
+                if func_name in tool_dict:
+                    tool = tool_dict[func_name]
+                    if inspect.iscoroutinefunction(tool):
+                        return await execute_tool_async(tool, func_args)
+                    else:
+                        # Run sync function in thread pool to avoid blocking
+                        loop = asyncio.get_event_loop()
+                        return await loop.run_in_executor(
+                            None, execute_tool, tool, func_args
+                        )
+                else:
+                    return f"Error: Function {func_name} not found"
+            except Exception as e:
+                return f"Error executing {func_name}: {str(e)}"
+
+        # Execute all tool calls concurrently
+        tasks = [execute_single_tool(tool_call) for tool_call in tool_calls]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Convert any exceptions to error strings
+        processed_results = []
+        for result in results:
+            if isinstance(result, Exception):
+                processed_results.append(f"Error: {str(result)}")
+            else:
+                processed_results.append(result)
+
+        return processed_results
 
 
 def verify_post_tool_function(function: Callable):
