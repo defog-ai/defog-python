@@ -12,8 +12,8 @@ from ..utils_function_calling import get_function_specs, convert_tool_choice
 class GeminiProvider(BaseLLMProvider):
     """Google Gemini provider implementation."""
 
-    def __init__(self, api_key: Optional[str] = None):
-        super().__init__(api_key or os.getenv("GEMINI_API_KEY"))
+    def __init__(self, api_key: Optional[str] = None, config=None):
+        super().__init__(api_key or os.getenv("GEMINI_API_KEY"), config=config)
         self.tool_handler = ToolHandler()
 
     def get_provider_name(self) -> str:
@@ -79,6 +79,10 @@ class GeminiProvider(BaseLLMProvider):
                 )
                 request_params["tool_config"] = tool_choice
 
+            # Note: Gemini handles parallel tool calling automatically
+            # The model decides when to call multiple functions in parallel
+            # This is controlled internally and cannot be disabled
+
         if response_format:
             # If we want a JSON / Pydantic format
             # "response_schema" is only recognized if the google.genai library supports it
@@ -124,50 +128,72 @@ class GeminiProvider(BaseLLMProvider):
                 total_output_tokens += response.usage_metadata.candidates_token_count
                 if response.function_calls:
                     try:
-                        tool_call = response.function_calls[0]
-                        func_name = tool_call.name
-                        args = tool_call.args
+                        # Prepare tool calls for batch execution
+                        tool_calls_batch = []
+                        for tool_call in response.function_calls:
+                            func_name = tool_call.name
+                            args = tool_call.args
+                            # set tool_id to None, as Gemini models do not return a tool_id by default
+                            tool_id = getattr(tool_call, "id", None)
 
-                        # set tool_id to None, as Gemini models do not return a tool_id by default
-                        # strangely, tool_call.id exists, but is always set to `None`
-                        tool_id = None
+                            tool_calls_batch.append(
+                                {
+                                    "id": tool_id,
+                                    "function": {"name": func_name, "arguments": args},
+                                }
+                            )
 
-                        result = await self.tool_handler.execute_tool_call(
-                            func_name, args, tool_dict, post_tool_function
+                        # Execute all tool calls (parallel or sequential based on config)
+                        results = await self.tool_handler.execute_tool_calls_batch(
+                            tool_calls_batch,
+                            tool_dict,
+                            enable_parallel=self.config.enable_parallel_tool_calls,
+                            post_tool_function=post_tool_function,
                         )
 
-                        # Reset consecutive_exceptions when tool call is successful
+                        # Reset consecutive_exceptions when tool calls are successful
                         consecutive_exceptions = 0
 
-                        # Store the tool call, result, and text
+                        # Try to get text if available
                         try:
                             text = response.text
                         except Exception as e:
                             text = None
-                        tool_outputs.append(
-                            {
-                                "tool_id": tool_id,
-                                "name": func_name,
-                                "args": args,
-                                "result": result,
-                                "text": text,
-                            }
-                        )
 
                         # Append the tool call content to messages
                         tool_call_content = response.candidates[0].content
                         messages.append(tool_call_content)
 
-                        # Append the tool result to messages
+                        # Build tool result parts
+                        tool_result_parts = []
+                        for tool_call, result in zip(response.function_calls, results):
+                            func_name = tool_call.name
+                            args = tool_call.args
+                            tool_id = getattr(tool_call, "id", None)
+
+                            # Store the tool call, result, and text
+                            tool_outputs.append(
+                                {
+                                    "tool_id": tool_id,
+                                    "name": func_name,
+                                    "args": args,
+                                    "result": result,
+                                    "text": text,
+                                }
+                            )
+
+                            tool_result_parts.append(
+                                types.Part.from_function_response(
+                                    name=func_name,
+                                    response={"result": str(result)},
+                                )
+                            )
+
+                        # Append all tool results in a single message
                         messages.append(
                             types.Content(
                                 role="tool",
-                                parts=[
-                                    types.Part.from_function_response(
-                                        name=func_name,
-                                        response={"result": str(result)},
-                                    )
-                                ],
+                                parts=tool_result_parts,
                             )
                         )
 

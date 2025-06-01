@@ -13,8 +13,8 @@ from ..utils_function_calling import get_function_specs, convert_tool_choice
 class AnthropicProvider(BaseLLMProvider):
     """Anthropic Claude provider implementation."""
 
-    def __init__(self, api_key: Optional[str] = None):
-        super().__init__(api_key or os.getenv("ANTHROPIC_API_KEY"))
+    def __init__(self, api_key: Optional[str] = None, config=None):
+        super().__init__(api_key or os.getenv("ANTHROPIC_API_KEY"), config=config)
         self.tool_handler = ToolHandler()
 
     def get_provider_name(self) -> str:
@@ -126,6 +126,11 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             else:
                 params["tool_choice"] = {"type": "auto"}
 
+            # Add parallel tool calls configuration
+            if "tool_choice" in params and isinstance(params["tool_choice"], dict):
+                if not self.config.enable_parallel_tool_calls:
+                    params["tool_choice"]["disable_parallel_tool_use"] = True
+
         return params, messages
 
     async def process_response(
@@ -156,74 +161,73 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         tool_outputs = []
         total_input_tokens = 0
         total_output_tokens = 0
+
         if tools and len(tools) > 0:
             consecutive_exceptions = 0
             while True:
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
                 # Check if the response contains a tool call
-                tool_call_block = next(
-                    (
-                        block
-                        for block in response.content
-                        if isinstance(block, ToolUseBlock)
-                    ),
-                    None,
-                )
-                thinking_block = next(
-                    (
-                        block
-                        for block in response.content
-                        if isinstance(block, ThinkingBlock)
-                    ),
-                    None,
-                )
-                text_block = next(
-                    (
-                        block
-                        for block in response.content
-                        if isinstance(block, TextBlock)
-                    ),
-                    None,
-                )
-                if tool_call_block:
+                # Collect all blocks by type
+                tool_call_blocks = [
+                    block
+                    for block in response.content
+                    if isinstance(block, ToolUseBlock)
+                ]
+                thinking_blocks = [
+                    block
+                    for block in response.content
+                    if isinstance(block, ThinkingBlock)
+                ]
+                text_blocks = [
+                    block for block in response.content if isinstance(block, TextBlock)
+                ]
+                if len(tool_call_blocks) > 0:
                     try:
-                        try:
-                            func_name = tool_call_block.name
-                            args = tool_call_block.input
-                            tool_id = tool_call_block.id
-                        except Exception as e:
-                            raise ProviderError(
-                                self.get_provider_name(),
-                                f"Error parsing tool call: {e}",
-                                e,
-                            )
+                        # Prepare tool calls for batch execution
+                        tool_calls_batch = []
+                        for tool_call_block in tool_call_blocks:
+                            try:
+                                func_name = tool_call_block.name
+                                args = tool_call_block.input
+                                tool_id = tool_call_block.id
 
-                        result = await self.tool_handler.execute_tool_call(
-                            func_name, args, tool_dict, post_tool_function
+                                tool_calls_batch.append(
+                                    {
+                                        "id": tool_id,
+                                        "function": {
+                                            "name": func_name,
+                                            "arguments": args,
+                                        },
+                                    }
+                                )
+                            except Exception as e:
+                                raise ProviderError(
+                                    self.get_provider_name(),
+                                    f"Error parsing tool call: {e}",
+                                    e,
+                                )
+
+                        # Execute all tool calls (parallel or sequential based on config)
+                        results = await self.tool_handler.execute_tool_calls_batch(
+                            tool_calls_batch,
+                            tool_dict,
+                            enable_parallel=self.config.enable_parallel_tool_calls,
+                            post_tool_function=post_tool_function,
                         )
 
-                        # Reset consecutive_exceptions when tool call is successful
+                        # Reset consecutive_exceptions when tool calls are successful
                         consecutive_exceptions = 0
 
-                        # Store the tool call, result, and text
-                        tool_outputs.append(
-                            {
-                                "tool_call_id": tool_id,
-                                "name": func_name,
-                                "args": args,
-                                "result": result,
-                                "text": text_block.text if text_block else None,
-                            }
-                        )
-
+                        # Build assistant content with all tool calls
                         assistant_content = []
-                        if thinking_block:
-                            assistant_content.append(thinking_block)
+                        if len(thinking_blocks) > 0:
+                            assistant_content += thinking_blocks
 
-                        assistant_content.append(tool_call_block)
+                        for tool_call_block in tool_call_blocks:
+                            assistant_content.append(tool_call_block)
 
-                        # Append the tool call as an assistant response
+                        # Append the tool calls as an assistant response
                         request_params["messages"].append(
                             {
                                 "role": "assistant",
@@ -231,17 +235,36 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                             }
                         )
 
-                        # Append the tool result as a user response
+                        # Build user response with all tool results
+                        tool_results_content = []
+                        for tool_call_block, result in zip(tool_call_blocks, results):
+                            func_name = tool_call_block.name
+                            args = tool_call_block.input
+                            tool_id = tool_call_block.id
+
+                            # Store the tool call, result, and text
+                            tool_outputs.append(
+                                {
+                                    "tool_call_id": tool_id,
+                                    "name": func_name,
+                                    "args": args,
+                                    "result": result,
+                                }
+                            )
+
+                            tool_results_content.append(
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tool_id,
+                                    "content": str(result),
+                                }
+                            )
+
+                        # Append all tool results in a single user message
                         request_params["messages"].append(
                             {
                                 "role": "user",
-                                "content": [
-                                    {
-                                        "type": "tool_result",
-                                        "tool_use_id": tool_id,
-                                        "content": str(result),
-                                    }
-                                ],
+                                "content": tool_results_content,
                             }
                         )
 
@@ -279,12 +302,9 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
 
                     # Make next call
                     response = await client.messages.create(**request_params)
-                elif thinking_block:
-                    # do nothing
-                    pass
                 else:
                     # Break out of loop when tool calls are finished
-                    content = response.content[0].text
+                    content = "\n".join([block.text for block in text_blocks])
                     break
         else:
             # No tools provided

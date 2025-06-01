@@ -14,10 +14,13 @@ from ..utils_function_calling import get_function_specs, convert_tool_choice
 class OpenAIProvider(BaseLLMProvider):
     """OpenAI GPT provider implementation."""
 
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(
+        self, api_key: Optional[str] = None, base_url: Optional[str] = None, config=None
+    ):
         super().__init__(
             api_key or os.getenv("OPENAI_API_KEY"),
             base_url or "https://api.openai.com/v1/",
+            config=config,
         )
         self.tool_handler = ToolHandler()
 
@@ -85,10 +88,10 @@ class OpenAIProvider(BaseLLMProvider):
             else:
                 request_params["tool_choice"] = "auto"
 
-            # only set parallel_tool_calls for gpt-4o based models
-            # not supported in o models
-            if model in ["gpt-4o", "gpt-4o-mini"]:
-                request_params["parallel_tool_calls"] = False
+            # Set parallel_tool_calls based on configuration
+            request_params["parallel_tool_calls"] = (
+                self.config.enable_parallel_tool_calls
+            )
 
         # Some models do not allow temperature or response_format:
         if model.startswith("o") or model == "deepseek-reasoner":
@@ -161,31 +164,32 @@ class OpenAIProvider(BaseLLMProvider):
                 message = response.choices[0].message
                 if message.tool_calls:
                     try:
-                        tool_call = message.tool_calls[0]
-                        func_name = tool_call.function.name
-                        tool_call_id = tool_call.id
-                        try:
-                            args = json.loads(tool_call.function.arguments)
-                        except json.JSONDecodeError:
-                            args = {}
+                        # Prepare tool calls for batch execution
+                        tool_calls_batch = []
+                        for tool_call in message.tool_calls:
+                            func_name = tool_call.function.name
+                            try:
+                                args = json.loads(tool_call.function.arguments)
+                            except json.JSONDecodeError:
+                                args = {}
 
-                        result = await self.tool_handler.execute_tool_call(
-                            func_name, args, tool_dict, post_tool_function
+                            tool_calls_batch.append(
+                                {
+                                    "id": tool_call.id,
+                                    "function": {"name": func_name, "arguments": args},
+                                }
+                            )
+
+                        # Execute all tool calls (parallel or sequential based on config)
+                        results = await self.tool_handler.execute_tool_calls_batch(
+                            tool_calls_batch,
+                            tool_dict,
+                            enable_parallel=self.config.enable_parallel_tool_calls,
+                            post_tool_function=post_tool_function,
                         )
 
-                        # Reset consecutive_exceptions when tool call is successful
+                        # Reset consecutive_exceptions when tool calls are successful
                         consecutive_exceptions = 0
-
-                        # Store the tool call, result, and text
-                        tool_outputs.append(
-                            {
-                                "tool_call_id": tool_call_id,
-                                "name": func_name,
-                                "args": args,
-                                "result": result,
-                                "text": message.content if message.content else None,
-                            }
-                        )
 
                         # Append the tool calls as an assistant response
                         request_params["messages"].append(
@@ -195,14 +199,35 @@ class OpenAIProvider(BaseLLMProvider):
                             }
                         )
 
-                        # Append the tool message
-                        request_params["messages"].append(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tool_call.id,
-                                "content": str(result),
-                            }
-                        )
+                        # Process results and append tool messages
+                        for tool_call, result in zip(message.tool_calls, results):
+                            func_name = tool_call.function.name
+                            try:
+                                args = json.loads(tool_call.function.arguments)
+                            except json.JSONDecodeError:
+                                args = {}
+
+                            # Store the tool call, result, and text
+                            tool_outputs.append(
+                                {
+                                    "tool_call_id": tool_call.id,
+                                    "name": func_name,
+                                    "args": args,
+                                    "result": result,
+                                    "text": (
+                                        message.content if message.content else None
+                                    ),
+                                }
+                            )
+
+                            # Append the tool message
+                            request_params["messages"].append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": tool_call.id,
+                                    "content": str(result),
+                                }
+                            )
 
                         # Set tool_choice to "auto" so that the next message will be generated normally
                         request_params["tool_choice"] = (
@@ -242,7 +267,7 @@ class OpenAIProvider(BaseLLMProvider):
                     break
         else:
             # No tools provided
-            if response_format and model not in ["o1-mini", "o1-preview"]:
+            if response_format:
                 try:
                     content = response.choices[0].message.parsed
                 except Exception as e:
