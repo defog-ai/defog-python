@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Callable, Tuple
 from dataclasses import dataclass
+from ..config.settings import LLMConfig
 
 
 @dataclass
@@ -19,9 +20,15 @@ class LLMResponse:
 class BaseLLMProvider(ABC):
     """Abstract base class for all LLM providers."""
 
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        config: Optional[LLMConfig] = None,
+    ):
         self.api_key = api_key
         self.base_url = base_url
+        self.config = config or LLMConfig()
 
     @abstractmethod
     def get_provider_name(self) -> str:

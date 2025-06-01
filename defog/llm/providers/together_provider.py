@@ -10,8 +10,8 @@ from ..cost import CostCalculator
 class TogetherProvider(BaseLLMProvider):
     """Together AI provider implementation."""
 
-    def __init__(self, api_key: Optional[str] = None):
-        super().__init__(api_key or os.getenv("TOGETHER_API_KEY"))
+    def __init__(self, api_key: Optional[str] = None, config=None):
+        super().__init__(api_key or os.getenv("TOGETHER_API_KEY"), config=config)
 
     def get_provider_name(self) -> str:
         return "together"
