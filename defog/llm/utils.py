@@ -14,6 +14,7 @@ from .providers.base import LLMResponse
 from .exceptions import LLMError, ProviderError, ConfigurationError
 from .config import LLMConfig
 from .llm_providers import LLMProvider
+from copy import deepcopy
 
 # Keep the original LLMResponse for backwards compatibility
 # (it's now defined in providers.base but we re-export it here)
@@ -73,13 +74,16 @@ def get_provider_instance(
         return provider_class(
             api_key=config.get_api_key("deepseek"),
             base_url=config.get_base_url("deepseek"),
+            config=config,
         )
     elif provider_name == "openai":
         return provider_class(
-            api_key=config.get_api_key("openai"), base_url=config.get_base_url("openai")
+            api_key=config.get_api_key("openai"),
+            base_url=config.get_base_url("openai"),
+            config=config,
         )
     else:
-        return provider_class(api_key=config.get_api_key(provider_name))
+        return provider_class(api_key=config.get_api_key(provider_name), config=config)
 
 
 async def chat_async(
@@ -135,6 +139,9 @@ async def chat_async(
         ProviderError: If the provider API call fails
         LLMError: For other LLM-related errors
     """
+    # create a deep copy of the messages to avoid modifying the original messages
+    messages = deepcopy(messages)
+
     if config is None:
         config = LLMConfig()
 
