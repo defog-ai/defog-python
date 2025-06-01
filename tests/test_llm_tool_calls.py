@@ -732,55 +732,6 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         print(f"  Difference: {abs(parallel_time - sequential_time):.2f}s")
 
         # we can't really test Gemini, as it always has parallel tool calls enabled
-        """Test Gemini's parallel tool call behavior."""
-        from defog.llm.config.settings import LLMConfig
-        from defog.llm.utils import chat_async
-        import time
-
-        # Test with parallel enabled (should make one API call with multiple tools)
-        config_parallel = LLMConfig(enable_parallel_tool_calls=True)
-        start_time = time.time()
-        result_parallel = await chat_async(
-            provider="gemini",
-            model="gemini-2.5-pro-preview-05-06",
-            messages=self.messages,
-            tools=self.tools,
-            config=config_parallel,
-            temperature=0,
-            max_retries=1,
-        )
-        parallel_time = time.time() - start_time
-
-        # Test with parallel disabled (may require multiple API calls)
-        config_sequential = LLMConfig(enable_parallel_tool_calls=False)
-        start_time = time.time()
-        result_sequential = await chat_async(
-            provider="gemini",
-            model="gemini-2.5-pro-preview-05-06",
-            messages=self.messages,
-            tools=self.tools,
-            config=config_sequential,
-            temperature=0,
-            max_retries=1,
-        )
-        sequential_time = time.time() - start_time
-
-        # Verify results
-        self.assertEqual(len(result_parallel.tool_outputs), 2)
-        self.assertEqual(len(result_sequential.tool_outputs), 2)
-
-        # Check results
-        outputs_parallel = {
-            o["name"]: o["result"] for o in result_parallel.tool_outputs
-        }
-        self.assertEqual(outputs_parallel["numsum"], 2735586954)
-        self.assertEqual(outputs_parallel["numprod"], 287680120)
-
-        print(f"\nGemini Timing Results:")
-        print(f"  Parallel execution: {parallel_time:.2f}s")
-        print(f"  Sequential execution: {sequential_time:.2f}s")
-        print(f"  Difference: {abs(parallel_time - sequential_time):.2f}s")
-
     def test_provider_config_propagation(self):
         """Test that config properly propagates to all providers."""
         from defog.llm.config.settings import LLMConfig
