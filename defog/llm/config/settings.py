@@ -19,10 +19,12 @@ class LLMConfig:
         default_temperature: float = DEFAULT_TEMPERATURE,
         api_keys: Optional[Dict[str, str]] = None,
         base_urls: Optional[Dict[str, str]] = None,
+        enable_parallel_tool_calls: bool = True,
     ):
         self.timeout = timeout
         self.max_retries = max_retries
         self.default_temperature = default_temperature
+        self.enable_parallel_tool_calls = enable_parallel_tool_calls
 
         # API keys with environment fallbacks
         self.api_keys = api_keys or {}
