@@ -181,38 +181,43 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 tool_call_blocks = [
                     block
                     for block in response.content
-                    if hasattr(block, 'type') and block.type in ['tool_use', 'mcp_tool_use']
+                    if hasattr(block, "type")
+                    and block.type in ["tool_use", "mcp_tool_use"]
                 ]
                 # Collect MCP tool result blocks (these contain results from MCP server execution)
                 mcp_tool_result_blocks = [
                     block
                     for block in response.content
-                    if hasattr(block, 'type') and block.type == 'mcp_tool_result'
+                    if hasattr(block, "type") and block.type == "mcp_tool_result"
                 ]
                 thinking_blocks = [
                     block
                     for block in response.content
-                    if hasattr(block, 'type') and block.type == 'thinking'
+                    if hasattr(block, "type") and block.type == "thinking"
                 ]
                 text_blocks = [
-                    block for block in response.content 
-                    if hasattr(block, 'type') and block.type == 'text'
+                    block
+                    for block in response.content
+                    if hasattr(block, "type") and block.type == "text"
                 ]
                 if len(tool_call_blocks) > 0:
                     try:
                         # Separate MCP tools from regular tools
                         mcp_tool_calls = []
                         regular_tool_calls = []
-                        
+
                         for tool_call_block in tool_call_blocks:
                             try:
                                 func_name = tool_call_block.name
                                 args = tool_call_block.input
                                 tool_id = tool_call_block.id
-                                
+
                                 # Check if this is an MCP tool call
-                                is_mcp_tool = hasattr(tool_call_block, 'type') and tool_call_block.type == 'mcp_tool_use'
-                                
+                                is_mcp_tool = (
+                                    hasattr(tool_call_block, "type")
+                                    and tool_call_block.type == "mcp_tool_use"
+                                )
+
                                 tool_call_info = {
                                     "id": tool_id,
                                     "function": {
@@ -220,15 +225,17 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                         "arguments": args,
                                     },
                                 }
-                                
+
                                 if is_mcp_tool:
                                     # Add MCP-specific info if available
-                                    if hasattr(tool_call_block, 'server_name'):
-                                        tool_call_info["server_name"] = tool_call_block.server_name
+                                    if hasattr(tool_call_block, "server_name"):
+                                        tool_call_info["server_name"] = (
+                                            tool_call_block.server_name
+                                        )
                                     mcp_tool_calls.append(tool_call_info)
                                 else:
                                     regular_tool_calls.append(tool_call_info)
-                                    
+
                             except Exception as e:
                                 raise ProviderError(
                                     self.get_provider_name(),
@@ -245,28 +252,37 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                 enable_parallel=self.config.enable_parallel_tool_calls,
                                 post_tool_function=post_tool_function,
                             )
-                        
+
                         # For MCP tools, extract results from mcp_tool_result blocks
                         mcp_results = []
                         for mcp_result_block in mcp_tool_result_blocks:
                             try:
                                 # Extract result content
                                 result_content = ""
-                                if hasattr(mcp_result_block, 'content') and mcp_result_block.content:
+                                if (
+                                    hasattr(mcp_result_block, "content")
+                                    and mcp_result_block.content
+                                ):
                                     for content_item in mcp_result_block.content:
-                                        if hasattr(content_item, 'type') and content_item.type == 'text':
+                                        if (
+                                            hasattr(content_item, "type")
+                                            and content_item.type == "text"
+                                        ):
                                             result_content += content_item.text
                                 mcp_results.append(result_content)
                             except Exception as e:
                                 print(f"Warning: Failed to parse MCP tool result: {e}")
                                 mcp_results.append("Error parsing MCP result")
-                        
+
                         # Combine results in the order they were called
                         all_results = []
                         regular_idx = 0
                         mcp_idx = 0
                         for tool_call_block in tool_call_blocks:
-                            is_mcp_tool = hasattr(tool_call_block, 'type') and tool_call_block.type == 'mcp_tool_use'
+                            is_mcp_tool = (
+                                hasattr(tool_call_block, "type")
+                                and tool_call_block.type == "mcp_tool_use"
+                            )
                             if is_mcp_tool:
                                 if mcp_idx < len(mcp_results):
                                     all_results.append(mcp_results[mcp_idx])
@@ -279,7 +295,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                     regular_idx += 1
                                 else:
                                     all_results.append("Regular tool result not found")
-                        
+
                         results = all_results
 
                         # Reset consecutive_exceptions when tool calls are successful
@@ -300,7 +316,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                     "result": result,
                                 }
                             )
-                        
+
                         # Check stop_reason to determine if we should continue
                         if response.stop_reason == "end_turn":
                             # Conversation is complete, extract final content and break
@@ -309,7 +325,9 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                         elif response.stop_reason == "tool_use":
                             # Need to continue conversation with tool results (for regular tools only)
                             # MCP tools are already executed, so this shouldn't apply to them
-                            if regular_tool_calls:  # Only continue if we have regular tools to execute
+                            if (
+                                regular_tool_calls
+                            ):  # Only continue if we have regular tools to execute
                                 # Build assistant content with all tool calls
                                 assistant_content = []
                                 if len(thinking_blocks) > 0:
@@ -328,7 +346,9 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
 
                                 # Build user response with all tool results
                                 tool_results_content = []
-                                for tool_call_block, result in zip(tool_call_blocks, results):
+                                for tool_call_block, result in zip(
+                                    tool_call_blocks, results
+                                ):
                                     tool_id = tool_call_block.id
                                     tool_results_content.append(
                                         {
@@ -354,7 +374,9 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                 )
                             else:
                                 # Only MCP tools, conversation is complete
-                                content = "\n".join([block.text for block in text_blocks])
+                                content = "\n".join(
+                                    [block.text for block in text_blocks]
+                                )
                                 break
                         else:
                             # For other stop reasons, extract content and break
@@ -399,7 +421,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             # No tools provided
             content = ""
             for block in response.content:
-                if hasattr(block, 'type') and block.type == 'text':
+                if hasattr(block, "type") and block.type == "text":
                     content = block.text
                     break
 
@@ -458,14 +480,14 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             self.tool_handler.validate_post_tool_function(post_tool_function)
 
         t = time.time()
-        
+
         # Set up headers based on whether MCP servers are provided
         headers = {}
         if mcp_servers:
             headers["anthropic-beta"] = "mcp-client-2025-04-04"
         else:
             headers["anthropic-beta"] = "interleaved-thinking-2025-05-14"
-        
+
         client = AsyncAnthropic(
             api_key=self.api_key,
             default_headers=headers,
@@ -487,7 +509,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         tool_dict = {}
         if tools and len(tools) > 0 and "tools" in params:
             tool_dict = self.tool_handler.build_tool_dict(tools)
-        
+
         if mcp_servers and len(mcp_servers) > 0:
             func_to_call = client.beta.messages.create
         else:
