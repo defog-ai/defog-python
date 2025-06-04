@@ -136,29 +136,222 @@ class TestMCPChatAsync:
         assert len(tools_used.intersection(deepwiki_tools)) > 0
 
     @pytest.mark.asyncio
-    async def test_chat_async_mcp_with_non_anthropic_provider(self):
-        """Test that MCP servers are ignored for non-Anthropic providers"""
+    @pytest.mark.skipif(
+        not os.environ.get("OPENAI_API_KEY"),
+        reason="OPENAI_API_KEY environment variable not set",
+    )
+    async def test_chat_async_openai_without_mcp(self):
+        """Test chat_async with OpenAI without MCP servers"""
         messages = [{"role": "user", "content": "What is 2 + 2?"}]
 
-        # Mock MCP servers config
-        mcp_servers = [
-            {"type": "url", "url": "http://localhost:8001/sse", "name": "test_server"}
+        response = await chat_async(
+            provider=LLMProvider.OPENAI,
+            model="gpt-4o",
+            messages=messages,
+            temperature=0.0,
+        )
+
+        assert response is not None
+        assert response.content is not None
+        assert isinstance(response.content, str)
+        assert "4" in response.content
+        assert response.model == "gpt-4o"
+        assert response.input_tokens > 0
+        assert response.output_tokens > 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("OPENAI_API_KEY"),
+        reason="OPENAI_API_KEY environment variable not set",
+    )
+    async def test_chat_async_openai_with_mcp_servers(self, deepwiki_mcp_server):
+        """Test chat_async with OpenAI and MCP servers enabled using DeepWiki"""
+        # Convert the anthropic-style server config to OpenAI format
+        openai_mcp_server = [
+            {
+                "server_label": "deepwiki",
+                "server_url": "https://mcp.deepwiki.com/mcp",
+                "require_approval": "never",
+            }
         ]
 
-        # This should work without errors even though OpenAI doesn't support MCP
-        # (assuming OpenAI API key is available)
-        if os.environ.get("OPENAI_API_KEY"):
-            response = await chat_async(
-                provider=LLMProvider.OPENAI,
-                model="gpt-3.5-turbo",
-                messages=messages,
-                temperature=0.0,
-                mcp_servers=mcp_servers,  # This should be ignored
-            )
+        messages = [
+            {
+                "role": "user",
+                "content": "Use the read_wiki_structure tool to get documentation topics for the python/cpython GitHub repository",
+            }
+        ]
 
-            assert response is not None
-            assert response.content is not None
-            assert "4" in response.content
+        response = await chat_async(
+            provider=LLMProvider.OPENAI,
+            model="gpt-4.1",
+            messages=messages,
+            temperature=0.0,
+            mcp_servers=openai_mcp_server,
+        )
+
+        assert response is not None
+        assert response.content is not None
+        assert isinstance(response.content, str)
+        assert response.model == "gpt-4.1"
+        assert response.input_tokens > 0
+        assert response.output_tokens > 0
+
+        # Check that tool outputs are included
+        assert response.tool_outputs is not None
+        assert len(response.tool_outputs) > 0
+
+        # Verify a DeepWiki tool was used
+        tool_used = False
+        for tool_output in response.tool_outputs:
+            if tool_output.get("name") == "read_wiki_structure":
+                tool_used = True
+                # Should have repository-related argument
+                args_str = str(tool_output.get("args", {}))
+                assert "repository" in args_str or "repoName" in args_str
+                # Should have server_label
+                assert tool_output.get("server_label") == "deepwiki"
+
+        assert tool_used, "read_wiki_structure tool was not used"
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("OPENAI_API_KEY"),
+        reason="OPENAI_API_KEY environment variable not set",
+    )
+    async def test_chat_async_openai_with_multiple_mcp_tool_calls(
+        self, deepwiki_mcp_server
+    ):
+        """Test chat_async with OpenAI and multiple MCP tool calls"""
+        # Convert the anthropic-style server config to OpenAI format
+        openai_mcp_server = [
+            {
+                "server_label": "deepwiki",
+                "server_url": "https://mcp.deepwiki.com/mcp",
+                "require_approval": "never",
+            }
+        ]
+
+        messages = [
+            {
+                "role": "user",
+                "content": "First use read_wiki_structure to get the structure of the Python repository, then use ask_question to ask about Python's installation process",
+            }
+        ]
+
+        response = await chat_async(
+            provider=LLMProvider.OPENAI,
+            model="gpt-4.1",
+            messages=messages,
+            temperature=0.0,
+            mcp_servers=openai_mcp_server,
+        )
+
+        assert response is not None
+        assert response.content is not None
+        assert isinstance(response.content, str)
+
+        # Check that multiple tools were used
+        assert response.tool_outputs is not None
+        assert len(response.tool_outputs) >= 1  # At least one tool should be used
+
+        # Verify DeepWiki tools were used
+        tools_used = set()
+        for tool_output in response.tool_outputs:
+            tools_used.add(tool_output.get("name"))
+
+        # Should use at least one DeepWiki tool
+        deepwiki_tools = {"read_wiki_structure", "read_wiki_contents", "ask_question"}
+        assert len(tools_used.intersection(deepwiki_tools)) > 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("OPENAI_API_KEY"),
+        reason="OPENAI_API_KEY environment variable not set",
+    )
+    async def test_chat_async_openai_mcp_with_system_message(self, deepwiki_mcp_server):
+        """Test chat_async with OpenAI, MCP servers, and a system message"""
+        # Convert the anthropic-style server config to OpenAI format
+        openai_mcp_server = [
+            {
+                "server_label": "deepwiki",
+                "server_url": "https://mcp.deepwiki.com/mcp",
+                "require_approval": "never",
+            }
+        ]
+
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful documentation assistant. Always use the available tools to lookup information about repositories.",
+            },
+            {
+                "role": "user",
+                "content": "Look up information about the defog/introspect repository structure",
+            },
+        ]
+
+        response = await chat_async(
+            provider=LLMProvider.OPENAI,
+            model="gpt-4.1",
+            messages=messages,
+            temperature=0.0,
+            mcp_servers=openai_mcp_server,
+        )
+
+        assert response is not None
+        assert response.content is not None
+        assert isinstance(response.content, str)
+
+        # Verify a DeepWiki tool was used
+        assert response.tool_outputs is not None
+        deepwiki_tools = {"read_wiki_structure", "read_wiki_contents", "ask_question"}
+        tool_used = any(
+            tool.get("name") in deepwiki_tools for tool in response.tool_outputs
+        )
+        assert tool_used
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.environ.get("OPENAI_API_KEY"),
+        reason="OPENAI_API_KEY environment variable not set",
+    )
+    async def test_chat_async_openai_mcp_with_allowed_tools(self, deepwiki_mcp_server):
+        """Test chat_async with OpenAI MCP servers and allowed_tools filtering"""
+        # Convert the anthropic-style server config to OpenAI format with allowed_tools
+        openai_mcp_server = [
+            {
+                "server_label": "deepwiki",
+                "server_url": "https://mcp.deepwiki.com/mcp",
+                "require_approval": "never",
+                "allowed_tools": ["ask_question"],
+            }
+        ]
+
+        messages = [
+            {
+                "role": "user",
+                "content": "Ask a question about Python's installation process for the Python repository",
+            }
+        ]
+
+        response = await chat_async(
+            provider=LLMProvider.OPENAI,
+            model="gpt-4.1",
+            messages=messages,
+            temperature=0.0,
+            mcp_servers=openai_mcp_server,
+        )
+
+        assert response is not None
+        assert response.content is not None
+        assert isinstance(response.content, str)
+
+        # Verify only allowed tools were used
+        if response.tool_outputs:
+            for tool_output in response.tool_outputs:
+                # Should only use ask_question tool since that's the only allowed one
+                assert tool_output.get("name") in ["ask_question"]
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
