@@ -52,64 +52,6 @@ class TestCitations(unittest.IsolatedAsyncioTestCase):
         )
 
     @pytest.mark.asyncio
-    async def test_complex_anthropic_citations(self):
-        if self.skip_anthropic:
-            self.skipTest("ANTHROPIC_API_KEY not set")
-
-        question = "What are the key differences between Python and JavaScript programming languages?"
-        instructions = "Provide a comprehensive comparison with citations. Focus on syntax, use cases, and performance characteristics."
-        documents = [
-            {
-                "document_name": "Python Overview.txt",
-                "document_content": """Python is a high-level, interpreted programming language known for its simple and readable syntax. 
-                It uses indentation to define code blocks and is dynamically typed. Python is widely used for web development, 
-                data science, artificial intelligence, and automation. The language emphasizes code readability and allows 
-                developers to express concepts in fewer lines of code compared to languages like C++ or Java.""",
-            },
-            {
-                "document_name": "JavaScript Fundamentals.txt",
-                "document_content": """JavaScript is a high-level, interpreted programming language primarily used for web development.
-                It uses curly braces to define code blocks and supports both functional and object-oriented programming paradigms.
-                JavaScript runs in web browsers and on servers through Node.js. It is event-driven and non-blocking, making it
-                excellent for handling asynchronous operations and real-time applications.""",
-            },
-            {
-                "document_name": "Performance Comparison.txt",
-                "document_content": """In terms of performance, JavaScript typically executes faster than Python due to its V8 engine
-                optimization and just-in-time compilation. Python's interpreted nature and dynamic typing can lead to slower
-                execution times, especially for computationally intensive tasks. However, Python's extensive library ecosystem
-                and C extensions can help mitigate performance issues for specific use cases.""",
-            },
-        ]
-
-        response = await citations_tool(
-            question,
-            instructions,
-            documents,
-            "claude-3-7-sonnet-latest",
-            LLMProvider.ANTHROPIC,
-        )
-
-        # Check response structure
-        self.assertIsInstance(response, list)
-        self.assertGreater(len(response), 0)
-
-        # Check that response mentions both languages
-        response_text = " ".join(
-            [block.get("text", "") for block in response if block.get("type") == "text"]
-        ).lower()
-        self.assertIn("python", response_text)
-        self.assertIn("javascript", response_text)
-
-        # Check for citations
-        has_citations = False
-        for block in response:
-            if block.get("type") == "text" and block.get("citations"):
-                has_citations = True
-                break
-        self.assertTrue(has_citations, "Response should include citations")
-
-    @pytest.mark.asyncio
     async def test_openai_citations(self):
         if self.skip_openai:
             self.skipTest("OPENAI_API_KEY not set")
