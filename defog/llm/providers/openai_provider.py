@@ -48,6 +48,7 @@ class OpenAIProvider(BaseLLMProvider):
         timeout: int = 100,
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
+        mcp_servers: Optional[List[Dict[str, Any]]] = None,
         **kwargs,
     ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
         """
@@ -325,6 +326,7 @@ class OpenAIProvider(BaseLLMProvider):
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
         post_tool_function: Optional[Callable] = None,
+        mcp_servers: Optional[List[Dict[str, Any]]] = None,
         **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with OpenAI."""

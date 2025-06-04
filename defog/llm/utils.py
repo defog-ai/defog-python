@@ -106,6 +106,7 @@ async def chat_async(
     max_retries: Optional[int] = None,
     post_tool_function: Optional[Callable] = None,
     config: Optional[LLMConfig] = None,
+    mcp_servers: Optional[List[Dict[str, Any]]] = None,
 ) -> LLMResponse:
     """
     Execute a chat completion with explicit provider parameter.
@@ -130,6 +131,7 @@ async def chat_async(
         max_retries: Maximum number of retry attempts
         post_tool_function: Function to call after each tool execution
         config: LLM configuration object
+        mcp_servers: List of MCP server configurations (Anthropic only)
 
     Returns:
         LLMResponse object containing the result
@@ -182,6 +184,7 @@ async def chat_async(
                 prediction=prediction,
                 reasoning_effort=reasoning_effort,
                 post_tool_function=post_tool_function,
+                mcp_servers=mcp_servers,
             )
 
         except Exception as e:
