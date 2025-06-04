@@ -114,6 +114,35 @@ class OpenAIProvider(BaseLLMProvider):
         if response_format:
             request_params["response_format"] = response_format
 
+        # Add MCP servers if provided
+        if mcp_servers:
+            mcp_tools = []
+            for server in mcp_servers:
+                mcp_tool = {
+                    "type": "mcp",
+                    "server_label": server.get(
+                        "name", server.get("server_label", "unknown")
+                    ),
+                    "server_url": server.get("url", server.get("server_url")),
+                    "require_approval": server.get("require_approval", "never"),
+                }
+
+                # Add headers if provided
+                if "headers" in server:
+                    mcp_tool["headers"] = server["headers"]
+
+                # Add allowed_tools if provided
+                if "allowed_tools" in server:
+                    mcp_tool["allowed_tools"] = server["allowed_tools"]
+
+                mcp_tools.append(mcp_tool)
+
+            # Add MCP tools to existing tools array or create new one
+            if "tools" in request_params:
+                request_params["tools"].extend(mcp_tools)
+            else:
+                request_params["tools"] = mcp_tools
+
         return request_params, messages
 
     async def process_response(
@@ -351,6 +380,7 @@ class OpenAIProvider(BaseLLMProvider):
             store=store,
             metadata=metadata,
             timeout=timeout,
+            mcp_servers=mcp_servers,
         )
 
         # Build a tool dict if needed
@@ -359,31 +389,98 @@ class OpenAIProvider(BaseLLMProvider):
             tool_dict = self.tool_handler.build_tool_dict(tools)
 
         try:
-            # If response_format is set, we do parse
-            if request_params.get("response_format"):
-                response = await client_openai.beta.chat.completions.parse(
-                    **request_params
-                )
-            else:
-                response = await client_openai.chat.completions.create(**request_params)
+            # If MCP servers are provided, use Responses API
+            if mcp_servers and len(mcp_servers) > 0:
+                # Check if responses API is available
+                if not hasattr(client_openai, "responses"):
+                    raise ProviderError(
+                        self.get_provider_name(),
+                        "MCP support requires OpenAI Python library with Responses API support. "
+                        "Please update to the latest version or use Anthropic provider for MCP functionality.",
+                    )
 
-            (
-                content,
-                tool_outputs,
-                input_tokens,
-                cached_input_tokens,
-                output_tokens,
-                completion_token_details,
-            ) = await self.process_response(
-                client=client_openai,
-                response=response,
-                request_params=request_params,
-                tools=tools,
-                tool_dict=tool_dict,
-                response_format=response_format,
-                model=model,
-                post_tool_function=post_tool_function,
-            )
+                # Prepare parameters for Responses API
+                responses_params = {
+                    "model": request_params["model"],
+                    "input": messages,
+                    "tools": request_params.get("tools", []),
+                }
+
+                # Add other relevant parameters
+                if request_params.get("max_completion_tokens"):
+                    responses_params["max_completion_tokens"] = request_params[
+                        "max_completion_tokens"
+                    ]
+                if request_params.get("temperature") is not None:
+                    responses_params["temperature"] = request_params["temperature"]
+                if request_params.get("store") is not None:
+                    responses_params["store"] = request_params["store"]
+
+                response = await client_openai.responses.create(**responses_params)
+
+                # Extract content and tool outputs from response
+                content = response.output_text or ""
+                tool_outputs = []
+
+                # Extract MCP tool calls from response
+                for output_item in response.output:
+                    if output_item.type == "mcp_call":
+                        tool_outputs.append(
+                            {
+                                "tool_call_id": output_item.id,
+                                "name": output_item.name,
+                                "args": (
+                                    json.loads(output_item.arguments)
+                                    if output_item.arguments
+                                    else {}
+                                ),
+                                "result": output_item.output,
+                                "server_label": output_item.server_label,
+                            }
+                        )
+
+                # Get usage information
+                input_tokens = (
+                    response.usage.input_tokens
+                    if hasattr(response, "usage") and response.usage
+                    else 0
+                )
+                output_tokens = (
+                    response.usage.output_tokens
+                    if hasattr(response, "usage") and response.usage
+                    else 0
+                )
+                cached_input_tokens = 0
+                completion_token_details = None
+
+            else:
+                # Use regular Chat Completions API
+                if request_params.get("response_format"):
+                    response = await client_openai.beta.chat.completions.parse(
+                        **request_params
+                    )
+                else:
+                    response = await client_openai.chat.completions.create(
+                        **request_params
+                    )
+
+                (
+                    content,
+                    tool_outputs,
+                    input_tokens,
+                    cached_input_tokens,
+                    output_tokens,
+                    completion_token_details,
+                ) = await self.process_response(
+                    client=client_openai,
+                    response=response,
+                    request_params=request_params,
+                    tools=tools,
+                    tool_dict=tool_dict,
+                    response_format=response_format,
+                    model=model,
+                    post_tool_function=post_tool_function,
+                )
         except Exception as e:
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
 
