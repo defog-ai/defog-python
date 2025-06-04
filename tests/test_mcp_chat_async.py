@@ -219,13 +219,9 @@ class TestMCPChatAsync:
         self, deepwiki_mcp_server
     ):
         """Test chat_async with OpenAI and multiple MCP tool calls"""
-        # Convert the anthropic-style server config to OpenAI format
+        # Use the same format as Anthropic (standardized across providers)
         openai_mcp_server = [
-            {
-                "server_label": "deepwiki",
-                "server_url": "https://mcp.deepwiki.com/mcp",
-                "require_approval": "never",
-            }
+            {"name": "deepwiki", "url": "https://mcp.deepwiki.com/mcp", "type": "url"}
         ]
 
         messages = [
@@ -267,13 +263,9 @@ class TestMCPChatAsync:
     )
     async def test_chat_async_openai_mcp_with_system_message(self, deepwiki_mcp_server):
         """Test chat_async with OpenAI, MCP servers, and a system message"""
-        # Convert the anthropic-style server config to OpenAI format
+        # Use the same format as Anthropic (standardized across providers)
         openai_mcp_server = [
-            {
-                "server_label": "deepwiki",
-                "server_url": "https://mcp.deepwiki.com/mcp",
-                "require_approval": "never",
-            }
+            {"name": "deepwiki", "url": "https://mcp.deepwiki.com/mcp", "type": "url"}
         ]
 
         messages = [
@@ -314,12 +306,12 @@ class TestMCPChatAsync:
     )
     async def test_chat_async_openai_mcp_with_allowed_tools(self, deepwiki_mcp_server):
         """Test chat_async with OpenAI MCP servers and allowed_tools filtering"""
-        # Convert the anthropic-style server config to OpenAI format with allowed_tools
+        # Use the same format as Anthropic with additional OpenAI-specific options
         openai_mcp_server = [
             {
-                "server_label": "deepwiki",
-                "server_url": "https://mcp.deepwiki.com/mcp",
-                "require_approval": "never",
+                "name": "deepwiki",
+                "url": "https://mcp.deepwiki.com/mcp",
+                "type": "url",
                 "allowed_tools": ["ask_question"],
             }
         ]
