@@ -7,15 +7,6 @@ from defog.llm.utils import chat_async
 from defog.llm.llm_providers import LLMProvider
 
 
-# Paths to arithmetic server scripts
-SSE_SERVER_SCRIPT = os.path.join(
-    os.path.dirname(__file__), "mcp", "mcp_arithmetic_sse.py"
-)
-STDIO_SERVER_SCRIPT = os.path.join(
-    os.path.dirname(__file__), "mcp", "mcp_arithmetic_stdio.py"
-)
-
-
 @pytest.fixture
 def event_loop():
     """Create an event loop for the test session"""
@@ -32,21 +23,6 @@ def deepwiki_mcp_server():
     """
     # Return the MCP server configuration for DeepWiki
     yield [{"type": "url", "url": "https://mcp.deepwiki.com/sse", "name": "deepwiki"}]
-
-
-@pytest.fixture(scope="function")
-def arithmetic_stdio_server():
-    """Create a config for an arithmetic stdio server for testing"""
-    # Skip if server script doesn't exist
-    if not os.path.exists(STDIO_SERVER_SCRIPT):
-        pytest.skip(f"stdio server script not found at {STDIO_SERVER_SCRIPT}")
-
-    # Note: For stdio servers, we can't use the direct server config format
-    # because the Anthropic API expects HTTP endpoints for MCP servers
-    # So we'll skip this test for now
-    pytest.skip(
-        "Stdio servers are not supported directly by Anthropic API MCP connector"
-    )
 
 
 class TestMCPChatAsync:
