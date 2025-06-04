@@ -166,13 +166,9 @@ class TestMCPChatAsync:
     )
     async def test_chat_async_openai_with_mcp_servers(self, deepwiki_mcp_server):
         """Test chat_async with OpenAI and MCP servers enabled using DeepWiki"""
-        # Convert the anthropic-style server config to OpenAI format
+        # Use the same format as Anthropic (standardized across providers)
         openai_mcp_server = [
-            {
-                "server_label": "deepwiki",
-                "server_url": "https://mcp.deepwiki.com/mcp",
-                "require_approval": "never",
-            }
+            {"name": "deepwiki", "url": "https://mcp.deepwiki.com/mcp", "type": "url"}
         ]
 
         messages = [

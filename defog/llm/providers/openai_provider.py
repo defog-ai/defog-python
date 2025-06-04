@@ -118,13 +118,25 @@ class OpenAIProvider(BaseLLMProvider):
         if mcp_servers:
             mcp_tools = []
             for server in mcp_servers:
+                # Support both Anthropic-style and OpenAI-style server configs
+                # Anthropic format: {"name": "server", "url": "https://...", "type": "url"}
+                # OpenAI format: {"server_label": "server", "server_url": "https://..."}
+
+                server_name = server.get("name") or server.get(
+                    "server_label", "unknown"
+                )
+                server_url = server.get("url") or server.get("server_url")
+
+                if not server_url:
+                    raise ValueError(f"MCP server missing URL: {server}")
+
                 mcp_tool = {
                     "type": "mcp",
-                    "server_label": server.get(
-                        "name", server.get("server_label", "unknown")
-                    ),
-                    "server_url": server.get("url", server.get("server_url")),
-                    "require_approval": server.get("require_approval", "never"),
+                    "server_label": server_name,
+                    "server_url": server_url,
+                    "require_approval": server.get(
+                        "require_approval", "never"
+                    ),  # Default to "never"
                 }
 
                 # Add headers if provided
