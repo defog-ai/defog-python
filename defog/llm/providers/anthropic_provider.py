@@ -41,6 +41,7 @@ class AnthropicProvider(BaseLLMProvider):
         timeout: int = 100,
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
+        mcp_servers: Optional[List[Dict[str, Any]]] = None,
         **kwargs,
     ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
         """Create the parameter dict for Anthropic's .messages.create()."""
@@ -131,6 +132,10 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 if not self.config.enable_parallel_tool_calls:
                     params["tool_choice"]["disable_parallel_tool_use"] = True
 
+        # Add MCP servers if provided
+        if mcp_servers:
+            params["mcp_servers"] = mcp_servers
+
         return params, messages
 
     async def process_response(
@@ -142,6 +147,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         tool_dict: Dict[str, Callable],
         response_format=None,
         post_tool_function: Optional[Callable] = None,
+        mcp_servers: Optional[List[Dict[str, Any]]] = None,
         **kwargs,
     ) -> Tuple[
         Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
@@ -150,7 +156,8 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         Extract content (including any tool calls) and usage info from Anthropic response.
         Handles chaining of tool calls and structured output parsing.
         """
-        from anthropic.types import ToolUseBlock, TextBlock, ThinkingBlock
+        # Note: We check block.type property instead of using isinstance with specific block classes
+        # This ensures compatibility with both regular and beta API responses
 
         if response.stop_reason == "max_tokens":
             raise MaxTokensError("Max tokens reached")
@@ -162,45 +169,66 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         total_input_tokens = 0
         total_output_tokens = 0
 
-        if tools and len(tools) > 0:
+        # Handle tool processing for both local tools and MCP server tools
+        if (tools and len(tools) > 0) or (mcp_servers and len(mcp_servers) > 0):
             consecutive_exceptions = 0
             while True:
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
                 # Check if the response contains a tool call
-                # Collect all blocks by type
+                # Collect all blocks by type - check type property instead of isinstance
+                # Handle both regular tool_use and MCP mcp_tool_use blocks
                 tool_call_blocks = [
                     block
                     for block in response.content
-                    if isinstance(block, ToolUseBlock)
+                    if hasattr(block, 'type') and block.type in ['tool_use', 'mcp_tool_use']
+                ]
+                # Collect MCP tool result blocks (these contain results from MCP server execution)
+                mcp_tool_result_blocks = [
+                    block
+                    for block in response.content
+                    if hasattr(block, 'type') and block.type == 'mcp_tool_result'
                 ]
                 thinking_blocks = [
                     block
                     for block in response.content
-                    if isinstance(block, ThinkingBlock)
+                    if hasattr(block, 'type') and block.type == 'thinking'
                 ]
                 text_blocks = [
-                    block for block in response.content if isinstance(block, TextBlock)
+                    block for block in response.content 
+                    if hasattr(block, 'type') and block.type == 'text'
                 ]
                 if len(tool_call_blocks) > 0:
                     try:
-                        # Prepare tool calls for batch execution
-                        tool_calls_batch = []
+                        # Separate MCP tools from regular tools
+                        mcp_tool_calls = []
+                        regular_tool_calls = []
+                        
                         for tool_call_block in tool_call_blocks:
                             try:
                                 func_name = tool_call_block.name
                                 args = tool_call_block.input
                                 tool_id = tool_call_block.id
-
-                                tool_calls_batch.append(
-                                    {
-                                        "id": tool_id,
-                                        "function": {
-                                            "name": func_name,
-                                            "arguments": args,
-                                        },
-                                    }
-                                )
+                                
+                                # Check if this is an MCP tool call
+                                is_mcp_tool = hasattr(tool_call_block, 'type') and tool_call_block.type == 'mcp_tool_use'
+                                
+                                tool_call_info = {
+                                    "id": tool_id,
+                                    "function": {
+                                        "name": func_name,
+                                        "arguments": args,
+                                    },
+                                }
+                                
+                                if is_mcp_tool:
+                                    # Add MCP-specific info if available
+                                    if hasattr(tool_call_block, 'server_name'):
+                                        tool_call_info["server_name"] = tool_call_block.server_name
+                                    mcp_tool_calls.append(tool_call_info)
+                                else:
+                                    regular_tool_calls.append(tool_call_info)
+                                    
                             except Exception as e:
                                 raise ProviderError(
                                     self.get_provider_name(),
@@ -208,35 +236,56 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                     e,
                                 )
 
-                        # Execute all tool calls (parallel or sequential based on config)
-                        results = await self.tool_handler.execute_tool_calls_batch(
-                            tool_calls_batch,
-                            tool_dict,
-                            enable_parallel=self.config.enable_parallel_tool_calls,
-                            post_tool_function=post_tool_function,
-                        )
+                        # Execute regular tool calls (not MCP tools, which are already executed by the API)
+                        results = []
+                        if regular_tool_calls:
+                            results = await self.tool_handler.execute_tool_calls_batch(
+                                regular_tool_calls,
+                                tool_dict,
+                                enable_parallel=self.config.enable_parallel_tool_calls,
+                                post_tool_function=post_tool_function,
+                            )
+                        
+                        # For MCP tools, extract results from mcp_tool_result blocks
+                        mcp_results = []
+                        for mcp_result_block in mcp_tool_result_blocks:
+                            try:
+                                # Extract result content
+                                result_content = ""
+                                if hasattr(mcp_result_block, 'content') and mcp_result_block.content:
+                                    for content_item in mcp_result_block.content:
+                                        if hasattr(content_item, 'type') and content_item.type == 'text':
+                                            result_content += content_item.text
+                                mcp_results.append(result_content)
+                            except Exception as e:
+                                print(f"Warning: Failed to parse MCP tool result: {e}")
+                                mcp_results.append("Error parsing MCP result")
+                        
+                        # Combine results in the order they were called
+                        all_results = []
+                        regular_idx = 0
+                        mcp_idx = 0
+                        for tool_call_block in tool_call_blocks:
+                            is_mcp_tool = hasattr(tool_call_block, 'type') and tool_call_block.type == 'mcp_tool_use'
+                            if is_mcp_tool:
+                                if mcp_idx < len(mcp_results):
+                                    all_results.append(mcp_results[mcp_idx])
+                                    mcp_idx += 1
+                                else:
+                                    all_results.append("MCP result not found")
+                            else:
+                                if regular_idx < len(results):
+                                    all_results.append(results[regular_idx])
+                                    regular_idx += 1
+                                else:
+                                    all_results.append("Regular tool result not found")
+                        
+                        results = all_results
 
                         # Reset consecutive_exceptions when tool calls are successful
                         consecutive_exceptions = 0
 
-                        # Build assistant content with all tool calls
-                        assistant_content = []
-                        if len(thinking_blocks) > 0:
-                            assistant_content += thinking_blocks
-
-                        for tool_call_block in tool_call_blocks:
-                            assistant_content.append(tool_call_block)
-
-                        # Append the tool calls as an assistant response
-                        request_params["messages"].append(
-                            {
-                                "role": "assistant",
-                                "content": assistant_content,
-                            }
-                        )
-
-                        # Build user response with all tool results
-                        tool_results_content = []
+                        # Store tool outputs for all tools (both MCP and regular)
                         for tool_call_block, result in zip(tool_call_blocks, results):
                             func_name = tool_call_block.name
                             args = tool_call_block.input
@@ -251,29 +300,66 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                     "result": result,
                                 }
                             )
+                        
+                        # Check stop_reason to determine if we should continue
+                        if response.stop_reason == "end_turn":
+                            # Conversation is complete, extract final content and break
+                            content = "\n".join([block.text for block in text_blocks])
+                            break
+                        elif response.stop_reason == "tool_use":
+                            # Need to continue conversation with tool results (for regular tools only)
+                            # MCP tools are already executed, so this shouldn't apply to them
+                            if regular_tool_calls:  # Only continue if we have regular tools to execute
+                                # Build assistant content with all tool calls
+                                assistant_content = []
+                                if len(thinking_blocks) > 0:
+                                    assistant_content += thinking_blocks
 
-                            tool_results_content.append(
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": tool_id,
-                                    "content": str(result),
-                                }
-                            )
+                                for tool_call_block in tool_call_blocks:
+                                    assistant_content.append(tool_call_block)
 
-                        # Append all tool results in a single user message
-                        request_params["messages"].append(
-                            {
-                                "role": "user",
-                                "content": tool_results_content,
-                            }
-                        )
+                                # Append the tool calls as an assistant response
+                                request_params["messages"].append(
+                                    {
+                                        "role": "assistant",
+                                        "content": assistant_content,
+                                    }
+                                )
 
-                        # Set tool_choice to "auto" so that the next message will be generated normally
-                        request_params["tool_choice"] = (
-                            {"type": "auto"}
-                            if request_params["tool_choice"] != "auto"
-                            else None
-                        )
+                                # Build user response with all tool results
+                                tool_results_content = []
+                                for tool_call_block, result in zip(tool_call_blocks, results):
+                                    tool_id = tool_call_block.id
+                                    tool_results_content.append(
+                                        {
+                                            "type": "tool_result",
+                                            "tool_use_id": tool_id,
+                                            "content": str(result),
+                                        }
+                                    )
+
+                                # Append all tool results in a single user message
+                                request_params["messages"].append(
+                                    {
+                                        "role": "user",
+                                        "content": tool_results_content,
+                                    }
+                                )
+
+                                # Set tool_choice to "auto" so that the next message will be generated normally
+                                request_params["tool_choice"] = (
+                                    {"type": "auto"}
+                                    if request_params["tool_choice"] != "auto"
+                                    else None
+                                )
+                            else:
+                                # Only MCP tools, conversation is complete
+                                content = "\n".join([block.text for block in text_blocks])
+                                break
+                        else:
+                            # For other stop reasons, extract content and break
+                            content = "\n".join([block.text for block in text_blocks])
+                            break
                     except Exception as e:
                         consecutive_exceptions += 1
 
@@ -300,16 +386,20 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                             }
                         )
 
-                    # Make next call
-                    response = await client.messages.create(**request_params)
+                    # Make next call - use the same API endpoint (beta or regular) as the initial call
+                    if mcp_servers and len(mcp_servers) > 0:
+                        response = await client.beta.messages.create(**request_params)
+                    else:
+                        response = await client.messages.create(**request_params)
                 else:
                     # Break out of loop when tool calls are finished
                     content = "\n".join([block.text for block in text_blocks])
                     break
         else:
             # No tools provided
+            content = ""
             for block in response.content:
-                if isinstance(block, TextBlock):
+                if hasattr(block, 'type') and block.type == 'text':
                     content = block.text
                     break
 
@@ -358,6 +448,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         prediction: Optional[Dict[str, str]] = None,
         reasoning_effort: Optional[str] = None,
         post_tool_function: Optional[Callable] = None,
+        mcp_servers: Optional[List[Dict[str, Any]]] = None,
         **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with Anthropic."""
@@ -367,9 +458,17 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             self.tool_handler.validate_post_tool_function(post_tool_function)
 
         t = time.time()
+        
+        # Set up headers based on whether MCP servers are provided
+        headers = {}
+        if mcp_servers:
+            headers["anthropic-beta"] = "mcp-client-2025-04-04"
+        else:
+            headers["anthropic-beta"] = "interleaved-thinking-2025-05-14"
+        
         client = AsyncAnthropic(
             api_key=self.api_key,
-            default_headers={"anthropic-beta": "interleaved-thinking-2025-05-14"},
+            default_headers=headers,
         )
         params, _ = self.build_params(
             messages=messages,
@@ -381,15 +480,21 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             response_format=response_format,
             reasoning_effort=reasoning_effort,
             timeout=timeout,
+            mcp_servers=mcp_servers,
         )
 
         # Construct a tool dict if needed
         tool_dict = {}
         if tools and len(tools) > 0 and "tools" in params:
             tool_dict = self.tool_handler.build_tool_dict(tools)
+        
+        if mcp_servers and len(mcp_servers) > 0:
+            func_to_call = client.beta.messages.create
+        else:
+            func_to_call = client.messages.create
 
         try:
-            response = await client.messages.create(**params)
+            response = await func_to_call(**params)
             (
                 content,
                 tool_outputs,
@@ -405,6 +510,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 tool_dict=tool_dict,
                 response_format=response_format,
                 post_tool_function=post_tool_function,
+                mcp_servers=mcp_servers,
             )
         except Exception as e:
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
