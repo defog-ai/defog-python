@@ -2,8 +2,10 @@
 
 import asyncio
 import logging
+import time
+import traceback
 from typing import List, Dict, Any, Optional, Union, Callable, Tuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 import json
 import inspect
@@ -35,6 +37,10 @@ class SubAgentTask:
     context: Optional[Dict[str, Any]] = None
     execution_mode: ExecutionMode = ExecutionMode.SEQUENTIAL
     dependencies: Optional[List[str]] = None  # IDs of tasks that must complete first
+    max_retries: int = 3
+    retry_delay: float = 1.0
+    retry_backoff: float = 2.0
+    retry_timeout: Optional[float] = None
 
 
 @dataclass
@@ -59,6 +65,11 @@ class SubAgentResult:
     result: Any
     error: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    error_type: Optional[str] = None
+    retry_count: int = 0
+    error_trace: Optional[str] = None
+    partial_results: Optional[List[Any]] = field(default_factory=list)
+    execution_time: Optional[float] = None
 
 
 class Agent:
@@ -157,11 +168,23 @@ class AgentOrchestrator:
         subagent_model: Optional[str] = None,
         planning_provider: str = "anthropic",
         planning_model: str = "claude-opus-4-20250514",
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+        retry_backoff: float = 2.0,
+        retry_timeout: Optional[float] = None,
+        fallback_model: Optional[str] = None,
     ):
         self.main_agent = main_agent
         self.subagents = {}
         self.max_parallel_tasks = max_parallel_tasks
         self.task_results: Dict[str, SubAgentResult] = {}
+
+        # Retry configuration
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.retry_backoff = retry_backoff
+        self.retry_timeout = retry_timeout
+        self.fallback_model = fallback_model
 
         # For dynamic subagent creation
         self.available_tools = available_tools or []
@@ -172,6 +195,11 @@ class AgentOrchestrator:
         self.subagent_model = subagent_model or main_agent.model
         self.planning_provider = planning_provider
         self.planning_model = planning_model
+
+        # Circuit breaker state
+        self.failure_count = 0
+        self.circuit_breaker_threshold = 5
+        self.circuit_breaker_timeout = 60
 
         # Add delegation tools to main agent
         self._add_delegation_tool()
@@ -187,7 +215,7 @@ class AgentOrchestrator:
             """Request to delegate tasks to subagents."""
 
             tasks: ListType[Dict[str, Any]] = Field(
-                description="List of tasks to delegate. Each task should have: agent_id, task_description, context (optional), execution_mode (optional), dependencies (optional)"
+                description="List of tasks to delegate. Each task should have: agent_id, task_description, context (optional), execution_mode (optional), dependencies (optional), max_retries (optional), retry_delay (optional), retry_backoff (optional), retry_timeout (optional)"
             )
 
         async def delegate_to_subagents(input: DelegationRequest) -> Dict[str, Any]:
@@ -202,6 +230,10 @@ class AgentOrchestrator:
                         task_data.get("execution_mode", "sequential")
                     ),
                     dependencies=task_data.get("dependencies"),
+                    max_retries=task_data.get("max_retries", self.max_retries),
+                    retry_delay=task_data.get("retry_delay", self.retry_delay),
+                    retry_backoff=task_data.get("retry_backoff", self.retry_backoff),
+                    retry_timeout=task_data.get("retry_timeout", self.retry_timeout),
                 )
                 tasks.append(task)
 
@@ -302,37 +334,95 @@ class AgentOrchestrator:
     async def _execute_parallel_tasks(
         self, tasks: List[SubAgentTask]
     ) -> List[SubAgentResult]:
-        """Execute multiple tasks in parallel with concurrency limit."""
+        """Execute multiple tasks in parallel with retry logic for failed tasks."""
         semaphore = asyncio.Semaphore(self.max_parallel_tasks)
 
         async def execute_with_limit(task):
             async with semaphore:
                 return await self._execute_single_task(task)
 
+        # Initial execution
         results = await asyncio.gather(
             *[execute_with_limit(task) for task in tasks], return_exceptions=True
         )
 
-        # Handle exceptions
+        # Process results and identify failures
         processed_results = []
+        failed_tasks = []
+        
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                processed_results.append(
-                    SubAgentResult(
-                        agent_id=tasks[i].agent_id,
-                        task_id=tasks[i].task_id,
-                        success=False,
-                        result=None,
-                        error=str(result),
-                    )
+                # Handle gather exceptions
+                failed_result = SubAgentResult(
+                    agent_id=tasks[i].agent_id,
+                    task_id=tasks[i].task_id,
+                    success=False,
+                    result=None,
+                    error=str(result),
+                    error_type=self._classify_error(result),
+                    error_trace=traceback.format_exc(),
                 )
-            else:
+                processed_results.append(failed_result)
+                failed_tasks.append(tasks[i])
+            elif not result.success:
+                # Task completed but failed
                 processed_results.append(result)
+                if self._should_retry_error(result.error_type or "UNKNOWN_ERROR"):
+                    failed_tasks.append(tasks[i])
+            else:
+                # Success
+                processed_results.append(result)
+
+        # Retry failed tasks with reduced concurrency if any failures occurred
+        if failed_tasks and len(failed_tasks) < len(tasks):
+            logger.info(f"Retrying {len(failed_tasks)} failed parallel tasks with reduced concurrency")
+            
+            # Reduce concurrency for retries to avoid cascading failures
+            reduced_concurrency = max(1, self.max_parallel_tasks // 2)
+            retry_semaphore = asyncio.Semaphore(reduced_concurrency)
+            
+            async def retry_with_limit(task):
+                async with retry_semaphore:
+                    return await self._execute_single_task(task)
+            
+            # Wait a bit before retrying to let any temporary issues resolve
+            await asyncio.sleep(self.retry_delay)
+            
+            retry_results = await asyncio.gather(
+                *[retry_with_limit(task) for task in failed_tasks], return_exceptions=True
+            )
+            
+            # Replace failed results with retry results
+            failed_task_ids = {task.task_id for task in failed_tasks}
+            for i, retry_result in enumerate(retry_results):
+                failed_task = failed_tasks[i]
+                
+                # Find the original result index
+                for j, original_result in enumerate(processed_results):
+                    if (original_result.agent_id == failed_task.agent_id and 
+                        original_result.task_id == failed_task.task_id):
+                        
+                        if isinstance(retry_result, Exception):
+                            # Still failed after retry
+                            processed_results[j] = SubAgentResult(
+                                agent_id=failed_task.agent_id,
+                                task_id=failed_task.task_id,
+                                success=False,
+                                result=None,
+                                error=str(retry_result),
+                                error_type=self._classify_error(retry_result),
+                                retry_count=1,
+                                error_trace=traceback.format_exc(),
+                            )
+                        else:
+                            # Use retry result
+                            processed_results[j] = retry_result
+                        break
 
         return processed_results
 
     async def _execute_single_task(self, task: SubAgentTask) -> SubAgentResult:
-        """Execute a single subagent task."""
+        """Execute a single subagent task with retry logic and exponential backoff."""
         if task.agent_id not in self.subagents:
             return SubAgentResult(
                 agent_id=task.agent_id,
@@ -340,38 +430,136 @@ class AgentOrchestrator:
                 success=False,
                 result=None,
                 error=f"Subagent '{task.agent_id}' not found",
+                error_type="AGENT_NOT_FOUND",
             )
 
         agent = self.subagents[task.agent_id]
+        
+        # Use task-specific retry config or fall back to orchestrator defaults
+        max_retries = getattr(task, 'max_retries', self.max_retries)
+        retry_delay = getattr(task, 'retry_delay', self.retry_delay)
+        retry_backoff = getattr(task, 'retry_backoff', self.retry_backoff)
+        retry_timeout = getattr(task, 'retry_timeout', self.retry_timeout)
+        
+        start_time = time.time()
+        partial_results = []
+        last_error = None
+        last_error_trace = None
+        retry_count = 0
+        
+        for attempt in range(max_retries + 1):
+            try:
+                # Check timeout
+                if retry_timeout and (time.time() - start_time) > retry_timeout:
+                    error_msg = f"Task timeout exceeded: {retry_timeout}s"
+                    logger.warning(f"Task {task.task_id} timed out after {retry_timeout}s")
+                    return SubAgentResult(
+                        agent_id=task.agent_id,
+                        task_id=task.task_id,
+                        success=False,
+                        result=None,
+                        error=error_msg,
+                        error_type="TIMEOUT",
+                        retry_count=retry_count,
+                        partial_results=partial_results,
+                        execution_time=time.time() - start_time,
+                    )
+                
+                # Log retry attempt
+                if attempt > 0:
+                    logger.info(f"Retrying task {task.task_id}, attempt {attempt + 1}/{max_retries + 1}")
+                
+                # Prepare messages for subagent
+                messages = [{"role": "user", "content": task.task_description}]
 
-        try:
-            # Prepare messages for subagent
-            messages = [{"role": "user", "content": task.task_description}]
+                # Execute task
+                response = await agent.process(messages, context=task.context)
+                
+                # Success - reset circuit breaker
+                self.failure_count = 0
 
-            # Execute task
-            response = await agent.process(messages, context=task.context)
-
-            return SubAgentResult(
-                agent_id=task.agent_id,
-                task_id=task.task_id,
-                success=True,
-                result=response.content,
-                metadata={
-                    "input_tokens": response.input_tokens,
-                    "output_tokens": response.output_tokens,
-                    "total_tokens": response.input_tokens + response.output_tokens,
-                    "cost_in_cents": response.cost_in_cents,
-                    "tool_outputs": response.tool_outputs,
-                },
-            )
-        except Exception as e:
-            return SubAgentResult(
-                agent_id=task.agent_id,
-                task_id=task.task_id,
-                success=False,
-                result=None,
-                error=str(e),
-            )
+                return SubAgentResult(
+                    agent_id=task.agent_id,
+                    task_id=task.task_id,
+                    success=True,
+                    result=response.content,
+                    retry_count=retry_count,
+                    partial_results=partial_results,
+                    execution_time=time.time() - start_time,
+                    metadata={
+                        "input_tokens": response.input_tokens,
+                        "output_tokens": response.output_tokens,
+                        "total_tokens": response.input_tokens + response.output_tokens,
+                        "cost_in_cents": response.cost_in_cents,
+                        "tool_outputs": response.tool_outputs,
+                    },
+                )
+                
+            except Exception as e:
+                retry_count = attempt
+                last_error = str(e)
+                last_error_trace = traceback.format_exc()
+                error_type = self._classify_error(e)
+                
+                logger.warning(f"Task {task.task_id} failed on attempt {attempt + 1}: {last_error}")
+                
+                # Store partial results if any
+                if hasattr(e, 'partial_result'):
+                    partial_results.append(e.partial_result)
+                
+                # Check if we should retry based on error type
+                if not self._should_retry_error(error_type) or attempt >= max_retries:
+                    break
+                
+                # Circuit breaker check
+                self.failure_count += 1
+                if self.failure_count >= self.circuit_breaker_threshold:
+                    logger.error(f"Circuit breaker triggered after {self.failure_count} failures")
+                    break
+                
+                # Try model fallback on the last retry for model errors
+                if error_type == "MODEL_ERROR" and attempt == max_retries - 1 and self.fallback_model:
+                    logger.info(f"Attempting model fallback to {self.fallback_model} for task {task.task_id}")
+                    try:
+                        result = await self._execute_with_fallback_model(task, agent)
+                        if result.success:
+                            return result
+                    except Exception as fallback_error:
+                        logger.warning(f"Fallback model also failed: {fallback_error}")
+                        last_error = str(fallback_error)
+                        last_error_trace = traceback.format_exc()
+                
+                # Wait before retry with exponential backoff
+                if attempt < max_retries:
+                    wait_time = retry_delay * (retry_backoff ** attempt)
+                    logger.info(f"Waiting {wait_time:.2f}s before retry")
+                    await asyncio.sleep(wait_time)
+        
+        # All retries exhausted - try task decomposition as final fallback
+        if self.available_tools and len(task.task_description) > 100:  # Only for complex tasks
+            logger.info(f"Attempting task decomposition as final fallback for {task.task_id}")
+            try:
+                decomp_result = await self._execute_with_decomposition(task)
+                if decomp_result.success:
+                    decomp_result.retry_count = retry_count
+                    decomp_result.execution_time = time.time() - start_time
+                    return decomp_result
+            except Exception as decomp_error:
+                logger.warning(f"Task decomposition failed: {decomp_error}")
+        
+        # All fallbacks exhausted
+        return SubAgentResult(
+            agent_id=task.agent_id,
+            task_id=task.task_id,
+            success=False,
+            result=None,
+            error=last_error,
+            error_type=self._classify_error(Exception(last_error)) if last_error else "UNKNOWN",
+            retry_count=retry_count,
+            error_trace=last_error_trace,
+            partial_results=partial_results,
+            execution_time=time.time() - start_time,
+        )
 
     async def process(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
         """Process messages through the main agent with subagent delegation capability."""
@@ -546,3 +734,184 @@ Return a JSON object with this structure:
             desc = self._get_tool_description(tool)
             tool_descriptions.append(f"- {name}: {desc}")
         return "\n".join(tool_descriptions)
+    
+    def _classify_error(self, error: Exception) -> str:
+        """Classify error type for retry decisions."""
+        error_str = str(error).lower()
+        error_type = type(error).__name__
+        
+        # Network/timeout errors - retryable
+        if any(term in error_str for term in ['timeout', 'connection', 'network', 'socket']):
+            return "NETWORK_ERROR"
+        
+        # Rate limiting - retryable with longer delay
+        if any(term in error_str for term in ['rate limit', 'quota', 'throttle']):
+            return "RATE_LIMIT"
+        
+        # Authentication - usually not retryable
+        if any(term in error_str for term in ['auth', 'permission', 'unauthorized', 'forbidden']):
+            return "AUTH_ERROR"
+        
+        # Model-specific errors - might be retryable with fallback
+        if any(term in error_str for term in ['model', 'overload', 'capacity']):
+            return "MODEL_ERROR"
+        
+        # Input validation - not retryable
+        if any(term in error_str for term in ['invalid', 'malformed', 'validation']):
+            return "VALIDATION_ERROR"
+        
+        # Generic server errors - retryable
+        if any(term in error_str for term in ['server error', '500', '502', '503', '504']):
+            return "SERVER_ERROR"
+        
+        return "UNKNOWN_ERROR"
+    
+    def _should_retry_error(self, error_type: str) -> bool:
+        """Determine if an error type should be retried."""
+        retryable_errors = {
+            "NETWORK_ERROR",
+            "RATE_LIMIT", 
+            "SERVER_ERROR",
+            "MODEL_ERROR",
+            "UNKNOWN_ERROR"
+        }
+        return error_type in retryable_errors
+    
+    async def _execute_with_fallback_model(self, task: SubAgentTask, agent: Agent) -> SubAgentResult:
+        """Execute task with fallback model."""
+        original_model = agent.model
+        agent.model = self.fallback_model
+        
+        try:
+            messages = [{"role": "user", "content": task.task_description}]
+            response = await agent.process(messages, context=task.context)
+            
+            return SubAgentResult(
+                agent_id=task.agent_id,
+                task_id=task.task_id,
+                success=True,
+                result=response.content,
+                metadata={
+                    "input_tokens": response.input_tokens,
+                    "output_tokens": response.output_tokens,
+                    "total_tokens": response.input_tokens + response.output_tokens,
+                    "cost_in_cents": response.cost_in_cents,
+                    "tool_outputs": response.tool_outputs,
+                    "fallback_model_used": self.fallback_model,
+                },
+            )
+        finally:
+            # Restore original model
+            agent.model = original_model
+    
+    async def _decompose_task(self, task: SubAgentTask) -> List[SubAgentTask]:
+        """Decompose a complex task into simpler subtasks."""
+        if not self.available_tools:
+            return [task]  # Can't decompose without planning capability
+        
+        decomposition_messages = [
+            {
+                "role": "system",
+                "content": """You are a task decomposition agent. Break down complex tasks into simpler, more manageable subtasks.
+                
+Guidelines:
+1. Create 2-4 simpler subtasks from the original task
+2. Each subtask should be self-contained and specific
+3. Subtasks should be easier to execute than the original
+4. Maintain logical dependencies between subtasks
+
+Return a JSON array of subtask descriptions.""",
+            },
+            {
+                "role": "user", 
+                "content": f"Decompose this task: {task.task_description}",
+            },
+        ]
+        
+        try:
+            from pydantic import BaseModel
+            from typing import List as ListType
+            
+            class TaskDecomposition(BaseModel):
+                subtasks: ListType[str]
+                reasoning: str
+            
+            response = await chat_async(
+                provider=self.planning_provider,
+                model=self.planning_model,
+                messages=decomposition_messages,
+                temperature=0.2,
+                response_format=TaskDecomposition,
+            )
+            
+            decomposition = response.content
+            subtasks = []
+            
+            for i, subtask_desc in enumerate(decomposition.subtasks):
+                subtask = SubAgentTask(
+                    agent_id=task.agent_id,
+                    task_description=subtask_desc,
+                    context=task.context,
+                    execution_mode=ExecutionMode.SEQUENTIAL,
+                    dependencies=[f"{task.task_id}_subtask_{i-1}"] if i > 0 else None,
+                    max_retries=max(1, task.max_retries // 2),  # Reduce retries for subtasks
+                )
+                subtask.task_id = f"{task.task_id}_subtask_{i}"
+                subtasks.append(subtask)
+            
+            logger.info(f"Decomposed task {task.task_id} into {len(subtasks)} subtasks")
+            return subtasks
+            
+        except Exception as e:
+            logger.warning(f"Task decomposition failed: {e}")
+            return [task]  # Return original task if decomposition fails
+    
+    async def _execute_with_decomposition(self, task: SubAgentTask) -> SubAgentResult:
+        """Execute task by decomposing it into subtasks."""
+        subtasks = await self._decompose_task(task)
+        
+        if len(subtasks) == 1:
+            # Decomposition didn't help, return failure
+            return SubAgentResult(
+                agent_id=task.agent_id,
+                task_id=task.task_id,
+                success=False,
+                result=None,
+                error="Task decomposition did not simplify the task",
+                error_type="DECOMPOSITION_FAILED",
+            )
+        
+        # Execute subtasks sequentially
+        subtask_results = []
+        combined_result = []
+        
+        for subtask in subtasks:
+            result = await self._execute_single_task(subtask)
+            subtask_results.append(result)
+            
+            if result.success:
+                combined_result.append(result.result)
+            else:
+                # If any subtask fails, the whole task fails
+                return SubAgentResult(
+                    agent_id=task.agent_id,
+                    task_id=task.task_id,
+                    success=False,
+                    result=None,
+                    error=f"Subtask {subtask.task_id} failed: {result.error}",
+                    error_type="SUBTASK_FAILED",
+                    partial_results=[r.result for r in subtask_results if r.success],
+                )
+        
+        # All subtasks succeeded
+        return SubAgentResult(
+            agent_id=task.agent_id,
+            task_id=task.task_id,
+            success=True,
+            result="\n".join(str(r) for r in combined_result),
+            metadata={
+                "decomposed": True,
+                "subtask_count": len(subtasks),
+                "subtask_results": [r.metadata for r in subtask_results if r.metadata],
+            },
+        )
