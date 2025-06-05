@@ -12,16 +12,18 @@ from defog.llm.orchestrator import Agent, AgentOrchestrator, ExecutionMode
 class CalculatorInput(BaseModel):
     expression: str = Field(description="Mathematical expression to calculate")
 
+
 async def calculator_tool(input: CalculatorInput) -> Dict[str, Any]:
     """Simple calculator tool for testing."""
     try:
         # Safe evaluation of basic math expressions
         allowed_names = {
-            k: v for k, v in __builtins__.items() 
-            if k in ['abs', 'min', 'max', 'round', 'sum']
+            k: v
+            for k, v in __builtins__.items()
+            if k in ["abs", "min", "max", "round", "sum"]
         }
-        allowed_names.update({'__builtins__': {}})
-        
+        allowed_names.update({"__builtins__": {}})
+
         result = eval(input.expression, allowed_names)
         return {"result": result, "expression": input.expression}
     except Exception as e:
@@ -30,13 +32,16 @@ async def calculator_tool(input: CalculatorInput) -> Dict[str, Any]:
 
 class TextProcessorInput(BaseModel):
     text: str = Field(description="Text to process")
-    operation: str = Field(description="Operation: 'count_words', 'reverse', 'uppercase'")
+    operation: str = Field(
+        description="Operation: 'count_words', 'reverse', 'uppercase'"
+    )
+
 
 async def text_processor_tool(input: TextProcessorInput) -> Dict[str, Any]:
     """Text processing tool for testing."""
     text = input.text
     operation = input.operation
-    
+
     if operation == "count_words":
         result = len(text.split())
     elif operation == "reverse":
@@ -45,7 +50,7 @@ async def text_processor_tool(input: TextProcessorInput) -> Dict[str, Any]:
         result = text.upper()
     else:
         return {"error": f"Unknown operation: {operation}"}
-    
+
     return {"result": result, "operation": operation, "input_text": text}
 
 
@@ -53,11 +58,12 @@ class DataFormatterInput(BaseModel):
     data: str = Field(description="Data to format as JSON string")
     format_type: str = Field(description="Format type: 'json', 'csv', 'summary'")
 
+
 async def data_formatter_tool(input: DataFormatterInput) -> Dict[str, Any]:
     """Data formatting tool for testing."""
     try:
         import json
-        
+
         if input.format_type == "json":
             # Pretty print JSON
             data = json.loads(input.data)
@@ -83,7 +89,7 @@ async def data_formatter_tool(input: DataFormatterInput) -> Dict[str, Any]:
                 result = f"Data type: {type(data).__name__}, value: {data}"
         else:
             return {"error": f"Unknown format type: {input.format_type}"}
-        
+
         return {"result": result, "format_type": input.format_type}
     except Exception as e:
         return {"error": str(e)}
@@ -97,11 +103,11 @@ async def test_basic_agent_functionality():
         provider="openai",
         model="gpt-4.1",
         system_prompt="You are a helpful assistant that responds concisely.",
-        tools=[calculator_tool]
+        tools=[calculator_tool],
     )
-    
+
     messages = [{"role": "user", "content": "What is 1334235 + 123124?"}]
-    
+
     response = await agent.process(messages)
     assert response.content is not None
     assert len(response.content) > 0
@@ -120,46 +126,46 @@ async def test_orchestrator_with_predefined_subagents():
         - calculator_agent: Can perform mathematical calculations
         - text_agent: Can process text (count words, reverse, uppercase)
         
-        Use delegate_to_subagents tool to assign tasks."""
+        Use delegate_to_subagents tool to assign tasks.""",
     )
-    
+
     # Create subagents
     calculator_agent = Agent(
         agent_id="calculator_agent",
         provider="openai",
         model="gpt-4.1",
         system_prompt="You are a calculator. Use the calculator_tool to perform calculations.",
-        tools=[calculator_tool]
+        tools=[calculator_tool],
     )
-    
+
     text_agent = Agent(
         agent_id="text_agent",
         provider="openai",
         model="gpt-4.1",
         system_prompt="You are a text processor. Use the text_processor_tool to process text.",
-        tools=[text_processor_tool]
+        tools=[text_processor_tool],
     )
-    
+
     # Create orchestrator
-    orchestrator = AgentOrchestrator(
-        main_agent=main_agent
-    )
-    
+    orchestrator = AgentOrchestrator(main_agent=main_agent)
+
     # Register subagents
     orchestrator.register_subagent(calculator_agent)
     orchestrator.register_subagent(text_agent)
-    
-    messages = [{
-        "role": "user",
-        "content": "Calculate 15 * 7 and also count the words in 'Hello world this is a test'"
-    }]
-    
+
+    messages = [
+        {
+            "role": "user",
+            "content": "Calculate 15 * 7 and also count the words in 'Hello world this is a test'",
+        }
+    ]
+
     response = await orchestrator.process(messages)
     assert response.content is not None
     print(f"✅ Predefined subagents test passed: {response.content[:200]}...")
 
 
-@pytest.mark.asyncio 
+@pytest.mark.asyncio
 async def test_dynamic_agent_creation():
     """Test dynamic agent creation and orchestration."""
     # Create main orchestrator agent
@@ -173,9 +179,9 @@ async def test_dynamic_agent_creation():
         1. Analyze what needs to be done
         2. Use the plan_and_create_subagents tool to dynamically create the right subagents
         3. The tool will automatically create subagents with appropriate tools and execute tasks
-        4. Synthesize the results and provide a comprehensive response"""
+        4. Synthesize the results and provide a comprehensive response""",
     )
-    
+
     # Create orchestrator with available tools
     orchestrator = AgentOrchestrator(
         main_agent=main_agent,
@@ -183,80 +189,74 @@ async def test_dynamic_agent_creation():
         subagent_provider="openai",
         subagent_model="gpt-4.1",
         planning_provider="openai",
-        planning_model="gpt-4.1"
+        planning_model="gpt-4.1",
     )
-    
-    messages = [{
-        "role": "user",
-        "content": """I need help with multiple tasks:
+
+    messages = [
+        {
+            "role": "user",
+            "content": """I need help with multiple tasks:
         1. Calculate what 25 * 4 + 12 equals
         2. Count the words in "The quick brown fox jumps over the lazy dog"
         3. Format this data as JSON: [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]
         
-        Please handle all these tasks efficiently."""
-    }]
-    
+        Please handle all these tasks efficiently.""",
+        }
+    ]
+
     response = await orchestrator.process(messages)
     assert response.content is not None
 
     print(f"Response: {response.content}")
-    
+
     # Check that the response contains results for all three tasks
     content = response.content.lower()
     assert "100" in content or "112" in content  # 25*4+12 = 112
     assert "9" in content  # word count
     assert "alice" in content or "bob" in content  # JSON data
-    
+
     print(f"✅ Dynamic agent creation test passed")
     print(f"Response length: {len(response.content)} characters")
     print(f"Response preview: {response.content[:300]}...")
-    
+
     # Verify that subagents were created
     assert len(orchestrator.subagents) > 0
-    print(f"✅ Created {len(orchestrator.subagents)} subagents: {list(orchestrator.subagents.keys())}")        
+    print(
+        f"✅ Created {len(orchestrator.subagents)} subagents: {list(orchestrator.subagents.keys())}"
+    )
 
 
 def test_orchestrator_tool_registry():
     """Test that the tool registry is properly populated."""
-    main_agent = Agent(
-        agent_id="test_main",
-        provider="openai",
-        model="gpt-4.1"
-    )
-    
+    main_agent = Agent(agent_id="test_main", provider="openai", model="gpt-4.1")
+
     tools = [calculator_tool, text_processor_tool, data_formatter_tool]
-    orchestrator = AgentOrchestrator(
-        main_agent=main_agent,
-        available_tools=tools
-    )
-    
+    orchestrator = AgentOrchestrator(main_agent=main_agent, available_tools=tools)
+
     # Check tool registry
     assert len(orchestrator.tool_registry) == 3
     assert "calculator_tool" in orchestrator.tool_registry
     assert "text_processor_tool" in orchestrator.tool_registry
     assert "data_formatter_tool" in orchestrator.tool_registry
-    
+
     # Check tool descriptions
     calc_desc = orchestrator._get_tool_description(calculator_tool)
     assert "calculator" in calc_desc.lower()
-    
+
     print("✅ Tool registry test passed")
 
 
 def test_agent_memory_configuration():
     """Test agent creation with memory configuration."""
-    memory_config = {
-        "token_threshold": 10000,
-        "preserve_last_n_messages": 5
-    }
-    
+    memory_config = {"token_threshold": 10000, "preserve_last_n_messages": 5}
+
     agent = Agent(
         agent_id="memory_test_agent",
         provider="openai",
         model="gpt-4.1",
-        memory_config=memory_config
+        memory_config=memory_config,
     )
-    
+
     assert agent.memory_manager is not None
     print("✅ Memory configuration test passed")
 
@@ -264,24 +264,24 @@ def test_agent_memory_configuration():
 if __name__ == "__main__":
     # Run tests individually to better handle API rate limits
     import sys
-    
+
     print("Running Dynamic Agent Orchestration E2E Tests")
     print("=" * 50)
-    
+
     async def run_tests():
         test_functions = [
             test_basic_agent_functionality,
             test_orchestrator_with_predefined_subagents,
             test_dynamic_agent_creation,
-            test_parallel_task_execution, 
+            test_parallel_task_execution,
             test_sequential_task_dependencies,
             test_tool_assignment_correctness,
-            test_error_handling
+            test_error_handling,
         ]
-        
+
         passed = 0
         total = len(test_functions)
-        
+
         for test_func in test_functions:
             try:
                 print(f"\n🧪 Running {test_func.__name__}...")
@@ -289,9 +289,9 @@ if __name__ == "__main__":
                 passed += 1
             except Exception as e:
                 print(f"❌ {test_func.__name__} failed: {e}")
-        
+
         print(f"\n📊 Results: {passed}/{total} tests passed")
-        
+
         # Run non-async tests
         try:
             test_orchestrator_tool_registry()
@@ -300,9 +300,9 @@ if __name__ == "__main__":
             total += 2
         except Exception as e:
             print(f"❌ Non-async tests failed: {e}")
-        
+
         print(f"📊 Final Results: {passed}/{total} tests passed")
         return passed == total
-    
+
     success = asyncio.run(run_tests())
     sys.exit(0 if success else 1)
