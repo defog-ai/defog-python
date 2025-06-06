@@ -59,7 +59,7 @@ async def get_transcript(
                 system_instruction=[
                     'Please provide a detailed, accurate transcript of the video. Please include timestamps in the format HH:MM:SS and names (if available) for each speaker. Do not describe what you *see* in the video, just create a great transcript based on what you *hear*.',
                     'You should skip umms, ahhs, small talk, and other filler words.',
-                    'If you find yourself repeating the same thing, you should stop.',
+                    'If you find yourself repeating the same words, you should stop.',
                 ],
                 temperature=0.0,
             )
