@@ -37,7 +37,7 @@ async def get_transcript(
 
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-        tracker.update(10, "Processing video")
+        tracker.update(10, "Processing. Takes ~1s for every ~10s of video")
         subtask_logger.log_subtask(
             "Using low FPS (0.2) for efficient processing", "info"
         )
@@ -61,7 +61,7 @@ async def get_transcript(
                     'You should skip umms, ahhs, small talk, and other filler words.',
                     'If you find yourself repeating the same words, you should stop.',
                 ],
-                temperature=0.0,
+                temperature=0.1,
             )
         )
         
