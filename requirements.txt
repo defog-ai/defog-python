@@ -20,3 +20,4 @@ tiktoken==0.9.0
 pytest
 pytest-asyncio
 mcp
+rich
