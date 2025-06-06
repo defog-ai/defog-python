@@ -13,6 +13,13 @@ from rich.tree import Tree
 from rich.text import Text
 from rich import box
 from rich.padding import Padding
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    TimeElapsedColumn,
+)
 
 # Create a console instance for direct rich output
 console = Console()
@@ -325,3 +332,170 @@ class OrchestrationLogger:
 # Create a global orchestration logger instance
 orch_logger = OrchestrationLogger()
 orch_logger.setup_rich_logging()
+
+
+class ToolProgressTracker:
+    """Context manager for tracking progress of LLM tool operations."""
+
+    def __init__(
+        self, tool_name: str, description: str, console: Optional[Console] = None
+    ):
+        self.tool_name = tool_name
+        self.description = description
+        self.console = console or Console()
+        self.progress = None
+        self.task_id = None
+        self.start_time = None
+
+    async def __aenter__(self):
+        """Start progress tracking."""
+        from datetime import datetime
+
+        self.start_time = datetime.now()
+
+        # Log tool start
+        self.console.print()
+        self.console.rule(f"[bold cyan]🔧 {self.tool_name}[/bold cyan]", style="cyan")
+        self.console.print(
+            Panel(
+                f"[white]{self.description}[/white]",
+                border_style="cyan",
+                padding=(1, 2),
+                box=box.ROUNDED,
+            )
+        )
+
+        # Create progress bar
+        self.progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn(),
+            console=self.console,
+        )
+        self.progress.start()
+        self.task_id = self.progress.add_task(f"[cyan]Processing...", total=100)
+
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Stop progress tracking."""
+        from datetime import datetime
+
+        if self.progress:
+            if exc_type is None:
+                # Success - complete the progress
+                self.progress.update(
+                    self.task_id, completed=100, description="[green]✓ Complete"
+                )
+                self.progress.stop()
+
+                # Calculate duration
+                duration = (datetime.now() - self.start_time).total_seconds()
+                self.console.print(f"[dim]Completed in {duration:.1f}s[/dim]")
+            else:
+                # Error - mark as failed
+                self.progress.update(self.task_id, description="[red]✗ Failed")
+                self.progress.stop()
+
+                # Log error
+                self.console.print(
+                    Panel(
+                        f"[red]{exc_val}[/red]",
+                        title="[bold red]Error[/bold red]",
+                        border_style="red",
+                        padding=(1, 2),
+                    )
+                )
+
+    def update(self, progress: float, description: Optional[str] = None):
+        """Update progress percentage and optionally the description."""
+        if self.progress and self.task_id is not None:
+            update_kwargs = {"completed": progress}
+            if description:
+                update_kwargs["description"] = f"[cyan]{description}"
+            self.progress.update(self.task_id, **update_kwargs)
+
+
+class SubTaskLogger:
+    """Logger for subtasks within a tool operation."""
+
+    def __init__(self, console: Optional[Console] = None):
+        self.console = console or Console()
+
+    def log_subtask(self, message: str, status: str = "info"):
+        """Log a subtask with appropriate styling."""
+        status_styles = {
+            "info": ("ℹ️", "blue"),
+            "success": ("✓", "green"),
+            "warning": ("⚠️", "yellow"),
+            "error": ("✗", "red"),
+            "processing": ("⚡", "cyan"),
+        }
+
+        emoji, color = status_styles.get(status, ("•", "white"))
+        self.console.print(f"  {emoji} [{color}]{message}[/{color}]")
+
+    def log_provider_info(self, provider: str, model: str):
+        """Log provider and model information."""
+        self.console.print(
+            f"  [dim]Provider: [bold]{provider}[/bold] | Model: [bold]{model}[/bold][/dim]"
+        )
+
+    def log_document_upload(self, doc_name: str, doc_index: int, total_docs: int):
+        """Log document upload progress."""
+        self.console.print(
+            f"  📄 Uploading document [{doc_index}/{total_docs}]: [yellow]{doc_name}[/yellow]"
+        )
+
+    def log_vector_store_status(self, completed: int, total: int):
+        """Log vector store indexing status."""
+        percentage = (completed / total * 100) if total > 0 else 0
+        self.console.print(
+            f"  🔍 Vector store indexing: [cyan]{completed}/{total}[/cyan] files "
+            f"([bold]{percentage:.0f}%[/bold])"
+        )
+
+    def log_search_status(self, query: str, max_results: Optional[int] = None):
+        """Log web search status."""
+        msg = f"  🌐 Searching web for: [yellow]{query[:50]}{'...' if len(query) > 50 else ''}[/yellow]"
+        if max_results:
+            msg += f" [dim](max {max_results} results)[/dim]"
+        self.console.print(msg)
+
+    def log_code_execution(self, language: str = "python"):
+        """Log code execution start."""
+        self.console.print(
+            f"  💻 Executing {language} code in sandboxed environment..."
+        )
+
+    def log_result_summary(
+        self, result_type: str, details: Optional[Dict[str, Any]] = None
+    ):
+        """Log a summary of results."""
+        if details:
+            # Create a simple table for results
+            table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
+            table.add_column("Key", style="bold cyan")
+            table.add_column("Value", style="white")
+
+            for key, value in details.items():
+                if isinstance(value, (list, dict)):
+                    value_str = (
+                        f"{len(value)} items"
+                        if isinstance(value, list)
+                        else f"{len(value)} fields"
+                    )
+                else:
+                    value_str = str(value)
+                table.add_row(key.replace("_", " ").title(), value_str)
+
+            self.console.print(
+                Panel(
+                    table,
+                    title=f"[bold]{result_type} Summary[/bold]",
+                    border_style="green",
+                    padding=(1, 2),
+                )
+            )
