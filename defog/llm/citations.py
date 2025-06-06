@@ -1,4 +1,5 @@
 from defog.llm.llm_providers import LLMProvider
+from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger
 import os
 import asyncio
 
@@ -40,6 +41,14 @@ async def citations_tool(
     Use this tool to get an answer to a well-cited answer to a question,
     given a list of documents.
     """
+    async with ToolProgressTracker(
+        "Citations Tool", f"Generating citations for {len(documents)} documents"
+    ) as tracker:
+        subtask_logger = SubTaskLogger()
+        subtask_logger.log_provider_info(
+            provider.value if hasattr(provider, "value") else str(provider), model
+        )
+
     if provider in [LLMProvider.OPENAI, LLMProvider.OPENAI.value]:
         from openai import AsyncOpenAI
 
@@ -50,12 +59,20 @@ async def citations_tool(
         store_id = store.id
 
         # Upload all documents in parallel
-        await asyncio.gather(
-            *[
+        tracker.update(10, "Uploading documents to vector store")
+        subtask_logger.log_subtask("Starting document uploads", "processing")
+
+        upload_tasks = []
+        for idx, document in enumerate(documents, 1):
+            subtask_logger.log_document_upload(
+                document["document_name"], idx, len(documents)
+            )
+            upload_tasks.append(
                 upload_document_to_openai_vector_store(document, store_id)
-                for document in documents
-            ]
-        )
+            )
+
+        await asyncio.gather(*upload_tasks)
+        tracker.update(40, "Documents uploaded")
 
         # keep polling until the vector store is ready
         is_ready = False
@@ -65,13 +82,21 @@ async def citations_tool(
                 1 for file in store.data if file.status == "completed"
             )
             is_ready = total_completed == len(documents)
+
+            # Update progress based on indexing status
+            progress = 40 + (total_completed / len(documents) * 40)  # 40-80% range
+            tracker.update(
+                progress, f"Indexing {total_completed}/{len(documents)} files"
+            )
+            subtask_logger.log_vector_store_status(total_completed, len(documents))
+
             if not is_ready:
-                print(
-                    f"Waiting for vector store to be ready before proceeding... {total_completed}/{len(documents)} files completed"
-                )
                 await asyncio.sleep(1)
 
         # get the answer
+        tracker.update(80, "Generating citations")
+        subtask_logger.log_subtask("Querying with file search", "processing")
+
         response = await client.responses.create(
             model=model,
             input=question,
@@ -104,6 +129,12 @@ async def citations_tool(
                                 ],
                             }
                         )
+        tracker.update(95, "Processing results")
+        subtask_logger.log_result_summary(
+            "Citations",
+            {"blocks_generated": len(blocks), "documents_processed": len(documents)},
+        )
+
         return blocks
 
     elif provider in [LLMProvider.ANTHROPIC, LLMProvider.ANTHROPIC.value]:
@@ -127,6 +158,11 @@ async def citations_tool(
             )
 
         # Create content messages with citations enabled for individual tool calls
+        tracker.update(50, "Preparing document contents")
+        subtask_logger.log_subtask(
+            f"Processing {len(documents)} documents for Anthropic", "processing"
+        )
+
         messages = [
             {
                 "role": "user",
@@ -138,6 +174,9 @@ async def citations_tool(
             }
         ]
 
+        tracker.update(70, "Generating citations")
+        subtask_logger.log_subtask("Calling Anthropic API with citations", "processing")
+
         response = await client.messages.create(
             model=model,
             messages=messages,
@@ -145,7 +184,18 @@ async def citations_tool(
             max_tokens=max_tokens,
         )
 
+        tracker.update(90, "Processing results")
         response_with_citations = [item.to_dict() for item in response.content]
+
+        subtask_logger.log_result_summary(
+            "Citations",
+            {
+                "content_blocks": len(response_with_citations),
+                "documents_processed": len(documents),
+            },
+        )
+
         return response_with_citations
-    else:
-        raise ValueError(f"Provider {provider} not supported for citations tool")
+
+    # This else is outside the context manager, move it inside
+    raise ValueError(f"Provider {provider} not supported for citations tool")
