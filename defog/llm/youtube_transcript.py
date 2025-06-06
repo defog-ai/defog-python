@@ -57,9 +57,8 @@ async def get_transcript(
             ),
             config=GenerateContentConfig(
                 system_instruction=[
-                    'Please provide a detailed, accurate transcript of the video. Please include timestamps and names (if available) for each speaker in the format [00:00:00]. Do not describe the video, just create a great transcript.',
+                    'Please provide a detailed, accurate transcript of the video. Please include timestamps in the format HH:MM:SS and names (if available) for each speaker. Do not describe what you *see* in the video, just create a great transcript based on what you *hear*.',
                     'You should skip umms, ahhs, small talk, and other filler words.',
-                    'You should skip any ads that are in the video.',
                 ]
             )
         )
