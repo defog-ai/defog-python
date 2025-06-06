@@ -4,21 +4,17 @@ import asyncio
 import logging
 import time
 import traceback
-from typing import List, Dict, Any, Optional, Union, Callable, Tuple
+from typing import List, Dict, Any, Optional, Union, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 import json
 import inspect
-import uuid
-from pprint import pformat
 
 logger = logging.getLogger(__name__)
 
 from .utils import chat_async
 from .utils_memory import chat_async_with_memory, create_memory_manager
-from .memory.history_manager import MemoryManager
 from .providers.base import BaseLLMProvider, LLMResponse
-from .tools.handler import ToolHandler
 from .utils_logging import orch_logger
 
 
@@ -452,12 +448,10 @@ class AgentOrchestrator:
         last_error = None
         last_error_trace = None
         retry_count = 0
-        
+
         # Log task start
         orch_logger.log_task_execution_start(
-            task.agent_id, 
-            task.task_id, 
-            task.execution_mode.value
+            task.agent_id, task.task_id, task.execution_mode.value
         )
 
         for attempt in range(max_retries + 1):
@@ -483,10 +477,14 @@ class AgentOrchestrator:
                 # Log retry attempt
                 if attempt > 0:
                     orch_logger.log_retry_attempt(
-                        task.task_id, 
-                        attempt, 
+                        task.task_id,
+                        attempt,
                         max_retries,
-                        retry_delay * (retry_backoff ** (attempt - 1)) if attempt < max_retries else None
+                        (
+                            retry_delay * (retry_backoff ** (attempt - 1))
+                            if attempt < max_retries
+                            else None
+                        ),
                     )
 
                 # Prepare messages for subagent
@@ -497,7 +495,7 @@ class AgentOrchestrator:
 
                 # Success - reset circuit breaker
                 self.failure_count = 0
-                
+
                 result = SubAgentResult(
                     agent_id=task.agent_id,
                     task_id=task.task_id,
@@ -514,7 +512,7 @@ class AgentOrchestrator:
                         "tool_outputs": response.tool_outputs,
                     },
                 )
-                
+
                 # Log task completion
                 orch_logger.log_task_execution_complete(
                     task.agent_id,
@@ -522,9 +520,9 @@ class AgentOrchestrator:
                     True,
                     result.result,
                     None,
-                    result.metadata
+                    result.metadata,
                 )
-                
+
                 return result
 
             except Exception as e:
@@ -532,7 +530,7 @@ class AgentOrchestrator:
                 last_error = str(e)
                 last_error_trace = traceback.format_exc()
                 error_type = self._classify_error(e)
-                
+
                 # Log error details
                 orch_logger.log_error_detail(error_type, last_error)
 
@@ -607,7 +605,7 @@ class AgentOrchestrator:
             partial_results=partial_results,
             execution_time=time.time() - start_time,
         )
-        
+
         # Log task failure
         orch_logger.log_task_execution_complete(
             task.agent_id,
@@ -615,9 +613,9 @@ class AgentOrchestrator:
             False,
             None,
             last_error,
-            {"retry_count": retry_count, "execution_time": time.time() - start_time}
+            {"retry_count": retry_count, "execution_time": time.time() - start_time},
         )
-        
+
         return final_result
 
     async def process(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
@@ -946,7 +944,7 @@ Return a JSON array of subtask descriptions.""",
             orch_logger.console.print(
                 f"\n[dim yellow]📋 Task decomposed into {len(subtasks)} subtasks[/dim yellow]"
             )
-            
+
             return subtasks
 
         except Exception as e:
