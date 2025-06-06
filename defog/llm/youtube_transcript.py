@@ -4,7 +4,8 @@ import os
 
 
 async def get_transcript(
-    video_url: str, model: str = "gemini-2.5-pro-preview-06-05"
+    video_url: str,
+    model: str = "gemini-2.5-pro-preview-06-05"
 ) -> str:
     """
     Get a detailed, diarized transcript of a YouTube video.
@@ -31,6 +32,7 @@ async def get_transcript(
             Part,
             FileData,
             VideoMetadata,
+            GenerateContentConfig,
         )
 
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -49,11 +51,19 @@ async def get_transcript(
                         video_metadata=VideoMetadata(fps=0.2),
                     ),
                     Part(
-                        text="Please provide a detailed, accurate transcript of the video. Please include timestamps for each speaker. Do not describe the video, just create a great transcript."
+                        text="Please provide a detailed, accurate transcript of the video."
                     ),
                 ]
             ),
+            config=GenerateContentConfig(
+                system_instruction=[
+                    'Please provide a detailed, accurate transcript of the video. Please include timestamps and names (if available) for each speaker in the format [00:00:00]. Do not describe the video, just create a great transcript.',
+                    'You should skip umms, ahhs, small talk, and other filler words.',
+                    'You should skip any ads that are in the video.',
+                ]
+            )
         )
+        
 
         tracker.update(90, "Finalizing transcript")
         transcript_length = len(response.text) if response.text else 0
