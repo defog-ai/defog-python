@@ -169,7 +169,7 @@ async def main():
     # Simulate a conversation with context
     questions_with_context = [
         "Who are the top 10 batsmen by average (min 200 runs)?",
-        "Who how about the next 10?",
+        "How about the next 10?",
         "Who are the top 10 bowlers by economy rate (min 100 balls)?"
     ]
     

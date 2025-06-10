@@ -140,7 +140,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
 
 async def async_execute_query_once(db_type: str, db_creds, query: str):
     """
-    Asynchrnously  executes the query once and returns the column names and results.
+    Asynchronously  executes the query once and returns the column names and results.
     """
     if db_type == "postgres":
         try:
