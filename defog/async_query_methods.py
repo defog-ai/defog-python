@@ -1,6 +1,11 @@
 from defog.util import make_async_post_request
 from defog.query import async_execute_query
 from datetime import datetime
+from defog.llm.sql_generator import generate_sql_query_local
+from defog.llm.llm_providers import LLMProvider
+from defog.metadata_cache import get_global_cache
+from defog.local_metadata_extractor import extract_metadata_from_db_async
+from typing import Union, Optional
 
 
 async def get_query(
@@ -23,12 +28,64 @@ async def get_query(
     prune_glossary_max_tokens: int = 1000,
     prune_glossary_num_cos_sim_units: int = 10,
     prune_glossary_bm25_units: int = 10,
+    use_llm_directly: bool = False,
+    llm_provider: Optional[Union[LLMProvider, str]] = None,
+    llm_model: Optional[str] = None,
+    table_metadata: Optional[dict] = None,
+    cache_metadata: bool = True,
 ):
     """
     Asynchronously sends the query to the defog servers, and return the response.
     :param question: The question to be asked.
+    :param use_llm_directly: Use LLM directly for SQL generation instead of Defog API
+    :param llm_provider: LLM provider to use for direct generation
+    :param llm_model: Model name for direct generation
+    :param table_metadata: Database schema for direct generation
+    :param cache_metadata: Whether to cache metadata (default: True)
     :return: The response from the defog server.
     """
+    # Use LLM directly if requested
+    if use_llm_directly:
+        if table_metadata is None:
+            # Try to get from cache first
+            cache = get_global_cache()
+            table_metadata = cache.get(self.api_key, self.db_type, dev)
+            
+            if table_metadata is None:
+                # Not in cache, extract metadata directly from the database
+                try:
+                    table_metadata = await extract_metadata_from_db_async(
+                        db_type=self.db_type,
+                        db_creds=self.db_creds,
+                        cache=cache if cache_metadata else None,
+                        api_key=self.api_key
+                    )
+                except Exception as e:
+                    return {
+                        "ran_successfully": False,
+                        "error_message": f"Failed to extract database metadata: {str(e)}. Please provide table_metadata parameter or check database connection.",
+                    }
+        
+        # Set defaults for provider and model if not specified
+        if llm_provider is None:
+            llm_provider = LLMProvider.ANTHROPIC
+        if llm_model is None:
+            llm_model = "claude-sonnet-4-20250514"
+        
+        return await generate_sql_query_local(
+            question=question,
+            table_metadata=table_metadata,
+            db_type=self.db_type,
+            provider=llm_provider,
+            model=llm_model,
+            glossary=glossary,
+            hard_filters=hard_filters,
+            previous_context=previous_context,
+            temperature=0.0,
+            config=getattr(self, 'llm_config', None),
+        )
+    
+    # Original API-based implementation
     try:
         data = {
             "question": question,
@@ -105,6 +162,11 @@ async def run_query(
     prune_glossary_max_tokens: int = 1000,
     prune_glossary_num_cos_sim_units: int = 10,
     prune_glossary_bm25_units: int = 10,
+    use_llm_directly: bool = False,
+    llm_provider: Optional[Union[LLMProvider, str]] = None,
+    llm_model: Optional[str] = None,
+    table_metadata: Optional[dict] = None,
+    cache_metadata: bool = True,
 ):
     """
     Asynchronously sends the question to the defog servers, executes the generated SQL,
@@ -132,6 +194,11 @@ async def run_query(
             prune_glossary_max_tokens=prune_glossary_max_tokens,
             prune_glossary_num_cos_sim_units=prune_glossary_num_cos_sim_units,
             prune_glossary_bm25_units=prune_glossary_bm25_units,
+            use_llm_directly=use_llm_directly,
+            llm_provider=llm_provider,
+            llm_model=llm_model,
+            table_metadata=table_metadata,
+            cache_metadata=cache_metadata,
         )
     if query["ran_successfully"]:
         try:
