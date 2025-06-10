@@ -139,10 +139,10 @@ def generate_postgres_schema(
                 table_columns[schema + "." + table_name] = rows
     conn.close()
 
-    print(
-        "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
-    )
     if upload:
+        print(
+            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
+        )
         # send the schemas dict to the defog servers
         r = requests.post(
             f"{self.base_url}/get_schema_csv",
@@ -150,7 +150,7 @@ def generate_postgres_schema(
                 "api_key": self.api_key,
                 "schemas": table_columns,
             },
-            verify=False,
+            
         )
         resp = r.json()
         if "csv" in resp:
@@ -329,7 +329,7 @@ def generate_redshift_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            verify=False,
+            
         )
         resp = r.json()
         if "csv" in resp:
@@ -405,7 +405,7 @@ def generate_mysql_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            verify=False,
+            
         )
         resp = r.json()
         if "csv" in resp:
@@ -480,7 +480,7 @@ def generate_databricks_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            verify=False,
+            
         )
         resp = r.json()
         if "csv" in resp:
@@ -574,7 +574,7 @@ def generate_snowflake_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            verify=False,
+            
         )
         resp = r.json()
         if "csv" in resp:
@@ -648,7 +648,7 @@ def generate_bigquery_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            verify=False,
+            
         )
         resp = r.json()
         if "csv" in resp:
@@ -771,7 +771,7 @@ def generate_sqlserver_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            verify=False,
+            
         )
         resp = r.json()
         if "csv" in resp:
