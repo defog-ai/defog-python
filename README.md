@@ -4,12 +4,22 @@
 
 # TLDR
 
-This library used to be an SDK for accessing Defog's cloud hosted text-to-SQL service. It has since transformed into a general purpose library for:
+This library used to be an SDK for accessing Defog's cloud hosted text-to-SQL service. It has since transformed into a comprehensive toolkit for:
 
-1. Making convenient, cross-provider LLM calls (including server-hosted tools)
-2. Easily extracting information from databases to make them easy to use
+1. **Cross-provider LLM operations** - Unified interface for OpenAI, Anthropic, Gemini, and Together AI
+2. **Advanced AI tools** - Code interpreter, web search, YouTube transcription, document citations
+3. **Database operations** - Schema generation, query execution, and connection management
+4. **Agent orchestration** - Hierarchical task delegation and multi-agent coordination
+5. **Memory management** - Automatic conversation compactification for long-context scenarios
+6. **Local development server** - FastAPI server for integration and testing
 
 If you are looking for text-to-SQL or deep-research like capabilities, check out [introspect](https://github.com/defog-ai/introspect), our open-source, MIT licensed repo that uses this library as a dependency.
+
+# Installation
+
+```bash
+pip install defog
+```
 
 # Using this library
 
@@ -207,6 +217,86 @@ How it works:
 4. Recent messages + system messages are preserved for context
 5. Process repeats as needed for very long conversations
 
+### YouTube Transcript Tool
+
+Generate detailed, diarized transcripts from YouTube videos:
+
+```python
+from defog.llm.youtube import get_youtube_summary
+
+# Get transcript with timestamps and speaker identification
+transcript = await get_youtube_summary(
+    video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    model="gemini-2.5-pro-preview-05-06",
+    verbose=True,
+    system_instructions=[
+        "Provide detailed transcript with timestamps (HH:MM:SS)",
+        "Include speaker names if available",
+        "Skip filler words and small talk"
+    ]
+)
+
+print(f"Transcript: {transcript}")
+```
+
+### Citations Tool
+
+Generate well-cited answers from document collections:
+
+```python
+from defog.llm.citations import citations_tool
+from defog.llm.llm_providers import LLMProvider
+
+# Prepare documents
+documents = [
+    {"document_name": "research_paper.pdf", "document_content": "..."},
+    {"document_name": "article.txt", "document_content": "..."}
+]
+
+# Get cited answer
+result = await citations_tool(
+    question="What are the main findings?",
+    instructions="Provide detailed analysis with citations",
+    documents=documents,
+    model="gpt-4o",
+    provider=LLMProvider.OPENAI,
+    max_tokens=16000
+)
+```
+
+### Agent Orchestration
+
+Coordinate multiple AI agents for complex tasks:
+
+```python
+from defog.llm.orchestrator import (
+    Orchestrator, SubAgentTask, ExecutionMode
+)
+
+# Create orchestrator
+orchestrator = Orchestrator(
+    model="claude-3-5-sonnet",
+    provider="anthropic"
+)
+
+# Define coordinated tasks
+tasks = [
+    SubAgentTask(
+        agent_id="researcher",
+        task_description="Research the topic thoroughly",
+        execution_mode=ExecutionMode.PARALLEL
+    ),
+    SubAgentTask(
+        agent_id="writer",
+        task_description="Write comprehensive report",
+        dependencies=["researcher"]
+    )
+]
+
+# Execute coordinated workflow
+results = await orchestrator.execute_tasks(tasks)
+```
+
 ### MCP (Model Context Protocol) Support
 
 Connect to MCP servers for extended tool capabilities:
@@ -224,6 +314,132 @@ mcp_client = await initialize_mcp_client(
 response, tool_outputs = await mcp_client.mcp_chat(
     "Use the calculator tool to compute 123 * 456"
 )
+```
+
+## Database Operations
+
+The library provides comprehensive database management capabilities for schema generation and query execution.
+
+### Initialization
+
+```python
+from defog import Defog, AsyncDefog
+
+# Synchronous version
+defog = Defog(
+    api_key="your_api_key",
+    db_type="postgres",  # postgres, mysql, bigquery, snowflake, etc.
+    db_creds={
+        "host": "localhost",
+        "port": 5432,
+        "database": "mydb",
+        "user": "username",
+        "password": "password"
+    }
+)
+
+# Asynchronous version
+async_defog = AsyncDefog(
+    api_key="your_api_key",
+    db_type="postgres",
+    db_creds={...}
+)
+```
+
+### Supported Database Types
+
+- **PostgreSQL** (`postgres`)
+- **Amazon Redshift** (`redshift`) 
+- **MySQL** (`mysql`)
+- **Google BigQuery** (`bigquery`)
+- **Snowflake** (`snowflake`)
+- **Databricks** (`databricks`)
+- **SQL Server** (`sqlserver`)
+
+### Schema Generation
+
+```python
+# Generate and upload database schema
+schema = defog.generate_db_schema(
+    tables=["users", "orders", "products"],
+    scan=True,        # Scan table contents for better understanding
+    upload=True,      # Upload to Defog service
+    return_format="csv"  # csv, json, or markdown
+)
+
+print(schema)
+```
+
+### Query Execution
+
+```python
+# Natural language to SQL query execution
+result = defog.run_query(
+    question="What are the top 10 customers by total order value?",
+    hard_filters="WHERE order_date >= '2024-01-01'",  # Optional SQL filters
+    glossary="Customer refers to registered users",   # Domain-specific terms
+    retries=3,
+    use_golden_queries=True  # Use validated query patterns
+)
+
+print(f"SQL: {result['query_generated']}")
+print(f"Results: {result['data']}")
+```
+
+## Command Line Interface
+
+Defog provides a CLI for easy setup and management:
+
+```bash
+# Initialize credentials and database connection
+defog init
+
+# Generate schema for specific tables
+defog gen table1 table2
+
+# Update schema from CSV file
+defog update schema.csv
+
+# Interactive query interface
+defog query
+
+# Check API quota
+defog quota
+
+# View documentation
+defog docs
+
+# Start local development server
+defog serve
+```
+
+## Development Server
+
+Run a local FastAPI server for integration and testing:
+
+```bash
+defog serve
+```
+
+Endpoints:
+- `POST /generate_query` - Generate SQL from natural language
+- `POST /integration/get_tables_db_creds` - Get database table information
+- `GET /` - Health check
+
+```python
+# Example API usage
+import requests
+
+response = requests.post(
+    "http://localhost:8000/generate_query",
+    json={
+        "question": "Show me sales by month",
+        "previous_context": []
+    }
+)
+
+result = response.json()
+print(result["query_generated"])
 ```
 
 # Testing
