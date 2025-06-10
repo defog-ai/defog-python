@@ -5,7 +5,7 @@ import os
 
 async def get_transcript(
     video_url: str,
-    model: str = "gemini-2.5-pro-preview-06-05"
+    model: str = "gemini-2.5-pro-preview-05-06"
 ) -> str:
     """
     Get a detailed, diarized transcript of a YouTube video.
@@ -39,16 +39,21 @@ async def get_transcript(
 
         tracker.update(10, "Processing. Takes ~1s for every ~10s of video")
         subtask_logger.log_subtask(
-            "Using low FPS (0.2) for efficient processing", "info"
+            "Using low FPS (0.0) for efficient processing", "info"
         )
 
-        response = await client.aio.models.generate_content(
+        print("\n🎥 Streaming transcript as it's generated:\n")
+        print("=" * 60)
+
+        full_transcript = ""
+
+        async for chunk in await client.aio.models.generate_content_stream(
             model=model,
             contents=Content(
                 parts=[
                     Part(
                         file_data=FileData(file_uri=video_url),
-                        video_metadata=VideoMetadata(fps=0.2),
+                        video_metadata=VideoMetadata(fps=0.0),
                     ),
                     Part(
                         text="Please provide a detailed, accurate transcript of the video."
@@ -57,17 +62,23 @@ async def get_transcript(
             ),
             config=GenerateContentConfig(
                 system_instruction=[
-                    'Please provide a detailed, accurate transcript of the video. Please include timestamps in the format HH:MM:SS and names (if available) for each speaker. Do not describe what you *see* in the video, just create a great transcript based on what you *hear*.',
-                    'You should skip umms, ahhs, small talk, and other filler words.',
-                    'If you find yourself repeating the same words, you should stop.',
+                    "Please provide a detailed, accurate transcript of the video. Please include timestamps in the format HH:MM:SS and names (if available) for each speaker. Do not describe what you *see* in the video, just create a great transcript based on what you *hear*.",
+                    "You should skip umms, ahhs, small talk, and other filler words.",
+                    "If you find yourself repeating the same words, you should stop.",
                 ],
-                temperature=0.1,
-            )
-        )
-        
+                top_p=1.0,
+                
+            ),
+        ):
+            if chunk.text:
+                print(chunk.text)
+                full_transcript += chunk.text
+
+        print("\n" + "=" * 60)
+        print("✅ Transcript complete!\n")
 
         tracker.update(90, "Finalizing transcript")
-        transcript_length = len(response.text) if response.text else 0
+        transcript_length = len(full_transcript)
 
         subtask_logger.log_result_summary(
             "YouTube Transcript",
@@ -77,4 +88,4 @@ async def get_transcript(
             },
         )
 
-        return response.text
+        return full_transcript
