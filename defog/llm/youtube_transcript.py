@@ -69,7 +69,7 @@ async def get_youtube_summary(
         )
 
         if verbose:
-            print("\n🎥 Streaming transcript as it's generated:\n")
+            print("\n🎥 Streaming summary as it's generated:\n")
             print("=" * 60)
 
         transcript_chunks = []
