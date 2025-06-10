@@ -86,7 +86,7 @@ async def main():
         description='Analyze podcast episodes and blog posts into detailed markdown reports'
     )
     parser.add_argument('url', help='URL of the podcast episode (YouTube) or blog post')
-    parser.add_argument('--output', '-o', help='Output file path (default: podcast_analysis_[timestamp].md)')
+    parser.add_argument('--output', '-o', help='Output file path (default: podcast_analysis_[timestamp].md)', default=f"podcast_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md")
     args = parser.parse_args()
     
     # Initialize analyzer
@@ -100,6 +100,7 @@ async def main():
         # Save to file
         with open(args.output, 'w', encoding='utf-8') as f:
             f.write(analysis_data)
+        
         print(f"Analysis saved to: {args.output}")
         
         print("\n✅ Analysis complete!")
