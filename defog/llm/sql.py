@@ -12,6 +12,17 @@ from defog.llm.config import LLMConfig
 import json
 
 
+class SQLAgentConfig:
+    """Configuration settings for SQL agent operations."""
+    
+    # Table filtering thresholds
+    TABLE_FILTER_COLUMN_THRESHOLD: int = 1000
+    TABLE_FILTER_TABLE_THRESHOLD: int = 5
+    
+    # Maximum number of tables to return from relevance analysis
+    MAX_RELEVANCE_TABLES: int = 10
+
+
 async def sql_answer_tool(
     question: str,
     db_type: str,
@@ -62,7 +73,8 @@ async def sql_answer_tool(
             total_columns = sum(len(columns) for columns in table_metadata.values())
             
             # Use table relevance filtering if database is large
-            if total_columns > 1000 and total_tables > 5:
+            if (total_columns > SQLAgentConfig.TABLE_FILTER_COLUMN_THRESHOLD and 
+                total_tables > SQLAgentConfig.TABLE_FILTER_TABLE_THRESHOLD):
                 tracker.update(30, "Database is large, identifying relevant tables")
                 subtask_logger.log_subtask(
                     f"Filtering {total_tables} tables with {total_columns} columns", 
@@ -163,7 +175,7 @@ async def identify_relevant_tables_tool(
     db_creds: Dict[str, Any],
     model: str,
     provider: LLMProvider,
-    max_tables: int = 10,
+    max_tables: int = SQLAgentConfig.MAX_RELEVANCE_TABLES,
     temperature: float = 0.0,
     config: Optional[LLMConfig] = None,
 ) -> Dict[str, Any]:
