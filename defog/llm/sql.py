@@ -6,7 +6,7 @@ from defog.llm.llm_providers import LLMProvider
 from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger
 from defog.llm.sql_generator import generate_sql_query_local
 from defog.local_metadata_extractor import extract_metadata_from_db
-from defog.query import execute_query
+from defog.query import async_execute_query
 from defog.llm.utils import chat_async
 from defog.llm.config import LLMConfig
 
@@ -123,40 +123,27 @@ async def sql_answer_tool(
             # Execute the SQL query
             tracker.update(80, "Executing SQL query")
             subtask_logger.log_subtask("Running query on database", "processing")
-            query_results = execute_query(generated_sql, db_type, db_creds)
-            
-            if not query_results.get("ran_successfully"):
+            try:
+                colnames, results = await async_execute_query(
+                    query=generated_sql,
+                    db_type=db_type,
+                    db_creds=db_creds,
+                )
+            except Exception as e:
                 return {
                     "success": False,
-                    "error": f"Query execution failed: {query_results.get('error_message')}",
+                    "error": f"Query execution failed: {str(e)}",
                     "query": generated_sql,
                     "results": None,
-                    "tables_used": len(table_metadata),
-                    "columns_analyzed": sum(len(columns) for columns in table_metadata.values()),
+                    "columns": None,
                 }
-            
-            results_data = query_results.get("data", [])
-            
-            subtask_logger.log_result_summary(
-                "SQL Query Answer",
-                {
-                    "rows_returned": len(results_data) if results_data else 0,
-                    "query_length": len(generated_sql),
-                    "tables_used": len(table_metadata),
-                    "columns_analyzed": sum(len(columns) for columns in table_metadata.values()),
-                },
-            )
             
             return {
                 "success": True,
                 "error": None,
                 "query": generated_sql,
-                "results": results_data,
-                "query_reason": sql_result.get("reason_for_query"),
-                "row_count": len(results_data) if results_data else 0,
-                "tables_used": len(table_metadata),
-                "columns_analyzed": sum(len(columns) for columns in table_metadata.values()),
-                "filtered_tables": total_columns > 1000 and total_tables > 5,
+                "columns": colnames,
+                "results": results,
             }
             
         except Exception as e:
@@ -165,9 +152,7 @@ async def sql_answer_tool(
                 "error": str(e),
                 "query": None,
                 "results": None,
-                "tables_used": 0,
-                "columns_analyzed": 0,
-                "filtered_tables": False,
+                "columns": None,
             }
 
 
