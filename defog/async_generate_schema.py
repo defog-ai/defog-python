@@ -668,10 +668,22 @@ async def generate_sqlite_schema(
     scan: bool = True,
     return_tables_only: bool = False,
 ) -> str:
+    """
+    Generate schema for SQLite database (async version).
+    
+    Example:
+        # File database
+        defog = Defog(db_type="sqlite", db_creds={"database": "/path/to/database.db"})
+        schema = await defog.async_generate_db_schema([], upload=False)
+        
+        # Memory database
+        defog = Defog(db_type="sqlite", db_creds={"database": ":memory:"})
+        schema = await defog.async_generate_db_schema([], upload=False)
+    """
     try:
         import aiosqlite
-    except:
-        raise Exception("aiosqlite not installed.")
+    except ImportError as e:
+        raise ImportError("aiosqlite module not available. Please install with 'pip install aiosqlite' for async SQLite support.") from e
 
     database_path = self.db_creds.get("database", ":memory:")
     async with aiosqlite.connect(database_path) as conn:
