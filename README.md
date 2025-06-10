@@ -5,11 +5,12 @@ This library used to be an SDK for accessing Defog's cloud hosted text-to-SQL se
 1. **Cross-provider LLM operations** - Unified interface for OpenAI, Anthropic, Gemini, and Together AI
 2. **Advanced AI tools** - Code interpreter, web search, YouTube transcription, document citations
 3. **Database operations** - Schema generation, query execution, and connection management
-4. **Agent orchestration** - Hierarchical task delegation and multi-agent coordination
-5. **Memory management** - Automatic conversation compactification for long-context scenarios
-6. **Local development server** - FastAPI server for integration and testing
+4. **SQL Agent capabilities** - Natural language to SQL conversion with automatic table filtering for large databases
+5. **Agent orchestration** - Hierarchical task delegation and multi-agent coordination
+6. **Memory management** - Automatic conversation compactification for long-context scenarios
+7. **Local development server** - FastAPI server for integration and testing
 
-If you are looking for text-to-SQL or deep-research like capabilities, check out [introspect](https://github.com/defog-ai/introspect), our open-source, MIT licensed repo that uses this library as a dependency.
+If you are looking for deep-research like capabilities, check out [introspect](https://github.com/defog-ai/introspect), our open-source, MIT licensed repo that uses this library as a dependency.
 
 # Installation
 
@@ -311,6 +312,104 @@ response, tool_outputs = await mcp_client.mcp_chat(
     "Use the calculator tool to compute 123 * 456"
 )
 ```
+
+### SQL Agent Tools
+
+Convert natural language questions to SQL queries and execute them on local databases:
+
+```python
+from defog.llm.sql import sql_answer_tool, identify_relevant_tables_tool
+from defog.llm.llm_providers import LLMProvider
+
+# Database connection credentials
+db_creds = {
+    "host": "localhost",
+    "port": 5432,
+    "database": "mydb",
+    "user": "postgres",
+    "password": "password"
+}
+
+# Ask questions in natural language
+result = await sql_answer_tool(
+    question="What are the top 10 customers by total sales?",
+    db_type="postgres",
+    db_creds=db_creds,
+    model="claude-sonnet-4-20250514",
+    provider=LLMProvider.ANTHROPIC,
+    glossary="Total Sales: Sum of all order amounts for a customer",  # Optional
+    previous_context=[],  # Optional conversation history
+)
+
+if result["success"]:
+    print(f"SQL Query: {result['query']}")
+    print(f"Results: {result['results']}")
+else:
+    print(f"Error: {result['error']}")
+
+# For large databases (>1000 columns, >5 tables), tables are automatically filtered
+# You can also manually identify relevant tables:
+relevance_result = await identify_relevant_tables_tool(
+    question="Show me customer orders",
+    db_type="postgres", 
+    db_creds=db_creds,
+    model="gpt-4o",
+    provider=LLMProvider.OPENAI,
+    max_tables=10
+)
+```
+
+Key features:
+- **Automatic table filtering** - Intelligently filters relevant tables for large databases
+- **Multiple database support** - PostgreSQL, MySQL, BigQuery, Snowflake, Databricks, SQL Server, Redshift
+- **Business context** - Support for glossaries and domain-specific filters
+- **Conversational SQL** - Maintains context for follow-up questions
+- **No API dependency** - Query execution happens locally without Defog API calls
+
+For a complete example, see [sql_agent_example.py](sql_agent_example.py).
+
+### Database Query Execution
+
+Execute SQL queries directly on local databases without requiring a Defog API key:
+
+```python
+from defog.query import execute_query, async_execute_query
+
+# Synchronous execution
+colnames, results = execute_query(
+    query="SELECT * FROM customers LIMIT 10",
+    db_type="postgres",
+    db_creds={
+        "host": "localhost",
+        "port": 5432,
+        "database": "mydb",
+        "user": "postgres",
+        "password": "password"
+    }
+)
+
+# Asynchronous execution (recommended)
+colnames, results = await async_execute_query(
+    query="SELECT COUNT(*) FROM orders",
+    db_type="mysql",
+    db_creds={
+        "host": "localhost",
+        "port": 3306,
+        "database": "ecommerce",
+        "user": "root",
+        "password": "password"
+    }
+)
+```
+
+Supported database types:
+- PostgreSQL (`postgres`)
+- MySQL (`mysql`)
+- BigQuery (`bigquery`)
+- Snowflake (`snowflake`)
+- Databricks (`databricks`)
+- SQL Server (`sqlserver`)
+- Redshift (`redshift`)
 
 # Testing
 For developers who want to test or add tests for this client, you can run:
