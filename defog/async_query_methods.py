@@ -204,7 +204,7 @@ async def run_query(
         try:
             print("Query generated, now running it on your database...")
             tstart = datetime.now()
-            colnames, result, executed_query = await async_execute_query(
+            colnames, result = await async_execute_query(
                 query=query["query_generated"],
                 api_key=self.api_key,
                 db_type=self.db_type,
@@ -220,7 +220,7 @@ async def run_query(
             resp = {
                 "columns": colnames,
                 "data": result,
-                "query_generated": executed_query,
+                "query_generated": query["query_generated"],
                 "ran_successfully": True,
                 "reason_for_query": query.get("reason_for_query"),
                 "previous_context": query.get("previous_context"),
