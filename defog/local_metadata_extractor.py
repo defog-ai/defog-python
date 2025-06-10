@@ -28,7 +28,7 @@ def extract_metadata_from_db(
     from defog import Defog
     
     # Create instance with the provided credentials
-    temp_defog = Defog(api_key=api_key or "temp", db_type=db_type, db_creds=db_creds)
+    temp_defog = Defog(db_type=db_type, db_creds=db_creds)
     
     try:
         # Use the existing generate_db_schema method but don't upload to server
@@ -72,7 +72,7 @@ async def extract_metadata_from_db_async(
     from defog import AsyncDefog
     
     # Create async instance with the provided credentials
-    temp_defog = AsyncDefog(api_key=api_key or "temp", db_type=db_type, db_creds=db_creds)
+    temp_defog = AsyncDefog(db_type=db_type, db_creds=db_creds)
     
     try:
         # Use the async generate_db_schema method
