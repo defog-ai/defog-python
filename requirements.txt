@@ -21,3 +21,4 @@ pytest
 pytest-asyncio
 mcp
 rich
+black
