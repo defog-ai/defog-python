@@ -24,6 +24,7 @@ SUPPORTED_DB_TYPES = [
     "snowflake",
     "databricks",
     "sqlserver",
+    "sqlite",
 ]
 
 
@@ -114,6 +115,9 @@ class BaseDefog:
                 raise KeyError("db_creds must contain a 'host' key.")
             if "api_key" not in db_creds:
                 raise KeyError("db_creds must contain a 'api_key' key.")
+        elif db_type == "sqlite":
+            if "database" not in db_creds:
+                raise KeyError("db_creds must contain a 'database' key.")
         else:
             raise ValueError(
                 f"Database `{db_type}` is not supported right now. db_type must be one of {', '.join(SUPPORTED_DB_TYPES)}"
