@@ -9,6 +9,7 @@ from defog.local_metadata_extractor import extract_metadata_from_db
 from defog.query import async_execute_query
 from defog.llm.utils import chat_async
 from defog.llm.config import LLMConfig
+import json
 
 
 async def sql_answer_tool(
@@ -264,7 +265,6 @@ Return only the JSON response."""
             )
             
             # Parse the JSON response
-            import json
             try:
                 analysis_result = json.loads(analysis_response.content.strip())
                 relevant_tables = analysis_result.get("relevant_tables", [])
