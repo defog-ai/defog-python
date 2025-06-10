@@ -26,6 +26,8 @@ async def get_youtube_summary(
         video_url: The URL of the YouTube video. Must be a valid YouTube URL.
         model: The Gemini model to use (default: "gemini-2.5-pro-preview-05-06").
         verbose: Whether to display real-time transcript streaming (default: True).
+        system_instructions: List of system instructions for the AI model. Controls the style and format of output.
+        task_description: Specific task description sent to the AI model. Defines what the model should produce.
 
     Returns:
         A detailed, ideally diarized transcript of the video. May be empty if
