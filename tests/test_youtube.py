@@ -1,7 +1,7 @@
 import asyncio
 import os
 import pytest
-from defog.llm.youtube_transcript import get_youtube_summary
+from defog.llm.youtube import get_youtube_summary
 
 
 @pytest.mark.asyncio
