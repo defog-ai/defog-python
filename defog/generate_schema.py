@@ -792,6 +792,79 @@ def generate_sqlserver_schema(
         return schemas
 
 
+def generate_sqlite_schema(
+    self,
+    tables: list,
+    upload: bool = True,
+    return_format: str = "csv",
+    scan: bool = True,
+    return_tables_only: bool = False,
+) -> str:
+    try:
+        import sqlite3
+    except:
+        raise Exception("sqlite3 not available.")
+
+    database_path = self.db_creds.get("database", ":memory:")
+    conn = sqlite3.connect(database_path)
+    cur = conn.cursor()
+    schemas = {}
+
+    if len(tables) == 0:
+        # get all tables
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+        tables = [row[0] for row in cur.fetchall()]
+
+    if return_tables_only:
+        conn.close()
+        return tables
+
+    print("Getting schema for each table that you selected...")
+    # get the schema for each table
+    for table_name in tables:
+        cur.execute(f"PRAGMA table_info({table_name});")
+        rows = cur.fetchall()
+        rows = [{"column_name": row[1], "data_type": row[2]} for row in rows]
+        if scan:
+            rows = identify_categorical_columns(cur, table_name, rows)
+        if len(rows) > 0:
+            schemas[table_name] = rows
+
+    conn.close()
+
+    if upload:
+        print(
+            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
+        )
+        r = requests.post(
+            f"{self.base_url}/get_schema_csv",
+            json={
+                "api_key": self.api_key,
+                "schemas": schemas,
+                "foreign_keys": [],
+                "indexes": [],
+            },
+            
+        )
+        resp = r.json()
+        if "csv" in resp:
+            csv = resp["csv"]
+            if return_format == "csv":
+                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                return "defog_metadata.csv"
+            else:
+                return csv
+        else:
+            print(f"We got an error!")
+            if "message" in resp:
+                print(f"Error message: {resp['message']}")
+            print(
+                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+            )
+    else:
+        return schemas
+
+
 def generate_db_schema(
     self,
     tables: list,
@@ -852,6 +925,14 @@ def generate_db_schema(
         return self.generate_sqlserver_schema(
             tables,
             return_format=return_format,
+            upload=upload,
+            return_tables_only=return_tables_only,
+        )
+    elif self.db_type == "sqlite":
+        return self.generate_sqlite_schema(
+            tables,
+            return_format=return_format,
+            scan=scan,
             upload=upload,
             return_tables_only=return_tables_only,
         )

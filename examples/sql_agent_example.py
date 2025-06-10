@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
-SQL Agent Example
+SQL Agent Example - SQLite Edition
 
-This example demonstrates how to use the SQL tools for local database operations,
+This example demonstrates how to use the SQL tools with SQLite for local database operations,
 including natural language to SQL query conversion and automatic table relevance
 filtering for large databases.
 
 Features demonstrated:
 - sql_answer_tool: Convert natural language questions to SQL and execute them
 - identify_relevant_tables_tool: Find relevant tables in large databases
-- Automatic table filtering for databases with >1000 columns and >5 tables
+- SQLite database setup with sample e-commerce data
 - Error handling and fallback scenarios
 """
 
 import asyncio
 import os
+import sqlite3
+import tempfile
 import logging
 from typing import Dict, Any
 
@@ -26,23 +28,136 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-class SQLAgent:
-    """A SQL agent that can answer natural language questions about databases."""
+def create_sample_database():
+    """Create a sample SQLite database with e-commerce data."""
     
-    def __init__(self, db_type: str, db_creds: Dict[str, Any], 
+    # Create temporary database file
+    db_file = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+    db_file.close()
+    db_path = db_file.name
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Create tables
+    cursor.execute("""
+        CREATE TABLE customers (
+            customer_id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE,
+            city TEXT,
+            country TEXT,
+            registration_date DATE
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE products (
+            product_id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            category TEXT,
+            price REAL,
+            cost REAL,
+            stock_quantity INTEGER
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE orders (
+            order_id INTEGER PRIMARY KEY,
+            customer_id INTEGER,
+            order_date DATE,
+            total_amount REAL,
+            status TEXT,
+            FOREIGN KEY (customer_id) REFERENCES customers (customer_id)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE order_items (
+            order_item_id INTEGER PRIMARY KEY,
+            order_id INTEGER,
+            product_id INTEGER,
+            quantity INTEGER,
+            unit_price REAL,
+            FOREIGN KEY (order_id) REFERENCES orders (order_id),
+            FOREIGN KEY (product_id) REFERENCES products (product_id)
+        )
+    """)
+    
+    # Insert sample data
+    # Customers
+    customers_data = [
+        (1, "John Smith", "john@email.com", "New York", "USA", "2023-01-15"),
+        (2, "Emma Wilson", "emma@email.com", "London", "UK", "2023-02-20"),
+        (3, "Michael Brown", "michael@email.com", "Toronto", "Canada", "2023-03-10"),
+        (4, "Sarah Davis", "sarah@email.com", "Sydney", "Australia", "2023-03-25"),
+        (5, "David Johnson", "david@email.com", "Berlin", "Germany", "2023-04-05"),
+    ]
+    cursor.executemany("INSERT INTO customers VALUES (?, ?, ?, ?, ?, ?)", customers_data)
+    
+    # Products
+    products_data = [
+        (1, "Laptop Pro", "Electronics", 1299.99, 899.99, 50),
+        (2, "Wireless Mouse", "Electronics", 29.99, 15.99, 200),
+        (3, "Office Chair", "Furniture", 249.99, 149.99, 30),
+        (4, "Coffee Mug", "Kitchen", 12.99, 5.99, 100),
+        (5, "Smartphone", "Electronics", 699.99, 499.99, 75),
+        (6, "Desk Lamp", "Furniture", 89.99, 49.99, 45),
+        (7, "Water Bottle", "Kitchen", 19.99, 8.99, 150),
+    ]
+    cursor.executemany("INSERT INTO products VALUES (?, ?, ?, ?, ?, ?)", products_data)
+    
+    # Orders
+    orders_data = [
+        (1, 1, "2023-05-01", 1329.98, "completed"),
+        (2, 2, "2023-05-02", 279.98, "completed"),
+        (3, 3, "2023-05-03", 699.99, "shipped"),
+        (4, 1, "2023-05-04", 32.98, "completed"),
+        (5, 4, "2023-05-05", 339.98, "processing"),
+        (6, 5, "2023-05-06", 109.98, "completed"),
+    ]
+    cursor.executemany("INSERT INTO orders VALUES (?, ?, ?, ?, ?)", orders_data)
+    
+    # Order items
+    order_items_data = [
+        (1, 1, 1, 1, 1299.99),  # Order 1: Laptop
+        (2, 1, 2, 1, 29.99),    # Order 1: Mouse
+        (3, 2, 3, 1, 249.99),   # Order 2: Chair
+        (4, 2, 2, 1, 29.99),    # Order 2: Mouse
+        (5, 3, 5, 1, 699.99),   # Order 3: Smartphone
+        (6, 4, 4, 1, 12.99),    # Order 4: Mug
+        (7, 4, 7, 1, 19.99),    # Order 4: Water Bottle
+        (8, 5, 6, 2, 89.99),    # Order 5: 2 Desk Lamps
+        (9, 5, 3, 1, 249.99),   # Order 5: Chair
+        (10, 6, 2, 2, 29.99),   # Order 6: 2 Mice
+        (11, 6, 7, 3, 19.99),   # Order 6: 3 Water Bottles
+    ]
+    cursor.executemany("INSERT INTO order_items VALUES (?, ?, ?, ?, ?)", order_items_data)
+    
+    conn.commit()
+    conn.close()
+    
+    logger.info(f"Created sample database at: {db_path}")
+    return db_path
+
+
+class SQLAgent:
+    """A SQL agent that can answer natural language questions about SQLite databases."""
+    
+    def __init__(self, db_path: str, 
                  provider: LLMProvider = LLMProvider.ANTHROPIC,
                  model: str = "claude-sonnet-4-20250514"):
         """
-        Initialize the SQL agent.
+        Initialize the SQL agent with SQLite database.
         
         Args:
-            db_type: Database type (postgres, mysql, bigquery, etc.)
-            db_creds: Database connection credentials
+            db_path: Path to SQLite database file
             provider: LLM provider to use
             model: Model name
         """
-        self.db_type = db_type
-        self.db_creds = db_creds
+        self.db_type = "sqlite"
+        self.db_creds = {"database": db_path}
         self.provider = provider
         self.model = model
         
@@ -76,134 +191,178 @@ class SQLAgent:
         return result
 
 async def main():
-    """Example usage of the SQL agent."""
+    """Example usage of the SQL agent with SQLite."""
     
-    # Example 1: PostgreSQL connection
-    postgres_creds = {
-        "host": "localhost",
-        "port": 5432,
-        "database": "cricket",
-        "user": "postgres",
-        "password": "postgres"
-    }
-    
-    # Create SQL agent
-    agent = SQLAgent(
-        db_type="postgres",
-        db_creds=postgres_creds,
-        provider=LLMProvider.ANTHROPIC,
-        model="claude-sonnet-4-20250514"
-    )
-    
-    print("🤖 SQL Agent Example - Natural Language Database Queries")
+    print("🤖 SQL Agent Example - SQLite Edition")
     print("=" * 60)
     
-    # Example questions for an e-commerce database
-    questions = [
-        "What are the total runs scored by each of the top 10 batsmen?",
-        "What are the top 10 bowlers by wickets taken?",
-        "What are the top 10 bowlers by economy rate (min 100 balls)?",
-    ]
-    
-    # Example 1: Basic question answering
-    print("\n📊 Example 1: Basic Question Answering")
-    print("-" * 40)
-    
-    for i, question in enumerate(questions[:2], 1):
-        print(f"\nQuestion {i}: {question}")
-        try:
-            result = await agent.ask_question(question)
-            
-            if result["success"]:
-                print(f"✅ Query: {result['query']}")
-                print(f"📈 Results: {len(result['results'])} rows returned")
-                
-                # Show first few results
-                if result["results"] and len(result["results"]) > 0:
-                    print("📄 Sample results:")
-                    for row in result["results"][:3]:
-                        print(f"   {row}")
-                    if len(result["results"]) > 3:
-                        print(f"   ... and {len(result['results']) - 3} more rows")
-                        
-            else:
-                print(f"❌ Error: {result['error']}")
-                
-        except Exception as e:
-            print(f"💥 Exception: {str(e)}")
-    
-    # Example 2: Using business glossary and filters
-    print("\n📚 Example 2: Using Business Glossary and Hard Filters")
-    print("-" * 50)
-    
-    glossary = """
-    Average: The total number of runs scored divided by the number of times out
-    Strike Rate: The total number of runs scored divided by the number of balls faced
-    Economy Rate: The total number of runs conceded divided by the number of balls bowled, multiplied by 6
-    """
-    
-    question = "Who are the top 10 batsmen by average (min 200 runs)?"
-    print(f"\nQuestion: {question}")
+    # Create sample SQLite database
+    print("📊 Creating sample e-commerce database...")
+    db_path = create_sample_database()
     
     try:
-        result = await agent.ask_question(
-            question=question,
-            glossary=glossary,
+        # Create SQL agent
+        agent = SQLAgent(
+            db_path=db_path,
+            provider=LLMProvider.ANTHROPIC,
+            model="claude-sonnet-4-20250514"
         )
         
-        if result["success"]:
-            print(f"✅ Query with filters: {result['query']}")
-            print(f"📈 Results: {len(result['results'])} rows")
-        else:
-            print(f"❌ Error: {result['error']}")
-            
-    except Exception as e:
-        print(f"💥 Exception: {str(e)}")
-    
-    # Example 4: Conversation context
-    print("\n💬 Example 4: Conversational Context")
-    print("-" * 38)
-
-    conversation_context = []
-    
-    # Simulate a conversation with context
-    questions_with_context = [
-        "Who are the top 10 batsmen by average (min 200 runs)?",
-        "How about the next 10?",
-        "Who are the top 10 bowlers by economy rate (min 100 balls)?"
-    ]
-    
-    for i, question in enumerate(questions_with_context, 1):
-        print(f"\nTurn {i}: {question}")
+        print("✅ Database created successfully!")
+        print(f"📁 Database location: {db_path}")
         
+        # Example questions for e-commerce database
+        questions = [
+            "What are the total sales by product category?",
+            "Who are the top 3 customers by total purchase amount?",
+            "What is the average order value by country?",
+            "Which products have the highest profit margin?",
+        ]
+        
+        # Example 1: Basic question answering
+        print("\n📊 Example 1: Basic Question Answering")
+        print("-" * 40)
+        
+        # Test basic database functionality first
+        print("\n🔍 Testing Database Schema Extraction...")
         try:
-            result = await agent.ask_question(
-                question=question,
-                previous_context=conversation_context
-            )
+            from defog import Defog
+            defog_client = Defog(api_key="test", db_type="sqlite", db_creds={"database": db_path})
+            schema = defog_client.generate_db_schema([], upload=False, scan=False)
+            print(f"✅ Found {len(schema)} tables: {list(schema.keys())}")
             
-            if result["success"]:
-                print(f"✅ Query: {result['query']}")
-                print(f"📈 Results: {len(result['results'])} rows")
-                
-                # Update conversation context for next turn
-                conversation_context.append({"role": "user", "content": question})
-                conversation_context.append({"role": "assistant", "content": result['query']})
-                
-            else:
-                print(f"❌ Error: {result['error']}")
-                
+            # Show sample table structure
+            if "customers" in schema:
+                print("📋 Sample table structure (customers):")
+                for col in schema["customers"][:3]:
+                    print(f"   {col['column_name']}: {col['data_type']}")
         except Exception as e:
-            print(f"💥 Exception: {str(e)}")
+            print(f"❌ Schema extraction failed: {str(e)}")
+        
+        # Only run AI-powered examples if API keys are available
+        if any(os.getenv(key) for key in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"]):
+            for i, question in enumerate(questions[:2], 1):
+                print(f"\nQuestion {i}: {question}")
+                try:
+                    result = await agent.ask_question(question)
+                    
+                    if result["success"]:
+                        print(f"✅ Query: {result['query']}")
+                        print(f"📈 Results: {len(result['results'])} rows returned")
+                        
+                        # Show first few results
+                        if result["results"] and len(result["results"]) > 0:
+                            print("📄 Sample results:")
+                            for row in result["results"][:3]:
+                                print(f"   {row}")
+                            if len(result["results"]) > 3:
+                                print(f"   ... and {len(result['results']) - 3} more rows")
+                                
+                    else:
+                        print(f"❌ Error: {result['error']}")
+                        
+                except Exception as e:
+                    print(f"💥 Exception: {str(e)}")
+        else:
+            print("\n⚠️  Skipping AI-powered examples (no API keys configured)")
+            print("Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY to test full functionality")
     
-    print("\n✨ Example completed!")
-    print("\nKey Features Demonstrated:")
-    print("• Natural language to SQL conversion")
-    print("• Automatic table filtering for large databases")
-    print("• Business glossary and hard filters")
-    print("• Table relevance analysis")
-    print("• Conversational context")
-    print("• Comprehensive error handling")
+        # AI-powered examples (only if API keys available)
+        if any(os.getenv(key) for key in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY"]):
+            # Example 2: Using business glossary
+            print("\n📚 Example 2: Using Business Glossary")
+            print("-" * 35)
+            
+            glossary = """
+            Profit Margin: The difference between product price and cost, divided by price, expressed as a percentage
+            Total Sales: The sum of all order item quantities multiplied by their unit prices
+            Average Order Value: The total order amount divided by the number of orders
+            """
+            
+            question = "What are the profit margins for all products, ordered by highest margin?"
+            print(f"\nQuestion: {question}")
+            
+            try:
+                result = await agent.ask_question(
+                    question=question,
+                    glossary=glossary,
+                )
+                
+                if result["success"]:
+                    print(f"✅ Query with glossary: {result['query']}")
+                    print(f"📈 Results: {len(result['results'])} rows")
+                    
+                    # Show first few results
+                    if result["results"] and len(result["results"]) > 0:
+                        print("📄 Sample results:")
+                        for row in result["results"][:3]:
+                            print(f"   {row}")
+                else:
+                    print(f"❌ Error: {result['error']}")
+                    
+            except Exception as e:
+                print(f"💥 Exception: {str(e)}")
+        
+            # Example 3: Conversational Context
+            print("\n💬 Example 3: Conversational Context")
+            print("-" * 38)
+
+            conversation_context = []
+            
+            # Simulate a conversation with context
+            questions_with_context = [
+                "What are the top 3 selling products by quantity?",
+                "What about by revenue instead?",
+                "Show me the customers who bought these top products"
+            ]
+            
+            for i, question in enumerate(questions_with_context, 1):
+                print(f"\nTurn {i}: {question}")
+                
+                try:
+                    result = await agent.ask_question(
+                        question=question,
+                        previous_context=conversation_context
+                    )
+                    
+                    if result["success"]:
+                        print(f"✅ Query: {result['query']}")
+                        print(f"📈 Results: {len(result['results'])} rows")
+                        
+                        # Show first few results
+                        if result["results"] and len(result["results"]) > 0:
+                            print("📄 Sample results:")
+                            for row in result["results"][:2]:
+                                print(f"   {row}")
+                        
+                        # Update conversation context for next turn
+                        conversation_context.append({"role": "user", "content": question})
+                        conversation_context.append({"role": "assistant", "content": result['query']})
+                        
+                    else:
+                        print(f"❌ Error: {result['error']}")
+                        
+                except Exception as e:
+                    print(f"💥 Exception: {str(e)}")
+        else:
+            print("\n⚠️  Skipping advanced AI examples (no API keys configured)")
+            print("The basic SQLite functionality works! Set API keys to test natural language queries.")
+        
+        print("\n✨ Example completed!")
+        print("\nKey Features Demonstrated:")
+        print("• SQLite database creation and setup")
+        print("• Natural language to SQL conversion")
+        print("• Business glossary integration")
+        print("• Conversational context")
+        print("• Comprehensive error handling")
+        
+    finally:
+        # Clean up database file
+        try:
+            os.unlink(db_path)
+            print(f"\n🧹 Cleaned up database file: {db_path}")
+        except:
+            pass
 
 
 def setup_environment():
@@ -229,14 +388,12 @@ def setup_environment():
         print("\n⚠️  Missing environment variables:")
         for var in missing_vars:
             print(var)
-        print("\nPlease set these environment variables to run the full example.")
-        print("You can still run parts of the example with the providers you have configured.")
+        print("\nPlease set at least one API key to run the example.")
     
-    print("\n📋 Database Configuration")
-    print("Update the database credentials in this file to match your setup:")
-    print("  • postgres_creds: Your PostgreSQL connection details")
-    print("  • mysql_creds: Your MySQL connection details") 
-    print("  • bigquery_creds: Your BigQuery project and credentials")
+    print("\n📋 SQLite Configuration")
+    print("✅ No additional database setup required!")
+    print("This example creates a temporary SQLite database with sample data.")
+    print("SQLite is included with Python, so no external database is needed.")
     print()
 
 

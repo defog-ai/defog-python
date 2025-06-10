@@ -660,6 +660,74 @@ async def generate_sqlserver_schema(
         return schemas
 
 
+async def generate_sqlite_schema(
+    self,
+    tables: list,
+    upload: bool = True,
+    return_format: str = "csv",
+    scan: bool = True,
+    return_tables_only: bool = False,
+) -> str:
+    try:
+        import aiosqlite
+    except:
+        raise Exception("aiosqlite not installed.")
+
+    database_path = self.db_creds.get("database", ":memory:")
+    async with aiosqlite.connect(database_path) as conn:
+        schemas = {}
+
+        if len(tables) == 0:
+            # get all tables
+            async with conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';") as cur:
+                tables = [row[0] async for row in cur]
+
+        if return_tables_only:
+            return tables
+
+        print("Getting schema for each table that you selected...")
+        # get the schema for each table
+        for table_name in tables:
+            async with conn.execute(f"PRAGMA table_info({table_name});") as cur:
+                rows = [{"column_name": row[1], "data_type": row[2]} async for row in cur]
+            if scan:
+                rows = await async_identify_categorical_columns(
+                    conn=conn, table_name=table_name, rows=rows, db_type="sqlite"
+                )
+            if len(rows) > 0:
+                schemas[table_name] = rows
+
+    if upload:
+        print(
+            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
+        )
+        resp = await make_async_post_request(
+            url=f"{self.base_url}/get_schema_csv",
+            payload={
+                "api_key": self.api_key,
+                "schemas": schemas,
+                "foreign_keys": [],
+                "indexes": [],
+            },
+        )
+        if "csv" in resp:
+            csv = resp["csv"]
+            if return_format == "csv":
+                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                return "defog_metadata.csv"
+            else:
+                return csv
+        else:
+            print(f"We got an error!")
+            if "message" in resp:
+                print(f"Error message: {resp['message']}")
+            print(
+                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+            )
+    else:
+        return schemas
+
+
 async def generate_db_schema(
     self,
     tables: list,
@@ -720,6 +788,14 @@ async def generate_db_schema(
         return await self.generate_sqlserver_schema(
             tables,
             return_format=return_format,
+            upload=upload,
+            return_tables_only=return_tables_only,
+        )
+    elif self.db_type == "sqlite":
+        return await self.generate_sqlite_schema(
+            tables,
+            return_format=return_format,
+            scan=scan,
             upload=upload,
             return_tables_only=return_tables_only,
         )

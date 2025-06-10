@@ -134,6 +134,20 @@ def execute_query_once(db_type: str, db_creds, query: str):
             cur.close()
         return colnames, rows
 
+    elif db_type == "sqlite":
+        try:
+            import sqlite3
+        except:
+            raise Exception("sqlite3 not available.")
+        
+        database_path = db_creds.get("database", ":memory:")
+        with sqlite3.connect(database_path) as conn:
+            cur = conn.cursor()
+            cur.execute(query)
+            colnames = [desc[0] for desc in cur.description] if cur.description else []
+            rows = cur.fetchall()
+        return colnames, rows
+
     else:
         raise Exception(f"Database type {db_type} not yet supported.")
 
@@ -296,6 +310,22 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
                 results = await cur.fetchall()
                 rows = [list(row) for row in results]
         return colnames, rows
+    
+    elif db_type == "sqlite":
+        try:
+            import aiosqlite
+        except:
+            raise Exception("aiosqlite not installed.")
+        
+        database_path = db_creds.get("database", ":memory:")
+        async with aiosqlite.connect(database_path) as conn:
+            cur = await conn.cursor()
+            await cur.execute(query)
+            colnames = [desc[0] for desc in cur.description] if cur.description else []
+            rows = await cur.fetchall()
+            await cur.close()
+        return colnames, rows
+    
     else:
         raise Exception(f"Database type {db_type} not yet supported.")
 
