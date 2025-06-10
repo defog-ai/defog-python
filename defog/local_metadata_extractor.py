@@ -40,8 +40,8 @@ def extract_metadata_from_db(
         )
         
         # Cache the result if cache is provided
-        if cache and api_key:
-            cache.set(api_key, db_type, schema_result, dev=False)
+        if cache:
+            cache.set(api_key, db_type, schema_result, dev=False, db_creds=db_creds)
         
         return schema_result
             
@@ -84,8 +84,8 @@ async def extract_metadata_from_db_async(
         )
         
         # Cache the result if cache is provided
-        if cache and api_key:
-            cache.set(api_key, db_type, schema_result, dev=False)
+        if cache:
+            cache.set(api_key, db_type, schema_result, dev=False, db_creds=db_creds)
         
         return schema_result
             

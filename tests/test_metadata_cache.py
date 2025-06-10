@@ -42,6 +42,22 @@ class TestMetadataCache(unittest.TestCase):
         dev_key = self.cache._get_cache_key("test_api_key", "postgres", dev=True)
         self.assertIn("dev", dev_key)
         self.assertNotEqual(cache_key, dev_key)
+    
+    def test_get_cache_key_with_none_api_key(self):
+        db_creds = {"host": "localhost", "user": "test", "password": "secret"}
+        cache_key = self.cache._get_cache_key(None, "postgres", db_creds=db_creds)
+        self.assertIsInstance(cache_key, str)
+        self.assertIn("postgres", cache_key)
+        self.assertIn("prod", cache_key)
+        
+        # Same creds should produce same key
+        cache_key2 = self.cache._get_cache_key(None, "postgres", db_creds=db_creds)
+        self.assertEqual(cache_key, cache_key2)
+        
+        # Different creds should produce different key
+        different_creds = {"host": "different", "user": "test", "password": "secret"}
+        cache_key3 = self.cache._get_cache_key(None, "postgres", db_creds=different_creds)
+        self.assertNotEqual(cache_key, cache_key3)
 
     def test_get_cache_file(self):
         cache_key = "test_key"
@@ -72,6 +88,22 @@ class TestMetadataCache(unittest.TestCase):
         
         # Get metadata (should read from file)
         result = self.cache.get(api_key, db_type)
+        self.assertEqual(result, self.sample_metadata)
+    
+    def test_set_and_get_with_none_api_key(self):
+        db_creds = {"host": "localhost", "user": "test", "password": "secret"}
+        db_type = "postgres"
+        
+        # Set metadata with None API key
+        self.cache.set(None, db_type, self.sample_metadata, db_creds=db_creds)
+        
+        # Get metadata
+        result = self.cache.get(None, db_type, db_creds=db_creds)
+        self.assertEqual(result, self.sample_metadata)
+        
+        # Clear memory cache and test file cache
+        self.cache._memory_cache.clear()
+        result = self.cache.get(None, db_type, db_creds=db_creds)
         self.assertEqual(result, self.sample_metadata)
 
     def test_get_nonexistent_cache(self):
@@ -153,6 +185,24 @@ class TestMetadataCache(unittest.TestCase):
         # Should all return None
         self.assertIsNone(self.cache.get("key1", "postgres"))
         self.assertIsNone(self.cache.get("key2", "mysql"))
+    
+    def test_invalidate_with_none_api_key(self):
+        db_creds = {"host": "localhost", "user": "test", "password": "secret"}
+        db_type = "postgres"
+        
+        # Set metadata with None API key
+        self.cache.set(None, db_type, self.sample_metadata, db_creds=db_creds)
+        
+        # Verify it's cached
+        result = self.cache.get(None, db_type, db_creds=db_creds)
+        self.assertEqual(result, self.sample_metadata)
+        
+        # Invalidate
+        self.cache.invalidate(None, db_type, db_creds=db_creds)
+        
+        # Should return None after invalidation
+        result = self.cache.get(None, db_type, db_creds=db_creds)
+        self.assertIsNone(result)
 
     def test_dev_vs_prod_cache(self):
         api_key = "test_key"
