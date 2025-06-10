@@ -1,13 +1,29 @@
-"""Example of dynamic agent orchestration where the system automatically creates subagents."""
+"""
+Example of dynamic agent orchestration where the system automatically creates subagents.
+
+This example demonstrates:
+1. Dynamic subagent creation based on task requirements
+2. Web search capabilities for real-time information
+3. Code execution for data analysis and calculations
+4. SQL querying of Cricket World Cup 2015 database using sql_answer_tool
+5. File processing operations
+
+The Cricket World Cup 2015 database contains ball-by-ball data from all matches,
+including batting/bowling statistics, team performance, and match details.
+Run setup_cricket_db.py first to create the database from CSV files.
+"""
 
 import asyncio
 import logging
+import os
 from typing import Dict, Any
 from pydantic import BaseModel, Field
 
 from defog.llm.orchestrator import Agent, AgentOrchestrator
 from defog.llm.web_search import web_search_tool
 from defog.llm.code_interp import code_interpreter_tool
+from defog.llm.sql import sql_answer_tool
+from defog.llm.llm_providers import LLMProvider
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -126,6 +142,55 @@ else:
     return {"result": result.get("output", "")}
 
 
+class SQLQueryInput(BaseModel):
+    question: str = Field(description="Natural language question to answer using Cricket World Cup 2015 data")
+
+async def cricket_sql_query(input: SQLQueryInput) -> Dict[str, Any]:
+    """Answer questions about Cricket World Cup 2015 using SQL queries on the ball-by-ball data."""
+    # Database configuration for Cricket World Cup 2015
+    db_path = os.path.join(os.path.dirname(__file__), "cricket_wc2015.db")
+    db_creds = {
+        "database": db_path
+    }
+    
+    print(db_creds)
+
+    try:
+        result = await sql_answer_tool(
+            question=input.question,
+            db_type="sqlite",
+            db_creds=db_creds,
+            model="claude-sonnet-4-20250514",
+            provider=LLMProvider.ANTHROPIC,
+            temperature=0.0
+        )
+
+        print(result)
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "query": result.get("query"),
+                "columns": result.get("columns"),
+                "results": result.get("results"),
+                "error": None
+            }
+        else:
+            return {
+                "success": False,
+                "query": result.get("query"),
+                "results": None,
+                "error": result.get("error")
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "query": None,
+            "results": None,
+            "error": str(e)
+        }
+
+
 async def dynamic_orchestration_example():
     """Example where the orchestrator dynamically creates subagents based on the task."""
     
@@ -153,7 +218,8 @@ async def dynamic_orchestration_example():
             web_search,
             execute_python,
             analyze_data,
-            process_file
+            process_file,
+            cricket_sql_query
         ],
         subagent_provider="openai",
         subagent_model="gpt-4.1",
@@ -172,40 +238,29 @@ async def dynamic_orchestration_example():
     
     response = await orchestrator.process(messages)
     print(f"Response:\n{response.content}\n")
-    print(f"Tokens: {response.total_tokens}, Cost: ${response.total_cost:.4f}\n")
+    print(f"Cost: ${response.total_cost:.4f}\n")
     
     # Clear memory before next example
     orchestrator.clear_all_memory()
     
-    # Example 2: Data processing pipeline
-    print("=== Example 2: Data Processing Pipeline ===")
+    # Example 2: Cricket World Cup 2015 Analysis
+    print("=== Example 2: Cricket World Cup 2015 Analysis ===")
     messages = [{
         "role": "user",
-        "content": """I have sales data: [1200, 1350, 1100, 1450, 1600, 1550, 1700, 1650, 1800, 1750, 1900, 2000].
-        These are monthly sales figures for 2024. Please:
-        1. Calculate statistical metrics
-        2. Identify the trend
-        3. Create a forecast for the next 3 months
-        4. Search for industry benchmarks to compare against"""
+        "content": """I want to analyze the Cricket World Cup 2015 data. Please help me understand:
+        1. Which player scored the most runs in the tournament?
+        2. Who took the most wickets?
+        3. Which team had the best batting average?
+        4. What was the highest individual score in an innings?
+        5. Create a summary comparing the performance of the top 3 teams"""
     }]
     
     response = await orchestrator.process(messages)
     print(f"Response:\n{response.content}\n")
+    print(f"Cost: ${response.total_cost:.4f}\n")
     
-    # Example 3: Code generation and testing
-    print("=== Example 3: Code Generation and Testing ===")
-    messages = [{
-        "role": "user",
-        "content": """Create a Python class for managing a priority queue with the following features:
-        1. Add items with priorities
-        2. Remove highest priority item
-        3. Peek at highest priority without removing
-        4. Check if empty
-        Then test it thoroughly and search for best practices for priority queue implementations."""
-    }]
-    
-    response = await orchestrator.process(messages)
-    print(f"Response:\n{response.content}\n")
+    # Clear memory before next example
+    orchestrator.clear_all_memory()
 
 
 async def simple_dynamic_example():
@@ -215,7 +270,7 @@ async def simple_dynamic_example():
     main_agent = Agent(
         agent_id="orchestrator",
         provider="anthropic",
-        model="claude-opus-4-20250514",
+        model="claude-sonnet-4-20250514",
         system_prompt="""You are an orchestrator that creates specialized agents dynamically.
         Use plan_and_create_subagents to break down tasks and create appropriate subagents."""
     )
@@ -223,7 +278,7 @@ async def simple_dynamic_example():
     logger.info("Creating orchestrator...")
     orchestrator = AgentOrchestrator(
         main_agent=main_agent,
-        available_tools=[web_search, execute_python],
+        available_tools=[web_search, execute_python, cricket_sql_query],
         planning_provider="openai",
         planning_model="gpt-4.1",
         subagent_provider="openai",
@@ -233,7 +288,7 @@ async def simple_dynamic_example():
     logger.info("Processing request...")
     messages = [{
         "role": "user",
-        "content": "Who is the current MP from Rae Bareli in 2025 and how many degrees Celsius is 75 Fahrenheit?"
+        "content": "Who is the current MP from Rae Bareli in 2025, how many degrees Celsius is 75 Fahrenheit, and who was the top run scorer in Cricket World Cup 2015?"
     }]
     
     try:
