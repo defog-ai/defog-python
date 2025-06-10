@@ -800,10 +800,22 @@ def generate_sqlite_schema(
     scan: bool = True,
     return_tables_only: bool = False,
 ) -> str:
+    """
+    Generate schema for SQLite database.
+    
+    Example:
+        # File database
+        defog = Defog(db_type="sqlite", db_creds={"database": "/path/to/database.db"})
+        schema = defog.generate_db_schema([], upload=False)
+        
+        # Memory database
+        defog = Defog(db_type="sqlite", db_creds={"database": ":memory:"})
+        schema = defog.generate_db_schema([], upload=False)
+    """
     try:
         import sqlite3
-    except:
-        raise Exception("sqlite3 not available.")
+    except ImportError as e:
+        raise ImportError("sqlite3 module not available. This should be included with Python by default.") from e
 
     database_path = self.db_creds.get("database", ":memory:")
     conn = sqlite3.connect(database_path)

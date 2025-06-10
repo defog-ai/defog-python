@@ -137,10 +137,12 @@ def execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "sqlite":
         try:
             import sqlite3
-        except:
-            raise Exception("sqlite3 not available.")
+        except ImportError as e:
+            raise ImportError("sqlite3 module not available. This should be included with Python by default.") from e
         
         database_path = db_creds.get("database", ":memory:")
+        if database_path != ":memory:" and not isinstance(database_path, str):
+            raise ValueError("Database path must be a string or ':memory:'")
         with sqlite3.connect(database_path) as conn:
             cur = conn.cursor()
             cur.execute(query)
@@ -314,10 +316,12 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "sqlite":
         try:
             import aiosqlite
-        except:
-            raise Exception("aiosqlite not installed.")
+        except ImportError as e:
+            raise ImportError("aiosqlite module not available. Please install with 'pip install aiosqlite' for async SQLite support.") from e
         
         database_path = db_creds.get("database", ":memory:")
+        if database_path != ":memory:" and not isinstance(database_path, str):
+            raise ValueError("Database path must be a string or ':memory:'")
         async with aiosqlite.connect(database_path) as conn:
             cur = await conn.cursor()
             await cur.execute(query)
