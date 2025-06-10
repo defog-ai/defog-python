@@ -3,8 +3,8 @@ Local SQL generation using LLM providers without external API calls.
 """
 import json
 from typing import Dict, List, Optional, Any, Union
-from ..llm.utils import chat_async, LLMProvider
-from ..llm.config import LLMConfig
+from defog.llm.utils import chat_async, LLMProvider
+from defog.llm.config import LLMConfig
 
 
 def format_schema_for_prompt(table_metadata: Dict[str, List[Dict[str, str]]]) -> str:
