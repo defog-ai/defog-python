@@ -112,10 +112,10 @@ async def generate_postgres_schema(
                     table_columns[schema + "." + table_name] = rows
     await conn.close()
 
-    print(
-        "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
-    )
     if upload:
+        print(
+            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
+        )
         # send the schemas dict to the defog servers
         resp = await make_async_post_request(
             url=f"{self.base_url}/get_schema_csv",
