@@ -1,7 +1,3 @@
-# Defog Python
-
-[![tests](https://github.com/defog-ai/defog-python/actions/workflows/main.yml/badge.svg)](https://github.com/defog-ai/defog-python/actions/workflows/main.yml)
-
 # TLDR
 
 This library used to be an SDK for accessing Defog's cloud hosted text-to-SQL service. It has since transformed into a comprehensive toolkit for:
@@ -217,9 +213,9 @@ How it works:
 4. Recent messages + system messages are preserved for context
 5. Process repeats as needed for very long conversations
 
-### YouTube Transcript Tool
+### YouTube Summary Tool
 
-Generate detailed, diarized transcripts from YouTube videos:
+Generate detailed summaries from YouTube videos:
 
 ```python
 from defog.llm.youtube import get_youtube_summary
@@ -316,138 +312,13 @@ response, tool_outputs = await mcp_client.mcp_chat(
 )
 ```
 
-## Database Operations
-
-The library provides comprehensive database management capabilities for schema generation and query execution.
-
-### Initialization
-
-```python
-from defog import Defog, AsyncDefog
-
-# Synchronous version
-defog = Defog(
-    api_key="your_api_key",
-    db_type="postgres",  # postgres, mysql, bigquery, snowflake, etc.
-    db_creds={
-        "host": "localhost",
-        "port": 5432,
-        "database": "mydb",
-        "user": "username",
-        "password": "password"
-    }
-)
-
-# Asynchronous version
-async_defog = AsyncDefog(
-    api_key="your_api_key",
-    db_type="postgres",
-    db_creds={...}
-)
-```
-
-### Supported Database Types
-
-- **PostgreSQL** (`postgres`)
-- **Amazon Redshift** (`redshift`) 
-- **MySQL** (`mysql`)
-- **Google BigQuery** (`bigquery`)
-- **Snowflake** (`snowflake`)
-- **Databricks** (`databricks`)
-- **SQL Server** (`sqlserver`)
-
-### Schema Generation
-
-```python
-# Generate and upload database schema
-schema = defog.generate_db_schema(
-    tables=["users", "orders", "products"],
-    scan=True,        # Scan table contents for better understanding
-    upload=True,      # Upload to Defog service
-    return_format="csv"  # csv, json, or markdown
-)
-
-print(schema)
-```
-
-### Query Execution
-
-```python
-# Natural language to SQL query execution
-result = defog.run_query(
-    question="What are the top 10 customers by total order value?",
-    hard_filters="WHERE order_date >= '2024-01-01'",  # Optional SQL filters
-    glossary="Customer refers to registered users",   # Domain-specific terms
-    retries=3,
-    use_golden_queries=True  # Use validated query patterns
-)
-
-print(f"SQL: {result['query_generated']}")
-print(f"Results: {result['data']}")
-```
-
-## Command Line Interface
-
-Defog provides a CLI for easy setup and management:
-
-```bash
-# Initialize credentials and database connection
-defog init
-
-# Generate schema for specific tables
-defog gen table1 table2
-
-# Update schema from CSV file
-defog update schema.csv
-
-# Interactive query interface
-defog query
-
-# Check API quota
-defog quota
-
-# View documentation
-defog docs
-
-# Start local development server
-defog serve
-```
-
-## Development Server
-
-Run a local FastAPI server for integration and testing:
-
-```bash
-defog serve
-```
-
-Endpoints:
-- `POST /generate_query` - Generate SQL from natural language
-- `POST /integration/get_tables_db_creds` - Get database table information
-- `GET /` - Health check
-
-```python
-# Example API usage
-import requests
-
-response = requests.post(
-    "http://localhost:8000/generate_query",
-    json={
-        "question": "Show me sales by month",
-        "previous_context": []
-    }
-)
-
-result = response.json()
-print(result["query_generated"])
-```
-
 # Testing
 For developers who want to test or add tests for this client, you can run:
+
 ```
 pytest tests
 ```
-Note that we will transfer the existing .defog/connection.json file over to /tmp (if at all), and transfer the original file back once the tests are done to avoid messing with the original config.
+
 If submitting a PR, please use the `black` linter to lint your code. You can add it as a git hook to your repo by running the command below:
 ```bash
 echo -e '#!/bin/sh\n#\n# Run linter before commit\nblack $(git rev-parse --show-toplevel)' > .git/hooks/pre-commit
