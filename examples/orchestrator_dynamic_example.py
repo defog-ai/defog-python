@@ -238,7 +238,6 @@ async def dynamic_orchestration_example():
     
     response = await orchestrator.process(messages)
     print(f"Response:\n{response.content}\n")
-    print(f"Cost: ${response.total_cost:.4f}\n")
     
     # Clear memory before next example
     orchestrator.clear_all_memory()
@@ -257,7 +256,6 @@ async def dynamic_orchestration_example():
     
     response = await orchestrator.process(messages)
     print(f"Response:\n{response.content}\n")
-    print(f"Cost: ${response.total_cost:.4f}\n")
     
     # Clear memory before next example
     orchestrator.clear_all_memory()
