@@ -346,7 +346,7 @@ def execute_query(
                     "temp": temp,
                 },
                 timeout=1,
-                verify=False,
+                
             )
         except:
             pass
@@ -372,7 +372,7 @@ def execute_query(
                 r = requests.post(
                     f"{base_url}/retry_query_after_error",
                     json=retry,
-                    verify=False,
+                    
                 )
                 response = r.json()
                 new_query = response["new_query"]
