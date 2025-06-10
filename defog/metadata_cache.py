@@ -35,29 +35,40 @@ class MetadataCache:
         
         self.cache_dir.mkdir(parents=True, exist_ok=True)
     
-    def _get_cache_key(self, api_key: str, db_type: str, dev: bool = False) -> str:
+    def _get_cache_key(self, api_key: Optional[str], db_type: str, dev: bool = False, db_creds: Optional[Dict[str, Any]] = None) -> str:
         """Generate a unique cache key."""
-        # Hash the API key for security
-        key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+        if api_key is not None:
+            # Hash the API key for security
+            key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+        else:
+            # When no API key, use db_creds hash for cache key
+            if db_creds:
+                creds_str = json.dumps(db_creds, sort_keys=True)
+                key_hash = hashlib.sha256(creds_str.encode()).hexdigest()[:16]
+            else:
+                # Fallback to a generic key if no creds available
+                key_hash = "no_api_key"
+        
         return f"{key_hash}_{db_type}_{'dev' if dev else 'prod'}"
     
     def _get_cache_file(self, cache_key: str) -> Path:
         """Get the cache file path for a given key."""
         return self.cache_dir / f"{cache_key}.json"
     
-    def get(self, api_key: str, db_type: str, dev: bool = False) -> Optional[Dict[str, List[Dict[str, str]]]]:
+    def get(self, api_key: Optional[str], db_type: str, dev: bool = False, db_creds: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, List[Dict[str, str]]]]:
         """
         Get cached metadata if available and not expired.
         
         Args:
-            api_key: Defog API key
+            api_key: Defog API key (can be None)
             db_type: Database type
             dev: Whether this is for dev environment
+            db_creds: Database credentials (used for cache key when api_key is None)
             
         Returns:
             Cached metadata or None if not found/expired
         """
-        cache_key = self._get_cache_key(api_key, db_type, dev)
+        cache_key = self._get_cache_key(api_key, db_type, dev, db_creds)
         
         # Check memory cache first
         if cache_key in self._memory_cache:
@@ -88,17 +99,18 @@ class MetadataCache:
         
         return None
     
-    def set(self, api_key: str, db_type: str, metadata: Dict[str, List[Dict[str, str]]], dev: bool = False):
+    def set(self, api_key: Optional[str], db_type: str, metadata: Dict[str, List[Dict[str, str]]], dev: bool = False, db_creds: Optional[Dict[str, Any]] = None):
         """
         Cache metadata.
         
         Args:
-            api_key: Defog API key
+            api_key: Defog API key (can be None)
             db_type: Database type
             metadata: Table metadata to cache
             dev: Whether this is for dev environment
+            db_creds: Database credentials (used for cache key when api_key is None)
         """
-        cache_key = self._get_cache_key(api_key, db_type, dev)
+        cache_key = self._get_cache_key(api_key, db_type, dev, db_creds)
         
         cached_data = {
             'metadata': metadata,
@@ -119,16 +131,17 @@ class MetadataCache:
             # Log error but don't fail
             print(f"Warning: Failed to write metadata cache: {e}")
     
-    def invalidate(self, api_key: str, db_type: str, dev: bool = False):
+    def invalidate(self, api_key: Optional[str], db_type: str, dev: bool = False, db_creds: Optional[Dict[str, Any]] = None):
         """
         Invalidate cached metadata.
         
         Args:
-            api_key: Defog API key
+            api_key: Defog API key (can be None)
             db_type: Database type
             dev: Whether this is for dev environment
+            db_creds: Database credentials (used for cache key when api_key is None)
         """
-        cache_key = self._get_cache_key(api_key, db_type, dev)
+        cache_key = self._get_cache_key(api_key, db_type, dev, db_creds)
         
         # Remove from memory cache
         if cache_key in self._memory_cache:

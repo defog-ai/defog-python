@@ -93,7 +93,7 @@ class TestLocalMetadataExtractor(unittest.TestCase):
         
         self.assertEqual(result, self.sample_schema_result)
         mock_cache.set.assert_called_once_with(
-            "test_key", "postgres", self.sample_schema_result, dev=False
+            "test_key", "postgres", self.sample_schema_result, dev=False, db_creds=self.sample_db_creds
         )
 
     @patch('defog.Defog')
@@ -170,7 +170,7 @@ class TestLocalMetadataExtractor(unittest.TestCase):
         
         self.assertEqual(result, self.sample_schema_result)
         mock_cache.set.assert_called_once_with(
-            "test_key", "bigquery", self.sample_schema_result, dev=False
+            "test_key", "bigquery", self.sample_schema_result, dev=False, db_creds={"project_id": "test"}
         )
 
     @pytest.mark.asyncio
