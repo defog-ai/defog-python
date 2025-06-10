@@ -107,9 +107,8 @@ class TestLocalMetadataExtractor(unittest.TestCase):
             db_creds=self.sample_db_creds
         )
         
-        # Should use "temp" as default API key
         mock_defog_class.assert_called_once_with(
-            api_key="temp",
+            api_key=None,
             db_type="postgres",
             db_creds=self.sample_db_creds
         )
@@ -202,9 +201,8 @@ class TestLocalMetadataExtractor(unittest.TestCase):
             db_creds=self.sample_db_creds
         )
         
-        # Should use "temp" as default API key
         mock_async_defog_class.assert_called_once_with(
-            api_key="temp",
+            api_key=None,
             db_type="postgres",
             db_creds=self.sample_db_creds
         )
