@@ -153,8 +153,6 @@ async def cricket_sql_query(input: SQLQueryInput) -> Dict[str, Any]:
         "database": db_path
     }
     
-    print(db_creds)
-
     try:
         result = await sql_answer_tool(
             question=input.question,
@@ -197,8 +195,8 @@ async def dynamic_orchestration_example():
     # Create main orchestrator agent with dynamic capabilities
     main_agent = Agent(
         agent_id="dynamic_orchestrator",
-        provider="openai",
-        model="gpt-4.1",
+        provider="anthropic",
+        model="claude-sonnet-4-20250514",
         system_prompt="""You are a dynamic orchestrator that automatically creates specialized subagents.
         
         When you receive a complex task:
@@ -207,11 +205,13 @@ async def dynamic_orchestration_example():
         3. The tool will automatically create subagents with appropriate tools and execute tasks
         4. Synthesize the results and provide a comprehensive response
         
-        You don't need to use delegate_to_subagents - the planning tool handles everything.""",
+        IMPORTANT: When multiple subagents need to use cricket_sql_query tool, they MUST run sequentially (not parallel) to avoid SQLite database locking issues. Only non-database tools can run in parallel.
+        
+        You must use the plan_and_create_subagents tool to handle complex requests that require multiple specialized tasks.""",
         memory_config={"token_threshold": 50000, "preserve_last_n_messages": 10}
     )
     
-    # Create orchestrator with available tools
+    # Create orchestrator with available tools and infinite loop prevention
     orchestrator = AgentOrchestrator(
         main_agent=main_agent,
         available_tools=[
@@ -221,26 +221,27 @@ async def dynamic_orchestration_example():
             process_file,
             cricket_sql_query
         ],
-        subagent_provider="openai",
-        subagent_model="gpt-4.1",
-        planning_provider="openai",
-        planning_model="gpt-4.1"
+        subagent_provider="anthropic",
+        subagent_model="claude-sonnet-4-20250514",
+        planning_provider="anthropic",
+        planning_model="claude-sonnet-4-20250514",
+        max_recursion_depth=2,  # Prevent deep agent nesting
+        max_total_retries=15,   # Global retry limit
+        max_decomposition_depth=1,  # Limit task decomposition
+        global_timeout=600.0    # 10 minute timeout
     )
     
     # Example 1: Research and analysis task
-    print("=== Example 1: Research and Analysis ===")
-    messages = [{
-        "role": "user",
-        "content": """I need to understand the current state of quantum computing. 
-        Please research recent breakthroughs, analyze the market size and growth projections, 
-        and create a simple table comparing the qubit counts of major quantum computers."""
-    }]
+    # print("=== Example 1: Research and Analysis ===")
+    # messages = [{
+    #     "role": "user",
+    #     "content": """I need to understand the current state of quantum computing. 
+    #     Please research recent breakthroughs, analyze the market size and growth projections, 
+    #     and create a simple table comparing the qubit counts of major quantum computers."""
+    # }]
     
-    response = await orchestrator.process(messages)
-    print(f"Response:\n{response.content}\n")
-    
-    # Clear memory before next example
-    orchestrator.clear_all_memory()
+    # response = await orchestrator.process(messages)
+    # print(f"Response:\n{response.content}\n")
     
     # Example 2: Cricket World Cup 2015 Analysis
     print("=== Example 2: Cricket World Cup 2015 Analysis ===")
@@ -256,9 +257,6 @@ async def dynamic_orchestration_example():
     
     response = await orchestrator.process(messages)
     print(f"Response:\n{response.content}\n")
-    
-    # Clear memory before next example
-    orchestrator.clear_all_memory()
 
 
 async def simple_dynamic_example():
@@ -280,7 +278,10 @@ async def simple_dynamic_example():
         planning_provider="openai",
         planning_model="gpt-4.1",
         subagent_provider="openai",
-        subagent_model="gpt-4.1"
+        subagent_model="gpt-4.1",
+        max_recursion_depth=2,
+        max_total_retries=10,
+        global_timeout=120.0  # 2 minute timeout for simple example
     )
     
     logger.info("Processing request...")

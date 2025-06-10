@@ -147,11 +147,6 @@ class Agent:
 
         return response
 
-    def clear_memory(self):
-        """Clear agent's memory if it exists."""
-        if self.memory_manager:
-            self.memory_manager.clear()
-
 
 class AgentOrchestrator:
     """Orchestrator for managing main agent and subagents with task delegation."""
@@ -170,6 +165,10 @@ class AgentOrchestrator:
         retry_backoff: float = 2.0,
         retry_timeout: Optional[float] = None,
         fallback_model: Optional[str] = None,
+        max_recursion_depth: int = 3,
+        max_total_retries: int = 10,
+        max_decomposition_depth: int = 2,
+        global_timeout: float = 1200.0,  # 20 minutes default
     ):
         self.main_agent = main_agent
         self.subagents = {}
@@ -182,6 +181,16 @@ class AgentOrchestrator:
         self.retry_backoff = retry_backoff
         self.retry_timeout = retry_timeout
         self.fallback_model = fallback_model
+
+        # Infinite loop prevention
+        self.max_recursion_depth = max_recursion_depth
+        self.max_total_retries = max_total_retries
+        self.max_decomposition_depth = max_decomposition_depth
+        self.global_timeout = global_timeout
+        self._recursion_depth = 0
+        self._total_retries = 0
+        self._decomposition_depth = 0
+        self._start_time = None
 
         # For dynamic subagent creation
         self.available_tools = available_tools or []
@@ -265,6 +274,9 @@ class AgentOrchestrator:
         self, tasks: List[SubAgentTask]
     ) -> List[SubAgentResult]:
         """Execute subagent tasks with dependency and parallelism management."""
+        logger.info(f"Executing {len(tasks)} subagent tasks")
+        logger.debug(f"Current recursion depth: {self._recursion_depth}, Total retries: {self._total_retries}")
+        
         results = []
         completed_tasks = set()
 
@@ -300,16 +312,64 @@ class AgentOrchestrator:
     def _group_tasks_by_dependencies(
         self, tasks: List[SubAgentTask]
     ) -> List[List[SubAgentTask]]:
-        """Group tasks by dependency order."""
-        # Simple topological sort
-        task_map = {f"task_{i}": task for i, task in enumerate(tasks)}
-        for task_id, task in task_map.items():
+        """Group tasks by dependency order with cycle detection."""
+        # Create mapping from agent_id to task_id
+        agent_to_task_id = {}
+        task_map = {}
+        
+        for i, task in enumerate(tasks):
+            task_id = f"task_{i}"
             task.task_id = task_id
+            task_map[task_id] = task
+            agent_to_task_id[task.agent_id] = task_id
+        
+        # Convert agent_id dependencies to task_id dependencies
+        for task in tasks:
+            if task.dependencies:
+                task_dependencies = []
+                for dep in task.dependencies:
+                    if dep in agent_to_task_id:
+                        task_dependencies.append(agent_to_task_id[dep])
+                    else:
+                        # If dependency is already a task_id, keep it
+                        if dep.startswith("task_"):
+                            task_dependencies.append(dep)
+                        else:
+                            logger.warning(f"Unknown dependency '{dep}' for task {task.task_id}")
+                task.dependencies = task_dependencies
+
+        # Detect cycles using DFS
+        def has_cycle(task_id: str, visited: set, rec_stack: set) -> bool:
+            visited.add(task_id)
+            rec_stack.add(task_id)
+            
+            task = task_map.get(task_id)
+            if task and task.dependencies:
+                for dep in task.dependencies:
+                    if dep not in visited:
+                        if has_cycle(dep, visited, rec_stack):
+                            return True
+                    elif dep in rec_stack:
+                        logger.error(f"Circular dependency detected: {task_id} -> {dep}")
+                        return True
+            
+            rec_stack.remove(task_id)
+            return False
+
+        # Check for cycles
+        visited = set()
+        for task_id in task_map:
+            if task_id not in visited:
+                if has_cycle(task_id, visited, set()):
+                    raise ValueError(f"Circular dependencies detected in task graph")
 
         groups = []
         completed = set()
+        iterations = 0
+        max_iterations = len(tasks) + 1  # Safety limit
 
-        while len(completed) < len(tasks):
+        while len(completed) < len(tasks) and iterations < max_iterations:
+            iterations += 1
             current_group = []
             for task_id, task in task_map.items():
                 if task_id not in completed:
@@ -319,7 +379,9 @@ class AgentOrchestrator:
                         current_group.append(task)
 
             if not current_group:
-                # Circular dependency or invalid dependency
+                # This shouldn't happen after cycle detection
+                uncompleted = set(task_map.keys()) - completed
+                logger.error(f"Cannot resolve dependencies for tasks: {uncompleted}")
                 raise ValueError("Invalid task dependencies detected")
 
             groups.append(current_group)
@@ -425,6 +487,17 @@ class AgentOrchestrator:
 
     async def _execute_single_task(self, task: SubAgentTask) -> SubAgentResult:
         """Execute a single subagent task with retry logic and exponential backoff."""
+        # Check global timeout
+        if self._start_time and (time.time() - self._start_time) > self.global_timeout:
+            return SubAgentResult(
+                agent_id=task.agent_id,
+                task_id=task.task_id,
+                success=False,
+                result=None,
+                error=f"Global timeout exceeded ({self.global_timeout}s)",
+                error_type="GLOBAL_TIMEOUT",
+            )
+
         if task.agent_id not in self.subagents:
             return SubAgentResult(
                 agent_id=task.agent_id,
@@ -442,6 +515,18 @@ class AgentOrchestrator:
         retry_delay = getattr(task, "retry_delay", self.retry_delay)
         retry_backoff = getattr(task, "retry_backoff", self.retry_backoff)
         retry_timeout = getattr(task, "retry_timeout", self.retry_timeout)
+        
+        # Enforce global retry limit
+        if self._total_retries >= self.max_total_retries:
+            logger.warning(f"Global retry limit reached ({self.max_total_retries})")
+            return SubAgentResult(
+                agent_id=task.agent_id,
+                task_id=task.task_id,
+                success=False,
+                result=None,
+                error=f"Global retry limit exceeded",
+                error_type="RETRY_LIMIT_EXCEEDED",
+            )
 
         start_time = time.time()
         partial_results = []
@@ -456,6 +541,15 @@ class AgentOrchestrator:
 
         for attempt in range(max_retries + 1):
             try:
+                # Check global limits
+                if self._total_retries >= self.max_total_retries:
+                    logger.warning(f"Global retry limit reached during task execution")
+                    break
+                    
+                if self._start_time and (time.time() - self._start_time) > self.global_timeout:
+                    logger.warning(f"Global timeout reached during task execution")
+                    break
+
                 # Check timeout
                 if retry_timeout and (time.time() - start_time) > retry_timeout:
                     error_msg = f"Task timeout exceeded: {retry_timeout}s"
@@ -476,6 +570,7 @@ class AgentOrchestrator:
 
                 # Log retry attempt
                 if attempt > 0:
+                    self._total_retries += 1
                     orch_logger.log_retry_attempt(
                         task.task_id,
                         attempt,
@@ -577,17 +672,21 @@ class AgentOrchestrator:
         # All retries exhausted - try task decomposition as final fallback
         if (
             self.available_tools and len(task.task_description) > 100
-        ):  # Only for complex tasks
+            and self._decomposition_depth < self.max_decomposition_depth
+        ):  # Only for complex tasks and within depth limit
             logger.info(
-                f"Attempting task decomposition as final fallback for {task.task_id}"
+                f"Attempting task decomposition as final fallback for {task.task_id} (depth: {self._decomposition_depth})"
             )
             try:
+                self._decomposition_depth += 1
                 decomp_result = await self._execute_with_decomposition(task)
+                self._decomposition_depth -= 1
                 if decomp_result.success:
                     decomp_result.retry_count = retry_count
                     decomp_result.execution_time = time.time() - start_time
                     return decomp_result
             except Exception as decomp_error:
+                self._decomposition_depth -= 1
                 logger.warning(f"Task decomposition failed: {decomp_error}")
 
         # All fallbacks exhausted
@@ -620,13 +719,36 @@ class AgentOrchestrator:
 
     async def process(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
         """Process messages through the main agent with subagent delegation capability."""
-        return await self.main_agent.process(messages, **kwargs)
-
-    def clear_all_memory(self):
-        """Clear memory for all agents."""
-        self.main_agent.clear_memory()
-        for agent in self.subagents.values():
-            agent.clear_memory()
+        # Set start time for global timeout tracking
+        self._start_time = time.time()
+        
+        try:
+            # Create a task for the main processing
+            process_task = asyncio.create_task(self.main_agent.process(messages, **kwargs))
+            
+            # Wait with timeout
+            remaining_timeout = self.global_timeout
+            result = await asyncio.wait_for(process_task, timeout=remaining_timeout)
+            
+            return result
+        except asyncio.TimeoutError:
+            logger.error(f"Global orchestration timeout after {self.global_timeout}s")
+            # Cancel the task
+            process_task.cancel()
+            
+            # Return a timeout response
+            from .providers.base import LLMResponse
+            return LLMResponse(
+                content=f"Orchestration timed out after {self.global_timeout} seconds. The task was too complex or encountered issues.",
+                input_tokens=0,
+                output_tokens=0,
+                cost_in_cents=0,
+                latency_ms=int((time.time() - self._start_time) * 1000),
+                error="GLOBAL_TIMEOUT"
+            )
+        finally:
+            # Reset start time
+            self._start_time = None
 
     def _get_tool_name(self, tool: Callable) -> str:
         """Extract tool name from function."""
@@ -668,6 +790,18 @@ class AgentOrchestrator:
             input: DynamicPlanningRequest,
         ) -> Dict[str, Any]:
             """Dynamically create subagents based on the user's request."""
+            # Check recursion depth
+            if self._recursion_depth >= self.max_recursion_depth:
+                logger.warning(f"Max recursion depth reached ({self.max_recursion_depth})")
+                return {
+                    "error": "Maximum recursion depth exceeded - cannot create more subagents",
+                    "recursion_depth": self._recursion_depth
+                }
+            
+            logger.info(f"Planning subagents - Recursion depth: {self._recursion_depth}/{self.max_recursion_depth}")
+            logger.debug(f"Total retries so far: {self._total_retries}/{self.max_total_retries}")
+            logger.debug(f"Decomposition depth: {self._decomposition_depth}/{self.max_decomposition_depth}")
+            
             # Log the start of the request
             orch_logger.log_request_start(input.user_request)
             orch_logger.log_planning_analysis(input.analysis)
@@ -739,39 +873,52 @@ Return a JSON object with this structure:
             created_agents = []
             tasks = []
 
-            for plan in plan_data.subagent_plans:
-                agent_id = plan.agent_id
+            # Increment recursion depth before creating subagents
+            self._recursion_depth += 1
+            
+            try:
+                for plan in plan_data.subagent_plans:
+                    agent_id = plan.agent_id
 
-                # Get tools for this subagent
-                agent_tools = []
-                for tool_name in plan.tools:
-                    if tool_name in self.tool_registry:
-                        agent_tools.append(self.tool_registry[tool_name])
+                    # Get tools for this subagent
+                    agent_tools = []
+                    for tool_name in plan.tools:
+                        if tool_name in self.tool_registry:
+                            agent_tools.append(self.tool_registry[tool_name])
 
-                # Create the subagent
-                subagent = Agent(
-                    agent_id=agent_id,
-                    provider=self.subagent_provider,
-                    model=self.subagent_model,
-                    system_prompt=plan.system_prompt,
-                    tools=agent_tools,
-                )
+                    # Filter out planning tools to prevent recursive agent creation
+                    agent_tools = [
+                        tool for tool in agent_tools 
+                        if tool.__name__ not in ['plan_and_create_subagents', 'delegate_to_subagents']
+                    ]
 
-                # Register the subagent
-                self.register_subagent(subagent)
-                created_agents.append(agent_id)
+                    # Create the subagent
+                    subagent = Agent(
+                        agent_id=agent_id,
+                        provider=self.subagent_provider,
+                        model=self.subagent_model,
+                        system_prompt=plan.system_prompt,
+                        tools=agent_tools,
+                    )
 
-                # Create task for this subagent
-                task = SubAgentTask(
-                    agent_id=agent_id,
-                    task_description=plan.task_description,
-                    execution_mode=ExecutionMode(plan.execution_mode),
-                    dependencies=plan.dependencies,
-                )
-                tasks.append(task)
+                    # Register the subagent
+                    self.register_subagent(subagent)
+                    created_agents.append(agent_id)
 
-            # Execute the tasks
-            results = await self._execute_subagent_tasks(tasks)
+                    # Create task for this subagent
+                    task = SubAgentTask(
+                        agent_id=agent_id,
+                        task_description=plan.task_description,
+                        execution_mode=ExecutionMode(plan.execution_mode),
+                        dependencies=plan.dependencies,
+                    )
+                    tasks.append(task)
+
+                # Execute the tasks
+                results = await self._execute_subagent_tasks(tasks)
+            finally:
+                # Always decrement recursion depth
+                self._recursion_depth -= 1
 
             # Format results
             formatted_results = {
