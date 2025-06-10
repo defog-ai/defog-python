@@ -4,7 +4,8 @@ import asyncio
 import logging
 import time
 import traceback
-from typing import List, Dict, Any, Optional, Union, Callable
+import threading
+from typing import List, Dict, Any, Optional, Union, Callable, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 import json
@@ -191,6 +192,9 @@ class AgentOrchestrator:
         self._total_retries = 0
         self._decomposition_depth = 0
         self._start_time = None
+        
+        # Thread safety for counters
+        self._counter_lock = threading.Lock()
 
         # For dynamic subagent creation
         self.available_tools = available_tools or []
@@ -207,10 +211,111 @@ class AgentOrchestrator:
         self.circuit_breaker_threshold = 5
         self.circuit_breaker_timeout = 60
 
+        # Validate configuration parameters
+        self._validate_config(
+            max_recursion_depth,
+            max_total_retries,
+            max_decomposition_depth,
+            global_timeout,
+            max_parallel_tasks,
+            max_retries,
+            retry_delay,
+            retry_backoff
+        )
+
         # Add delegation tools to main agent
         self._add_delegation_tool()
         if self.available_tools:
             self._add_dynamic_planning_tool()
+    
+    def _validate_config(
+        self,
+        max_recursion_depth: int,
+        max_total_retries: int,
+        max_decomposition_depth: int,
+        global_timeout: float,
+        max_parallel_tasks: int,
+        max_retries: int,
+        retry_delay: float,
+        retry_backoff: float
+    ) -> None:
+        """Validate configuration parameters."""
+        if max_recursion_depth < 1:
+            raise ValueError("max_recursion_depth must be >= 1")
+        if max_total_retries < 1:
+            raise ValueError("max_total_retries must be >= 1")
+        if max_decomposition_depth < 1:
+            raise ValueError("max_decomposition_depth must be >= 1")
+        if global_timeout <= 0:
+            raise ValueError("global_timeout must be > 0")
+        if max_parallel_tasks < 1:
+            raise ValueError("max_parallel_tasks must be >= 1")
+        if max_retries < 0:
+            raise ValueError("max_retries must be >= 0")
+        if retry_delay < 0:
+            raise ValueError("retry_delay must be >= 0")
+        if retry_backoff <= 0:
+            raise ValueError("retry_backoff must be > 0")
+        
+        logger.info(f"Orchestrator initialized with limits: recursion_depth={max_recursion_depth}, total_retries={max_total_retries}, decomposition_depth={max_decomposition_depth}, timeout={global_timeout}s")
+
+    def _increment_total_retries(self) -> None:
+        """Thread-safe increment of total retries counter."""
+        with self._counter_lock:
+            self._total_retries += 1
+    
+    def _increment_recursion_depth(self) -> None:
+        """Thread-safe increment of recursion depth counter."""
+        with self._counter_lock:
+            self._recursion_depth += 1
+    
+    def _decrement_recursion_depth(self) -> None:
+        """Thread-safe decrement of recursion depth counter."""
+        with self._counter_lock:
+            self._recursion_depth -= 1
+    
+    def _increment_decomposition_depth(self) -> None:
+        """Thread-safe increment of decomposition depth counter."""
+        with self._counter_lock:
+            self._decomposition_depth += 1
+    
+    def _decrement_decomposition_depth(self) -> None:
+        """Thread-safe decrement of decomposition depth counter."""
+        with self._counter_lock:
+            self._decomposition_depth -= 1
+    
+    def _get_counter_values(self) -> Tuple[int, int, int]:
+        """Thread-safe getter for all counter values."""
+        with self._counter_lock:
+            return (self._total_retries, self._recursion_depth, self._decomposition_depth)
+    
+    def _get_cycle_path(self, task_map: Dict[str, Any], start_task: str, end_task: str) -> List[str]:
+        """Get the path of a circular dependency for better error messages."""
+        visited = set()
+        path = []
+        
+        def dfs_path(current_task: str, target_task: str, current_path: List[str]) -> bool:
+            if current_task in visited:
+                return False
+                
+            visited.add(current_task)
+            current_path.append(current_task)
+            
+            if current_task == target_task and len(current_path) > 1:
+                return True
+                
+            task = task_map.get(current_task)
+            if task and task.dependencies:
+                for dep in task.dependencies:
+                    if dfs_path(dep, target_task, current_path):
+                        return True
+            
+            current_path.pop()
+            return False
+        
+        if dfs_path(start_task, end_task, path):
+            return path
+        return [start_task, end_task]  # Fallback minimal path
 
     def _add_delegation_tool(self):
         """Add delegation tool to main agent's toolset."""
@@ -339,7 +444,7 @@ class AgentOrchestrator:
                 task.dependencies = task_dependencies
 
         # Detect cycles using DFS
-        def has_cycle(task_id: str, visited: set, rec_stack: set) -> bool:
+        def has_cycle(task_id: str, visited: set, rec_stack: set) -> Tuple[bool, str, str]:
             visited.add(task_id)
             rec_stack.add(task_id)
             
@@ -347,21 +452,28 @@ class AgentOrchestrator:
             if task and task.dependencies:
                 for dep in task.dependencies:
                     if dep not in visited:
-                        if has_cycle(dep, visited, rec_stack):
-                            return True
+                        result = has_cycle(dep, visited, rec_stack)
+                        if result[0]:  # Cycle found
+                            return result
                     elif dep in rec_stack:
                         logger.error(f"Circular dependency detected: {task_id} -> {dep}")
-                        return True
+                        return (True, task_id, dep)  # Return cycle info
             
             rec_stack.remove(task_id)
-            return False
+            return (False, "", "")
 
         # Check for cycles
         visited = set()
         for task_id in task_map:
             if task_id not in visited:
-                if has_cycle(task_id, visited, set()):
-                    raise ValueError(f"Circular dependencies detected in task graph")
+                has_cycle_result = has_cycle(task_id, visited, set())
+                if has_cycle_result[0]:
+                    # Get the cycle path for better error message
+                    cycle_path = self._get_cycle_path(task_map, has_cycle_result[1], has_cycle_result[2])
+                    cycle_path_str = " -> ".join(cycle_path)
+                    error_msg = f"Circular dependencies detected in task graph: {cycle_path_str}"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
 
         groups = []
         completed = set()
@@ -570,7 +682,7 @@ class AgentOrchestrator:
 
                 # Log retry attempt
                 if attempt > 0:
-                    self._total_retries += 1
+                    self._increment_total_retries()
                     orch_logger.log_retry_attempt(
                         task.task_id,
                         attempt,
@@ -678,15 +790,15 @@ class AgentOrchestrator:
                 f"Attempting task decomposition as final fallback for {task.task_id} (depth: {self._decomposition_depth})"
             )
             try:
-                self._decomposition_depth += 1
+                self._increment_decomposition_depth()
                 decomp_result = await self._execute_with_decomposition(task)
-                self._decomposition_depth -= 1
+                self._decrement_decomposition_depth()
                 if decomp_result.success:
                     decomp_result.retry_count = retry_count
                     decomp_result.execution_time = time.time() - start_time
                     return decomp_result
             except Exception as decomp_error:
-                self._decomposition_depth -= 1
+                self._decrement_decomposition_depth()
                 logger.warning(f"Task decomposition failed: {decomp_error}")
 
         # All fallbacks exhausted
@@ -790,28 +902,32 @@ class AgentOrchestrator:
             input: DynamicPlanningRequest,
         ) -> Dict[str, Any]:
             """Dynamically create subagents based on the user's request."""
-            # Check recursion depth
-            if self._recursion_depth >= self.max_recursion_depth:
-                logger.warning(f"Max recursion depth reached ({self.max_recursion_depth})")
-                return {
-                    "error": "Maximum recursion depth exceeded - cannot create more subagents",
-                    "recursion_depth": self._recursion_depth
-                }
+            # Increment recursion depth first, then check limit
+            self._increment_recursion_depth()
             
-            logger.info(f"Planning subagents - Recursion depth: {self._recursion_depth}/{self.max_recursion_depth}")
-            logger.debug(f"Total retries so far: {self._total_retries}/{self.max_total_retries}")
-            logger.debug(f"Decomposition depth: {self._decomposition_depth}/{self.max_decomposition_depth}")
+            try:
+                # Check if we've exceeded the recursion depth limit
+                if self._recursion_depth > self.max_recursion_depth:
+                    logger.warning(f"Max recursion depth exceeded ({self.max_recursion_depth})")
+                    return {
+                        "error": "Maximum recursion depth exceeded - cannot create more subagents",
+                        "recursion_depth": self._recursion_depth
+                    }
             
-            # Log the start of the request
-            orch_logger.log_request_start(input.user_request)
-            orch_logger.log_planning_analysis(input.analysis)
+                logger.info(f"Planning subagents - Recursion depth: {self._recursion_depth}/{self.max_recursion_depth}")
+                logger.debug(f"Total retries so far: {self._total_retries}/{self.max_total_retries}")
+                logger.debug(f"Decomposition depth: {self._decomposition_depth}/{self.max_decomposition_depth}")
+                
+                # Log the start of the request
+                orch_logger.log_request_start(input.user_request)
+                orch_logger.log_planning_analysis(input.analysis)
 
-            # Use the planning LLM to analyze the request and create subagent plans
-            planning_messages = [
-                {
-                    "role": "system",
-                    "content": f"""You are a planning agent that designs specialized subagents for complex tasks.
-                    
+                # Use the planning LLM to analyze the request and create subagent plans
+                planning_messages = [
+                    {
+                        "role": "system",
+                        "content": f"""You are a planning agent that designs specialized subagents for complex tasks.
+                        
 Available tools that can be assigned to subagents:
 {self._format_available_tools()}
 
@@ -836,18 +952,17 @@ Return a JSON object with this structure:
     ],
     "reasoning": "Explanation of why these subagents and this structure"
 }}""",
-                },
-                {
-                    "role": "user",
-                    "content": f"User request: {input.user_request}\n\nAnalysis: {input.analysis}",
-                },
-            ]
+                    },
+                    {
+                        "role": "user",
+                        "content": f"User request: {input.user_request}\n\nAnalysis: {input.analysis}",
+                    },
+                ]
 
-            orch_logger.log_llm_call(
-                self.planning_provider, self.planning_model, "Planning"
-            )
+                orch_logger.log_llm_call(
+                    self.planning_provider, self.planning_model, "Planning"
+                )
 
-            try:
                 planning_response = await chat_async(
                     provider=self.planning_provider,
                     model=self.planning_model,
@@ -865,18 +980,10 @@ Return a JSON object with this structure:
                     plan_data.reasoning,
                 )
 
-            except Exception as e:
-                logger.error(f"Error in planning LLM call: {e}", exc_info=True)
-                return {"error": f"Planning LLM call failed: {str(e)}"}
-
-            # Create subagents based on the plan
-            created_agents = []
-            tasks = []
-
-            # Increment recursion depth before creating subagents
-            self._recursion_depth += 1
-            
-            try:
+                # Create subagents based on the plan
+                created_agents = []
+                tasks = []
+                
                 for plan in plan_data.subagent_plans:
                     agent_id = plan.agent_id
 
@@ -916,30 +1023,34 @@ Return a JSON object with this structure:
 
                 # Execute the tasks
                 results = await self._execute_subagent_tasks(tasks)
-            finally:
-                # Always decrement recursion depth
-                self._recursion_depth -= 1
-
-            # Format results
-            formatted_results = {
-                "created_agents": created_agents,
-                "reasoning": plan_data.reasoning,
-                "task_results": {},
-            }
-
-            for result in results:
-                formatted_results["task_results"][result.task_id] = {
-                    "agent_id": result.agent_id,
-                    "success": result.success,
-                    "result": result.result,
-                    "error": result.error,
-                    "metadata": result.metadata,
+                
+                # Format results
+                formatted_results = {
+                    "created_agents": created_agents,
+                    "reasoning": plan_data.reasoning,
+                    "task_results": {},
                 }
 
-            # Log orchestration completion
-            orch_logger.log_orchestration_complete(formatted_results)
+                for result in results:
+                    formatted_results["task_results"][result.task_id] = {
+                        "agent_id": result.agent_id,
+                        "success": result.success,
+                        "result": result.result,
+                        "error": result.error,
+                        "metadata": result.metadata,
+                    }
 
-            return formatted_results
+                # Log orchestration completion
+                orch_logger.log_orchestration_complete(formatted_results)
+
+                return formatted_results
+            
+            except Exception as e:
+                logger.error(f"Error in planning LLM call: {e}", exc_info=True)
+                return {"error": f"Planning LLM call failed: {str(e)}"}
+            finally:
+                # Always decrement recursion depth
+                self._decrement_recursion_depth()
 
         # Add to main agent's tools
         self.main_agent.tools.append(plan_and_create_subagents)
