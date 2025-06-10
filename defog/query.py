@@ -302,9 +302,9 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
 
 def execute_query(
     query: str,
-    api_key: str,
     db_type: str,
     db_creds,
+    api_key: str = None,
     question: str = "",
     hard_filters: str = "",
     retries: int = 3,
@@ -318,81 +318,25 @@ def execute_query(
     Raises an Exception if there are no retries left, or if the error is a connection error.
     """
     err_msg = None
-    # if base_url is not explicitly defined, check if DEFOG_BASE_URL is set in the environment
-    # if not, then use "https://api.defog.ai" as the default
-    if base_url is None:
-        base_url = os.environ.get("DEFOG_BASE_URL", "https://api.defog.ai")
+
 
     try:
-        return execute_query_once(db_type, db_creds, query) + (query,)
+        return execute_query_once(db_type, db_creds, query)
     except Exception as e:
         err_msg = str(e)
         if is_connection_error(err_msg):
             raise Exception(
                 f"There was a connection issue to your database:\n{err_msg}\n\nPlease check your database credentials and try again."
             )
-        # log this error to our feedback system first (this is a 1-way side-effect)
-        try:
-            requests.post(
-                f"{base_url}/feedback",
-                json={
-                    "api_key": api_key,
-                    "feedback": "bad",
-                    "text": err_msg,
-                    "db_type": db_type,
-                    "question": question,
-                    "query": query,
-                    "dev": dev,
-                    "temp": temp,
-                },
-                timeout=1,
-                
-            )
-        except:
-            pass
-        # log locally
-        write_logs(str(e))
-        # retry with adaptive learning
-        while retries > 0:
-            write_logs(f"Retries left: {retries}")
-            try:
-                retry = {
-                    "api_key": api_key,
-                    "previous_query": query,
-                    "error": err_msg,
-                    "db_type": db_type,
-                    "hard_filters": hard_filters,
-                    "question": question,
-                    "dev": dev,
-                    "temp": temp,
-                }
-                if schema is not None:
-                    retry["schema"] = schema
-                write_logs(json.dumps(retry))
-                r = requests.post(
-                    f"{base_url}/retry_query_after_error",
-                    json=retry,
-                    
-                )
-                response = r.json()
-                new_query = response["new_query"]
-                write_logs(f"New query: \n{new_query}")
-                return execute_query_once(db_type, db_creds, new_query) + (new_query,)
-            except Exception as e:
-                err_msg = str(e)
-                print(
-                    "There was an error when running the previous query. Retrying with adaptive learning..."
-                )
-                write_logs(str(e))
-                retries -= 1
-        raise Exception(err_msg)
+        else:
+            raise Exception(err_msg)
 
 
 async def async_execute_query(
     query: str,
-    api_key: str,
     db_type: str,
     db_creds,
+    api_key: str = None,
     question: str = "",
     hard_filters: str = "",
     retries: int = 3,
@@ -406,77 +350,18 @@ async def async_execute_query(
     Raises an Exception if there are no retries left, or if the error is a connection error.
     """
     err_msg = None
-    # if base_url is not explicitly defined, check if DEFOG_BASE_URL is set in the environment
-    # if not, then use "https://api.defog.ai" as the default
-    if base_url is None:
-        base_url = os.environ.get("DEFOG_BASE_URL", "https://api.defog.ai")
 
     try:
         return await async_execute_query_once(
             db_type=db_type, db_creds=db_creds, query=query
-        ) + (query,)
+        )
     except Exception as e:
         err_msg = str(e)
         if is_connection_error(err_msg):
             raise Exception(
                 f"There was a connection issue to your database:\n{err_msg}\n\nPlease check your database credentials and try again."
             )
-        # log this error to our feedback system first (this is a 1-way side-effect)
-        try:
-            if os.environ.get("LOG_ERROR_TO_DEFOG") != "no":
-                await make_async_post_request(
-                    url=f"{base_url}/feedback",
-                    payload={
-                        "api_key": api_key,
-                        "feedback": "bad",
-                        "text": err_msg,
-                        "db_type": db_type,
-                        "question": question,
-                        "query": query,
-                        "dev": dev,
-                        "temp": temp,
-                    },
-                    timeout=1,
-                )
-        except:
-            pass
-        # log locally
-        write_logs(str(e))
-        # retry with adaptive learning
-        while retries > 0:
-            write_logs(f"Retries left: {retries}")
-            try:
-                retry = {
-                    "api_key": api_key,
-                    "previous_query": query,
-                    "error": err_msg,
-                    "db_type": db_type,
-                    "hard_filters": hard_filters,
-                    "question": question,
-                    "dev": dev,
-                    "temp": temp,
-                }
-                if schema is not None:
-                    retry["schema"] = schema
-
-                write_logs(json.dumps(retry))
-
-                response = await make_async_post_request(
-                    url=f"{base_url}/retry_query_after_error",
-                    payload=retry,
-                )
-                new_query = response["new_query"]
-                write_logs(f"New query: \n{new_query}")
-                return await async_execute_query_once(db_type, db_creds, new_query) + (
-                    new_query,
-                )
-            except Exception as e:
-                err_msg = str(e)
-                print(
-                    "There was an error when running the previous query. Retrying with adaptive learning..."
-                )
-                write_logs(str(e))
-                retries -= 1
+        
         raise Exception(err_msg)
 
 
