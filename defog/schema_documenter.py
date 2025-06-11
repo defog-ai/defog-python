@@ -45,6 +45,16 @@ def _validate_sql_identifier(identifier: str) -> str:
     Raises:
         ValueError: If identifier contains invalid characters
     """
+    # Length check (255 bytes is reasonable for most databases)
+    if len(identifier.encode('utf-8')) > 255:
+        raise ValueError(f"SQL identifier too long: {len(identifier.encode('utf-8'))} bytes (max 255)")
+    
+    # Reject zero-width and invisible characters
+    invisible_chars = ['\u200b', '\u200c', '\u200d', '\ufeff', '\u2060']
+    for char in invisible_chars:
+        if char in identifier:
+            raise ValueError(f"SQL identifier contains invisible/zero-width characters")
+    
     # Handle quoted identifiers (double quotes)
     if identifier.startswith('"') and identifier.endswith('"'):
         # For quoted identifiers, we're more permissive but still check for truly dangerous patterns
