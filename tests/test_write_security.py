@@ -1,11 +1,9 @@
 """Security tests to verify SQL injection fixes."""
 
 import pytest
-import logging
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from defog.schema_documenter import (
     SchemaDocumenter,
-    DocumentationConfig,
     _validate_sql_identifier
 )
 
@@ -20,7 +18,17 @@ class TestSQLInjectionPrevention:
             "user_table",
             "schema1.table1",
             "Table123",
-            "schema.Table_Name_123"
+            "schema.Table_Name_123",
+            "customer_updates",
+            "dropshipments",
+            "drop_update",
+            '"My Table"',
+            "my_table",
+            "my_drop_table",
+            "my_table_123",
+            "my_drop_table_123",
+            "my_table_123",
+            '"my drop table"',
         ]
         
         for identifier in valid_identifiers:
@@ -120,7 +128,9 @@ class TestSQLInjectionPrevention:
         # Mock connection and cursor
         mock_conn = Mock()
         mock_cursor = Mock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.__enter__ = Mock(return_value=mock_cursor)
+        mock_cursor.__exit__ = Mock(return_value=None)
         
         # Test with malicious table name
         malicious_table = "users; DROP TABLE important_data; --"
@@ -137,7 +147,9 @@ class TestSQLInjectionPrevention:
         # Mock connection and cursor
         mock_conn = Mock()
         mock_cursor = Mock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.__enter__ = Mock(return_value=mock_cursor)
+        mock_cursor.__exit__ = Mock(return_value=None)
         
         # Test with malicious table name
         malicious_table = "users; DROP TABLE important_data; --"
@@ -158,7 +170,9 @@ class TestSQLInjectionPrevention:
         # Mock connection and cursor
         mock_conn = Mock()
         mock_cursor = Mock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.__enter__ = Mock(return_value=mock_cursor)
+        mock_cursor.__exit__ = Mock(return_value=None)
         
         # Test with malicious table and column names
         malicious_table = "users; DROP TABLE important_data; --"
@@ -181,7 +195,9 @@ class TestSQLInjectionPrevention:
         mock_conn = Mock()
         mock_cursor = Mock()
         mock_cursor.fetchone.return_value = (42,)
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.__enter__ = Mock(return_value=mock_cursor)
+        mock_cursor.__exit__ = Mock(return_value=None)
         
         # Test with safe table name
         safe_table = "users"
@@ -204,7 +220,9 @@ class TestSQLInjectionPrevention:
         mock_conn = Mock()
         mock_cursor = Mock()
         mock_cursor.fetchone.return_value = (100,)
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.__enter__ = Mock(return_value=mock_cursor)
+        mock_cursor.__exit__ = Mock(return_value=None)
         
         # Test with safe schema.table format
         safe_table = "public.users"
