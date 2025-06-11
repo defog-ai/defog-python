@@ -11,12 +11,12 @@ from enum import Enum
 import json
 import inspect
 
-logger = logging.getLogger(__name__)
-
 from .utils import chat_async
 from .utils_memory import chat_async_with_memory, create_memory_manager
 from .providers.base import BaseLLMProvider, LLMResponse
 from .utils_logging import orch_logger
+
+logger = logging.getLogger(__name__)
 
 
 class ExecutionMode(Enum):
@@ -81,6 +81,7 @@ class Agent:
         system_prompt: Optional[str] = None,
         tools: Optional[List[Callable]] = None,
         memory_config: Optional[Dict[str, Any]] = None,
+        reasoning_effort: Optional[str] = "medium",
         **kwargs,
     ):
         self.agent_id = agent_id
@@ -88,6 +89,7 @@ class Agent:
         self.model = model
         self.system_prompt = system_prompt
         self.tools = tools or []
+        self.reasoning_effort = reasoning_effort
         self.kwargs = kwargs  # Additional params for chat_async
 
         # Initialize memory if configured
@@ -126,6 +128,10 @@ class Agent:
 
         # Merge kwargs
         call_kwargs = {**self.kwargs, **kwargs}
+        
+        # Add reasoning_effort if not already specified in kwargs
+        if "reasoning_effort" not in call_kwargs and self.reasoning_effort:
+            call_kwargs["reasoning_effort"] = self.reasoning_effort
 
         # Use memory-enabled chat if memory manager exists
         if self.memory_manager:
@@ -161,6 +167,7 @@ class AgentOrchestrator:
         subagent_model: Optional[str] = None,
         planning_provider: str = "anthropic",
         planning_model: str = "claude-opus-4-20250514",
+        reasoning_effort: Optional[str] = "medium",
         max_retries: int = 3,
         retry_delay: float = 1.0,
         retry_backoff: float = 2.0,
@@ -205,6 +212,7 @@ class AgentOrchestrator:
         self.subagent_model = subagent_model or main_agent.model
         self.planning_provider = planning_provider
         self.planning_model = planning_model
+        self.reasoning_effort = reasoning_effort
 
         # Circuit breaker state
         self.failure_count = 0
@@ -587,7 +595,6 @@ class AgentOrchestrator:
             )
 
             # Replace failed results with retry results
-            failed_task_ids = {task.task_id for task in failed_tasks}
             for i, retry_result in enumerate(retry_results):
                 failed_task = failed_tasks[i]
 
@@ -656,7 +663,7 @@ class AgentOrchestrator:
                 task_id=task.task_id,
                 success=False,
                 result=None,
-                error=f"Global retry limit exceeded",
+                error="Global retry limit exceeded",
                 error_type="RETRY_LIMIT_EXCEEDED",
             )
 
@@ -675,14 +682,14 @@ class AgentOrchestrator:
             try:
                 # Check global limits
                 if self._total_retries >= self.max_total_retries:
-                    logger.warning(f"Global retry limit reached during task execution")
+                    logger.warning("Global retry limit reached during task execution")
                     break
 
                 if (
                     self._start_time
                     and (time.time() - self._start_time) > self.global_timeout
                 ):
-                    logger.warning(f"Global timeout reached during task execution")
+                    logger.warning("Global timeout reached during task execution")
                     break
 
                 # Check timeout
@@ -900,7 +907,6 @@ class AgentOrchestrator:
     def _add_dynamic_planning_tool(self):
         """Add tool for dynamically planning and creating subagents."""
         from pydantic import BaseModel, Field
-        from typing import List as ListType
 
         class DynamicPlanningRequest(BaseModel):
             """Request to dynamically create subagents and plan tasks."""
@@ -1004,6 +1010,7 @@ Return a JSON object with this structure:
                     messages=planning_messages,
                     temperature=0.2,
                     response_format=PlanningResponse,
+                    reasoning_effort=self.reasoning_effort,
                 )
 
                 # The response is already a structured Pydantic object
@@ -1043,6 +1050,7 @@ Return a JSON object with this structure:
                         model=self.subagent_model,
                         system_prompt=plan.system_prompt,
                         tools=agent_tools,
+                        reasoning_effort=self.reasoning_effort,
                     )
 
                     # Register the subagent
@@ -1103,7 +1111,6 @@ Return a JSON object with this structure:
     def _classify_error(self, error: Exception) -> str:
         """Classify error type for retry decisions."""
         error_str = str(error).lower()
-        error_type = type(error).__name__
 
         # Network/timeout errors - retryable
         if any(
@@ -1216,6 +1223,7 @@ Return a JSON array of subtask descriptions.""",
                 messages=decomposition_messages,
                 temperature=0.2,
                 response_format=TaskDecomposition,
+                reasoning_effort=self.reasoning_effort,
             )
 
             decomposition = response.content
