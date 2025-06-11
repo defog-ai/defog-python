@@ -20,7 +20,7 @@ class TestDefog(unittest.TestCase):
         self.assertEqual(df.api_key, "test_api_key")
         self.assertEqual(df.db_type, "postgres")
         self.assertEqual(df.db_creds, db_creds)
-    
+
     def test_defog_good_no_api_key(self):
         print("testing Defog with good params")
         db_creds = {

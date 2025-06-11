@@ -50,7 +50,7 @@ async def get_query(
             # Try to get from cache first
             cache = get_global_cache()
             table_metadata = cache.get(self.api_key, self.db_type, dev)
-            
+
             if table_metadata is None:
                 # Not in cache, extract metadata directly from the database
                 try:
@@ -58,20 +58,20 @@ async def get_query(
                         db_type=self.db_type,
                         db_creds=self.db_creds,
                         cache=cache if cache_metadata else None,
-                        api_key=self.api_key
+                        api_key=self.api_key,
                     )
                 except Exception as e:
                     return {
                         "ran_successfully": False,
                         "error_message": f"Failed to extract database metadata: {str(e)}. Please provide table_metadata parameter or check database connection.",
                     }
-        
+
         # Set defaults for provider and model if not specified
         if llm_provider is None:
             llm_provider = LLMProvider.ANTHROPIC
         if llm_model is None:
             llm_model = "claude-sonnet-4-20250514"
-        
+
         return await generate_sql_query_local(
             question=question,
             table_metadata=table_metadata,
@@ -82,9 +82,9 @@ async def get_query(
             hard_filters=hard_filters,
             previous_context=previous_context,
             temperature=0.0,
-            config=getattr(self, 'llm_config', None),
+            config=getattr(self, "llm_config", None),
         )
-    
+
     # Original API-based implementation
     try:
         data = {

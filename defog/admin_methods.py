@@ -32,14 +32,14 @@ def update_db_schema(self, path_to_csv, dev=False, temp=False):
             "db_type": self.db_type,
             "dev": dev,
             "temp": temp,
-        }
+        },
     )
     resp = r.json()
-    
+
     # Invalidate cache after updating schema
     cache = get_global_cache()
     cache.invalidate(self.api_key, self.db_type, dev)
-    
+
     return resp
 
 
@@ -136,9 +136,7 @@ def get_feedback(self, n_rows: int = 50, start_from: int = 0):
     """
     Gets the feedback on the defog servers.
     """
-    r = requests.post(
-        f"{self.base_url}/get_feedback", json={"api_key": self.api_key}
-    )
+    r = requests.post(f"{self.base_url}/get_feedback", json={"api_key": self.api_key})
     resp = r.json()
     df = pd.DataFrame(resp["data"], columns=resp["columns"])
     df["created_at"] = df["created_at"].apply(lambda x: x[:10])

@@ -1,6 +1,7 @@
 """
 Local SQL generation using LLM providers without external API calls.
 """
+
 import json
 from typing import Dict, List, Optional, Any, Union
 from defog.llm.utils import chat_async, LLMProvider
@@ -10,28 +11,28 @@ from defog.llm.config import LLMConfig
 def format_schema_for_prompt(table_metadata: Dict[str, List[Dict[str, str]]]) -> str:
     """
     Format table metadata into a string representation for the LLM prompt.
-    
+
     Args:
         table_metadata: Dictionary mapping table names to lists of column info
-        
+
     Returns:
         Formatted string representation of the schema
     """
     schema_parts = []
-    
+
     for table_name, columns in table_metadata.items():
         schema_parts.append(f"Table: {table_name}")
         for col in columns:
-            col_name = col.get('column_name', '')
-            data_type = col.get('data_type', '')
-            description = col.get('column_description', '')
-            
+            col_name = col.get("column_name", "")
+            data_type = col.get("data_type", "")
+            description = col.get("column_description", "")
+
             col_str = f"  - {col_name} ({data_type})"
             if description:
                 col_str += f": {description}"
             schema_parts.append(col_str)
         schema_parts.append("")  # Empty line between tables
-    
+
     return "\n".join(schema_parts)
 
 
@@ -45,7 +46,7 @@ def build_sql_generation_prompt(
 ) -> List[Dict[str, str]]:
     """
     Build the prompt messages for SQL generation.
-    
+
     Args:
         question: Natural language question
         table_metadata: Database schema information
@@ -53,13 +54,13 @@ def build_sql_generation_prompt(
         glossary: Optional business glossary
         hard_filters: Optional hard filters to apply
         previous_context: Optional previous conversation context
-        
+
     Returns:
         List of message dictionaries for the LLM
     """
     # Format the schema
     schema_str = format_schema_for_prompt(table_metadata)
-    
+
     # Build the system prompt
     system_prompt = f"""You are an expert SQL developer. Your task is to convert natural language questions into SQL queries for a {db_type} database.
 
@@ -76,20 +77,20 @@ Rules:
 
     if glossary:
         system_prompt += f"\n\nBusiness Glossary:\n{glossary}"
-    
+
     if hard_filters:
         system_prompt += f"\n\nAlways apply these filters:\n{hard_filters}"
-    
+
     messages = [{"role": "system", "content": system_prompt}]
-    
+
     # Add previous context if provided
     if previous_context:
         for ctx in previous_context:
             messages.append(ctx)
-    
+
     # Add the current question
     messages.append({"role": "user", "content": question})
-    
+
     return messages
 
 
@@ -107,7 +108,7 @@ async def generate_sql_query_local(
 ) -> Dict[str, Any]:
     """
     Generate SQL query locally using LLM providers.
-    
+
     Args:
         question: Natural language question
         table_metadata: Database schema information
@@ -119,7 +120,7 @@ async def generate_sql_query_local(
         previous_context: Optional previous conversation context
         temperature: LLM temperature setting
         config: Optional LLM configuration
-        
+
     Returns:
         Dictionary with generated SQL and metadata
     """
@@ -133,7 +134,7 @@ async def generate_sql_query_local(
             hard_filters=hard_filters,
             previous_context=previous_context,
         )
-        
+
         # Generate SQL using the LLM
         response = await chat_async(
             provider=provider,
@@ -143,10 +144,10 @@ async def generate_sql_query_local(
             max_completion_tokens=2000,
             config=config,
         )
-        
+
         # Extract the SQL query
         sql_query = response.content.strip()
-        
+
         # Clean up the SQL if it contains markdown formatting
         if sql_query.startswith("```sql"):
             sql_query = sql_query[6:]
@@ -155,13 +156,16 @@ async def generate_sql_query_local(
         if sql_query.endswith("```"):
             sql_query = sql_query[:-3]
         sql_query = sql_query.strip()
-        
+
         # Generate a reason for the query
         reason_messages = messages + [
             {"role": "assistant", "content": sql_query},
-            {"role": "user", "content": "Briefly explain in 1-2 sentences why this SQL query answers the question."}
+            {
+                "role": "user",
+                "content": "Briefly explain in 1-2 sentences why this SQL query answers the question.",
+            },
         ]
-        
+
         reason_response = await chat_async(
             provider=provider,
             model=model,
@@ -170,14 +174,14 @@ async def generate_sql_query_local(
             max_completion_tokens=200,
             config=config,
         )
-        
+
         reason = reason_response.content.strip()
-        
+
         # Update context for future queries
         new_context = previous_context.copy() if previous_context else []
         new_context.append({"role": "user", "content": question})
         new_context.append({"role": "assistant", "content": sql_query})
-        
+
         return {
             "query_generated": sql_query,
             "ran_successfully": True,
@@ -186,7 +190,7 @@ async def generate_sql_query_local(
             "reason_for_query": reason,
             "previous_context": new_context,
         }
-        
+
     except Exception as e:
         return {
             "query_generated": None,
@@ -214,7 +218,7 @@ def generate_sql_query_local_sync(
     Synchronous wrapper for generate_sql_query_local.
     """
     import asyncio
-    
+
     return asyncio.run(
         generate_sql_query_local(
             question=question,

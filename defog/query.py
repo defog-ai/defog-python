@@ -138,8 +138,10 @@ def execute_query_once(db_type: str, db_creds, query: str):
         try:
             import sqlite3
         except ImportError as e:
-            raise ImportError("sqlite3 module not available. This should be included with Python by default.") from e
-        
+            raise ImportError(
+                "sqlite3 module not available. This should be included with Python by default."
+            ) from e
+
         database_path = db_creds.get("database", ":memory:")
         if database_path != ":memory:" and not isinstance(database_path, str):
             raise ValueError("Database path must be a string or ':memory:'")
@@ -154,17 +156,21 @@ def execute_query_once(db_type: str, db_creds, query: str):
         try:
             import duckdb
         except ImportError as e:
-            raise ImportError("duckdb not installed. Please install it with `pip install duckdb`.") from e
-        
+            raise ImportError(
+                "duckdb not installed. Please install it with `pip install duckdb`."
+            ) from e
+
         database_path = db_creds.get("database", ":memory:")
         if database_path != ":memory:" and not isinstance(database_path, str):
             raise ValueError("Database path must be a string or ':memory:'")
-        
+
         # DuckDB supports both file-based and in-memory databases
         with duckdb.connect(database_path, read_only=True) as conn:
             # Execute the query and fetch results
             result = conn.execute(query)
-            colnames = [desc[0] for desc in result.description] if result.description else []
+            colnames = (
+                [desc[0] for desc in result.description] if result.description else []
+            )
             rows = result.fetchall()
         return colnames, rows
 
@@ -330,13 +336,15 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
                 results = await cur.fetchall()
                 rows = [list(row) for row in results]
         return colnames, rows
-    
+
     elif db_type == "sqlite":
         try:
             import aiosqlite
         except ImportError as e:
-            raise ImportError("aiosqlite module not available. Please install with 'pip install aiosqlite' for async SQLite support.") from e
-        
+            raise ImportError(
+                "aiosqlite module not available. Please install with 'pip install aiosqlite' for async SQLite support."
+            ) from e
+
         database_path = db_creds.get("database", ":memory:")
         if database_path != ":memory:" and not isinstance(database_path, str):
             raise ValueError("Database path must be a string or ':memory:'")
@@ -347,28 +355,34 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
             rows = await cur.fetchall()
             await cur.close()
         return colnames, rows
-    
+
     elif db_type == "duckdb":
         try:
             import duckdb
         except ImportError as e:
-            raise ImportError("duckdb not installed. Please install it with `pip install duckdb`.") from e
-        
+            raise ImportError(
+                "duckdb not installed. Please install it with `pip install duckdb`."
+            ) from e
+
         database_path = db_creds.get("database", ":memory:")
         if database_path != ":memory:" and not isinstance(database_path, str):
             raise ValueError("Database path must be a string or ':memory:'")
-        
+
         # DuckDB doesn't have native async support, so we use asyncio.to_thread
         def _execute_duckdb():
             with duckdb.connect(database_path, read_only=True) as conn:
                 result = conn.execute(query)
-                colnames = [desc[0] for desc in result.description] if result.description else []
+                colnames = (
+                    [desc[0] for desc in result.description]
+                    if result.description
+                    else []
+                )
                 rows = result.fetchall()
             return colnames, rows
-        
+
         colnames, rows = await asyncio.to_thread(_execute_duckdb)
         return colnames, rows
-    
+
     else:
         raise Exception(f"Database type {db_type} not yet supported.")
 
@@ -391,7 +405,6 @@ def execute_query(
     Raises an Exception if there are no retries left, or if the error is a connection error.
     """
     err_msg = None
-
 
     try:
         return execute_query_once(db_type, db_creds, query)
@@ -434,7 +447,7 @@ async def async_execute_query(
             raise Exception(
                 f"There was a connection issue to your database:\n{err_msg}\n\nPlease check your database credentials and try again."
             )
-        
+
         raise Exception(err_msg)
 
 

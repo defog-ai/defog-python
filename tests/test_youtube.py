@@ -36,12 +36,15 @@ async def test_youtube_transcript_end_to_end_with_system_instructions():
     # Skip test if GEMINI_API_KEY is not set
     if not os.getenv("GEMINI_API_KEY"):
         pytest.skip("GEMINI_API_KEY not set")
-    
+
     video_url = "https://www.youtube.com/watch?v=EysJTNLQVZw"
     summary = await get_youtube_summary(
         video_url,
-        system_instructions=["Focus on the overall message of the video, not a step by step transcript."],
-        task_description="Please explain this video like I am a 5 year old.")
+        system_instructions=[
+            "Focus on the overall message of the video, not a step by step transcript."
+        ],
+        task_description="Please explain this video like I am a 5 year old.",
+    )
     assert summary is not None
     assert isinstance(summary, str)
     assert len(summary) > 0
