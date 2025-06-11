@@ -58,11 +58,22 @@ class TestSQLGenerator(unittest.TestCase):
     def test_format_schema_for_prompt(self):
         result = format_schema_for_prompt(self.sample_metadata)
 
-        self.assertIn("Table: users", result)
-        self.assertIn("Table: orders", result)
-        self.assertIn("- id (integer): User ID", result)
-        self.assertIn("- email (varchar): Email address", result)
-        self.assertIn("- amount (decimal): Order amount", result)
+        # Check for DDL CREATE TABLE statements
+        self.assertIn("CREATE TABLE users (", result)
+        self.assertIn("CREATE TABLE orders (", result)
+
+        # Check for column definitions with inline comments
+        self.assertIn("  id integer, -- User ID", result)
+        self.assertIn("  name varchar, -- User name", result)
+        self.assertIn(
+            "  email varchar -- Email address", result
+        )  # No comma on last column
+        self.assertIn("  user_id integer, -- Foreign key to users", result)
+        self.assertIn("  amount decimal, -- Order amount", result)
+        self.assertIn("  created_at timestamp -- Order creation time", result)
+
+        # Check for closing parenthesis
+        self.assertIn(");", result)
 
     def test_format_schema_for_prompt_no_description(self):
         metadata = {
@@ -77,8 +88,48 @@ class TestSQLGenerator(unittest.TestCase):
         }
         result = format_schema_for_prompt(metadata)
 
-        self.assertIn("- col1 (int)", result)
-        self.assertNotIn("- col1 (int):", result)  # No colon when no description
+        # Check DDL format without comments for columns with no description
+        self.assertIn("CREATE TABLE simple_table (", result)
+        self.assertIn("  col1 int,", result)
+        self.assertIn("  col2 varchar", result)  # No comma on last column
+        self.assertNotIn("-- ", result)  # No comments when no description
+
+    def test_format_schema_for_prompt_with_table_description(self):
+        # Test new format with table descriptions
+        metadata = {
+            "products": {
+                "table_description": "Table storing product information",
+                "columns": [
+                    {
+                        "column_name": "product_id",
+                        "data_type": "INTEGER",
+                        "column_description": "Unique ID for each product",
+                    },
+                    {
+                        "column_name": "name",
+                        "data_type": "VARCHAR(50)",
+                        "column_description": "Name of the product",
+                    },
+                    {
+                        "column_name": "price",
+                        "data_type": "DECIMAL(10,2)",
+                    },  # No description
+                ],
+            }
+        }
+        result = format_schema_for_prompt(metadata)
+
+        # Check for table comment
+        self.assertIn("CREATE TABLE products (", result)
+        self.assertIn("  -- Table storing product information", result)
+
+        # Check for column definitions with inline comments
+        self.assertIn("  product_id INTEGER, -- Unique ID for each product", result)
+        self.assertIn("  name VARCHAR(50), -- Name of the product", result)
+        self.assertIn("  price DECIMAL(10,2)", result)  # No comment for this column
+
+        # Check closing
+        self.assertIn(");", result)
 
     def test_build_sql_generation_prompt_basic(self):
         question = "How many users are there?"
@@ -93,8 +144,8 @@ class TestSQLGenerator(unittest.TestCase):
 
         system_content = messages[0]["content"]
         self.assertIn("postgres", system_content)
-        self.assertIn("Table: users", system_content)
-        self.assertIn("Table: orders", system_content)
+        self.assertIn("CREATE TABLE users", system_content)
+        self.assertIn("CREATE TABLE orders", system_content)
 
     def test_build_sql_generation_prompt_with_glossary(self):
         question = "How many active users?"

@@ -8,29 +8,55 @@ from defog.llm.utils import chat_async, LLMProvider
 from defog.llm.config import LLMConfig
 
 
-def format_schema_for_prompt(table_metadata: Dict[str, List[Dict[str, str]]]) -> str:
+def format_schema_for_prompt(table_metadata: Dict[str, Any]) -> str:
     """
-    Format table metadata into a string representation for the LLM prompt.
+    Format table metadata into a DDL string representation for the LLM prompt.
 
     Args:
-        table_metadata: Dictionary mapping table names to lists of column info
+        table_metadata: Dictionary mapping table names to column info.
+                       Supports both legacy format (list of columns) and new format (dict with table_description)
 
     Returns:
-        Formatted string representation of the schema
+        DDL formatted string representation of the schema with comments
     """
     schema_parts = []
 
-    for table_name, columns in table_metadata.items():
-        schema_parts.append(f"Table: {table_name}")
-        for col in columns:
+    for table_name, table_info in table_metadata.items():
+        # Handle both legacy format (list) and new format (dict with table_description)
+        if isinstance(table_info, list):
+            # Legacy format: table_info is a list of columns
+            columns = table_info
+            table_description = None
+        else:
+            # New format: table_info is a dict with table_description and columns
+            columns = table_info.get("columns", [])
+            table_description = table_info.get("table_description", "")
+
+        # Generate CREATE TABLE statement
+        schema_parts.append(f"CREATE TABLE {table_name} (")
+
+        # Add table comment if available
+        if table_description:
+            schema_parts.append(f"  -- {table_description}")
+
+        # Add columns with inline comments
+        for i, col in enumerate(columns):
             col_name = col.get("column_name", "")
             data_type = col.get("data_type", "")
             description = col.get("column_description", "")
 
-            col_str = f"  - {col_name} ({data_type})"
+            # Add comma for all but the last column
+            comma = "," if i < len(columns) - 1 else ""
+
+            # Build column line with optional inline comment
+            col_line = f"  {col_name} {data_type}{comma}"
             if description:
-                col_str += f": {description}"
-            schema_parts.append(col_str)
+                col_line += f" -- {description}"
+
+            schema_parts.append(col_line)
+
+        schema_parts.append(");")
+
         schema_parts.append("")  # Empty line between tables
 
     return "\n".join(schema_parts)
