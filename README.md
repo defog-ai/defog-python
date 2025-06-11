@@ -361,7 +361,7 @@ relevance_result = await identify_relevant_tables_tool(
 
 Key features:
 - **Automatic table filtering** - Intelligently filters relevant tables for large databases
-- **Multiple database support** - PostgreSQL, MySQL, BigQuery, Snowflake, Databricks, SQL Server, Redshift
+- **Multiple database support** - PostgreSQL, MySQL, BigQuery, Snowflake, Databricks, SQL Server, Redshift, SQLite, DuckDB
 - **Business context** - Support for glossaries and domain-specific filters
 - **Conversational SQL** - Maintains context for follow-up questions
 - **No API dependency** - Query execution happens locally without Defog API calls
@@ -410,6 +410,8 @@ Supported database types:
 - Databricks (`databricks`)
 - SQL Server (`sqlserver`)
 - Redshift (`redshift`)
+- SQLite (`sqlite`)
+- DuckDB (`duckdb`)
 
 # Testing
 For developers who want to test or add tests for this client, you can run:

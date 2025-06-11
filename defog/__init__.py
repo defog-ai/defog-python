@@ -10,6 +10,7 @@ from defog import (
     async_health_methods,
 )
 from typing import Dict, List, Optional, Union, Any
+from defog.llm.llm_providers import LLMProvider
 
 try:
     __version__ = version("defog")
@@ -25,6 +26,7 @@ SUPPORTED_DB_TYPES = [
     "databricks",
     "sqlserver",
     "sqlite",
+    "duckdb",
 ]
 
 
@@ -118,6 +120,9 @@ class BaseDefog:
         elif db_type == "sqlite":
             if "database" not in db_creds:
                 raise KeyError("db_creds must contain a 'database' key.")
+        elif db_type == "duckdb":
+            if "database" not in db_creds:
+                raise KeyError("db_creds must contain a 'database' key.")
         else:
             raise ValueError(
                 f"Database `{db_type}` is not supported right now. db_type must be one of {', '.join(SUPPORTED_DB_TYPES)}"
@@ -178,6 +183,11 @@ class Defog(BaseDefog):
         prune_glossary_max_tokens: int = 1000,
         prune_glossary_num_cos_sim_units: int = 10,
         prune_glossary_bm25_units: int = 10,
+        use_llm_directly: bool = False,
+        llm_provider: Optional[Union[LLMProvider, str]] = None,
+        llm_model: Optional[str] = None,
+        table_metadata: Optional[dict] = None,
+        cache_metadata: bool = True,
     ): ...
 
 
@@ -235,6 +245,11 @@ class AsyncDefog(BaseDefog):
         prune_glossary_max_tokens: int = 1000,
         prune_glossary_num_cos_sim_units: int = 10,
         prune_glossary_bm25_units: int = 10,
+        use_llm_directly: bool = False,
+        llm_provider: Optional[Union[LLMProvider, str]] = None,
+        llm_model: Optional[str] = None,
+        table_metadata: Optional[dict] = None,
+        cache_metadata: bool = True,
     ): ...
 
 
