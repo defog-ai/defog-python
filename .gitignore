@@ -77,3 +77,4 @@ venv/
 # cricket data
 examples/cricket_data/
 examples/cricket_wc2015.db
+examples/cricket_wc2015.duckdb
