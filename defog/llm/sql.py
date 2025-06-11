@@ -4,7 +4,7 @@ SQL execution tools for local database operations.
 
 from typing import Dict, List, Optional, Any, Union, Tuple
 from defog.llm.llm_providers import LLMProvider
-from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger
+from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger, NoOpToolProgressTracker, NoOpSubTaskLogger
 from defog.llm.sql_generator import generate_sql_query_local
 from defog.local_metadata_extractor import extract_metadata_from_db
 from defog.query import async_execute_query
@@ -35,6 +35,7 @@ async def sql_answer_tool(
     previous_context: Optional[List[Dict[str, str]]] = None,
     temperature: float = 0.0,
     config: Optional[LLMConfig] = None,
+    verbose: bool = True,
 ) -> Dict[str, Any]:
     """
     Answer a natural language question by generating and executing SQL on a local database.
@@ -50,15 +51,19 @@ async def sql_answer_tool(
         previous_context: Optional previous conversation context
         temperature: LLM temperature setting
         config: Optional LLM configuration
+        verbose: Whether to show progress logging
 
     Returns:
         Dictionary with query results and metadata
     """
-    async with ToolProgressTracker(
+    tracker_class = ToolProgressTracker if verbose else NoOpToolProgressTracker
+    logger_class = SubTaskLogger if verbose else NoOpSubTaskLogger
+    
+    async with tracker_class(
         "SQL Query Answer",
         f"Answering: {question[:50]}{'...' if len(question) > 50 else ''}",
     ) as tracker:
-        subtask_logger = SubTaskLogger()
+        subtask_logger = logger_class()
         subtask_logger.log_provider_info(
             provider.value if hasattr(provider, "value") else str(provider), model
         )
@@ -93,6 +98,7 @@ async def sql_answer_tool(
                     max_tables=10,
                     temperature=temperature,
                     config=config,
+                    verbose=verbose,
                 )
 
                 if relevance_result.get("success"):
@@ -183,6 +189,7 @@ async def identify_relevant_tables_tool(
     max_tables: int = SQLAgentConfig.MAX_RELEVANCE_TABLES,
     temperature: float = 0.0,
     config: Optional[LLMConfig] = None,
+    verbose: bool = True,
 ) -> Dict[str, Any]:
     """
     Identify the most relevant tables in a database for answering a specific question.
@@ -197,15 +204,19 @@ async def identify_relevant_tables_tool(
         max_tables: Maximum number of tables to return
         temperature: LLM temperature setting
         config: Optional LLM configuration
+        verbose: Whether to show progress logging
 
     Returns:
         Dictionary with relevant tables and their relevance scores
     """
-    async with ToolProgressTracker(
+    tracker_class = ToolProgressTracker if verbose else NoOpToolProgressTracker
+    logger_class = SubTaskLogger if verbose else NoOpSubTaskLogger
+    
+    async with tracker_class(
         "Table Relevance Analysis",
         f"Finding relevant tables for: {question[:50]}{'...' if len(question) > 50 else ''}",
     ) as tracker:
-        subtask_logger = SubTaskLogger()
+        subtask_logger = logger_class()
         subtask_logger.log_provider_info(
             provider.value if hasattr(provider, "value") else str(provider), model
         )

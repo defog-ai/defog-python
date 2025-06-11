@@ -1,5 +1,5 @@
 # converts a youtube video to a detailed, ideally diarized transcript
-from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger
+from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger, NoOpToolProgressTracker, NoOpSubTaskLogger
 import os
 import re
 from urllib.parse import urlparse
@@ -25,7 +25,7 @@ async def get_youtube_summary(
     Args:
         video_url: The URL of the YouTube video. Must be a valid YouTube URL.
         model: The Gemini model to use (default: "gemini-2.5-pro-preview-05-06").
-        verbose: Whether to display real-time transcript streaming (default: True).
+        verbose: Whether to display real-time transcript streaming and progress (default: True).
         system_instructions: List of system instructions for the AI model. Controls the style and format of output.
         task_description: Specific task description sent to the AI model. Defines what the model should produce.
 
@@ -40,11 +40,14 @@ async def get_youtube_summary(
         >>> transcript = await get_transcript("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
         >>> print(f"Transcript length: {len(transcript)} characters")
     """
-    async with ToolProgressTracker(
+    tracker_class = ToolProgressTracker if verbose else NoOpToolProgressTracker
+    logger_class = SubTaskLogger if verbose else NoOpSubTaskLogger
+    
+    async with tracker_class(
         "YouTube Transcript",
         f"Transcribing video from: {video_url[:50]}{'...' if len(video_url) > 50 else ''}",
     ) as tracker:
-        subtask_logger = SubTaskLogger()
+        subtask_logger = logger_class()
         subtask_logger.log_provider_info("Gemini", model)
 
         if os.getenv("GEMINI_API_KEY") is None:

@@ -1,5 +1,5 @@
 from defog.llm.llm_providers import LLMProvider
-from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger
+from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger, NoOpToolProgressTracker, NoOpSubTaskLogger
 import os
 from io import BytesIO
 
@@ -10,15 +10,19 @@ async def code_interpreter_tool(
     provider: LLMProvider,
     csv_string: str = "",
     instructions: str = "You are a Python programmer. You are given a question and a CSV string of data. You need to answer the question using the data. You are also given a sandboxed server environment where you can run the code.",
+    verbose: bool = True,
 ):
     """
     Creates a python script to answer the question, where the python script is executed in a sandboxed server environment.
     """
-    async with ToolProgressTracker(
+    tracker_class = ToolProgressTracker if verbose else NoOpToolProgressTracker
+    logger_class = SubTaskLogger if verbose else NoOpSubTaskLogger
+    
+    async with tracker_class(
         "Code Interpreter",
         f"Executing code to answer: {question[:50]}{'...' if len(question) > 50 else ''}",
     ) as tracker:
-        subtask_logger = SubTaskLogger()
+        subtask_logger = logger_class()
         subtask_logger.log_provider_info(
             provider.value if hasattr(provider, "value") else str(provider), model
         )
