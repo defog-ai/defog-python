@@ -11,7 +11,11 @@ class TestAsyncDefog(unittest.TestCase):
 
     def test_async_defog_bad_init_incomplete_creds(self):
         with self.assertRaises(KeyError):
-            AsyncDefog(api_key="test_api_key", db_type="postgres", db_creds={"host": "some_host"})
+            AsyncDefog(
+                api_key="test_api_key",
+                db_type="postgres",
+                db_creds={"host": "some_host"},
+            )
 
     def test_async_defog_good_init(self):
         db_creds = {
@@ -123,10 +127,11 @@ class TestAsyncDefog(unittest.TestCase):
         df = AsyncDefog(db_type="postgres", db_creds={})
         self.assertIsNone(df.api_key)
         self.assertEqual(df.db_type, "postgres")
-        
+
     def test_api_key_not_saved_when_none(self):
         # Test that connection.json doesn't include api_key when it's None
         import json
+
         df = AsyncDefog(db_type="postgres", db_creds={})
         self.assertIsNone(df.api_key)
 

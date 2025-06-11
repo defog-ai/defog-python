@@ -192,7 +192,7 @@ class AgentOrchestrator:
         self._total_retries = 0
         self._decomposition_depth = 0
         self._start_time = None
-        
+
         # Thread safety for counters
         self._counter_lock = threading.Lock()
 
@@ -220,14 +220,14 @@ class AgentOrchestrator:
             max_parallel_tasks,
             max_retries,
             retry_delay,
-            retry_backoff
+            retry_backoff,
         )
 
         # Add delegation tools to main agent
         self._add_delegation_tool()
         if self.available_tools:
             self._add_dynamic_planning_tool()
-    
+
     def _validate_config(
         self,
         max_recursion_depth: int,
@@ -237,7 +237,7 @@ class AgentOrchestrator:
         max_parallel_tasks: int,
         max_retries: int,
         retry_delay: float,
-        retry_backoff: float
+        retry_backoff: float,
     ) -> None:
         """Validate configuration parameters."""
         if max_recursion_depth < 1:
@@ -256,63 +256,73 @@ class AgentOrchestrator:
             raise ValueError("retry_delay must be >= 0")
         if retry_backoff <= 0:
             raise ValueError("retry_backoff must be > 0")
-        
-        logger.info(f"Orchestrator initialized with limits: recursion_depth={max_recursion_depth}, total_retries={max_total_retries}, decomposition_depth={max_decomposition_depth}, timeout={global_timeout}s")
+
+        logger.info(
+            f"Orchestrator initialized with limits: recursion_depth={max_recursion_depth}, total_retries={max_total_retries}, decomposition_depth={max_decomposition_depth}, timeout={global_timeout}s"
+        )
 
     def _increment_total_retries(self) -> None:
         """Thread-safe increment of total retries counter."""
         with self._counter_lock:
             self._total_retries += 1
-    
+
     def _increment_recursion_depth(self) -> None:
         """Thread-safe increment of recursion depth counter."""
         with self._counter_lock:
             self._recursion_depth += 1
-    
+
     def _decrement_recursion_depth(self) -> None:
         """Thread-safe decrement of recursion depth counter."""
         with self._counter_lock:
             self._recursion_depth -= 1
-    
+
     def _increment_decomposition_depth(self) -> None:
         """Thread-safe increment of decomposition depth counter."""
         with self._counter_lock:
             self._decomposition_depth += 1
-    
+
     def _decrement_decomposition_depth(self) -> None:
         """Thread-safe decrement of decomposition depth counter."""
         with self._counter_lock:
             self._decomposition_depth -= 1
-    
+
     def _get_counter_values(self) -> Tuple[int, int, int]:
         """Thread-safe getter for all counter values."""
         with self._counter_lock:
-            return (self._total_retries, self._recursion_depth, self._decomposition_depth)
-    
-    def _get_cycle_path(self, task_map: Dict[str, Any], start_task: str, end_task: str) -> List[str]:
+            return (
+                self._total_retries,
+                self._recursion_depth,
+                self._decomposition_depth,
+            )
+
+    def _get_cycle_path(
+        self, task_map: Dict[str, Any], start_task: str, end_task: str
+    ) -> List[str]:
         """Get the path of a circular dependency for better error messages."""
         visited = set()
         path = []
-        
-        def dfs_path(current_task: str, target_task: str, current_path: List[str]) -> bool:
+
+        def dfs_path(
+            current_task: str, target_task: str, current_path: List[str]
+        ) -> bool:
             if current_task in visited:
                 return False
-                
+
             visited.add(current_task)
             current_path.append(current_task)
-            
+
             if current_task == target_task and len(current_path) > 1:
                 return True
-                
+
             task = task_map.get(current_task)
             if task and task.dependencies:
                 for dep in task.dependencies:
                     if dfs_path(dep, target_task, current_path):
                         return True
-            
+
             current_path.pop()
             return False
-        
+
         if dfs_path(start_task, end_task, path):
             return path
         return [start_task, end_task]  # Fallback minimal path
@@ -380,8 +390,10 @@ class AgentOrchestrator:
     ) -> List[SubAgentResult]:
         """Execute subagent tasks with dependency and parallelism management."""
         logger.info(f"Executing {len(tasks)} subagent tasks")
-        logger.debug(f"Current recursion depth: {self._recursion_depth}, Total retries: {self._total_retries}")
-        
+        logger.debug(
+            f"Current recursion depth: {self._recursion_depth}, Total retries: {self._total_retries}"
+        )
+
         results = []
         completed_tasks = set()
 
@@ -421,13 +433,13 @@ class AgentOrchestrator:
         # Create mapping from agent_id to task_id
         agent_to_task_id = {}
         task_map = {}
-        
+
         for i, task in enumerate(tasks):
             task_id = f"task_{i}"
             task.task_id = task_id
             task_map[task_id] = task
             agent_to_task_id[task.agent_id] = task_id
-        
+
         # Convert agent_id dependencies to task_id dependencies
         for task in tasks:
             if task.dependencies:
@@ -440,14 +452,18 @@ class AgentOrchestrator:
                         if dep.startswith("task_"):
                             task_dependencies.append(dep)
                         else:
-                            logger.warning(f"Unknown dependency '{dep}' for task {task.task_id}")
+                            logger.warning(
+                                f"Unknown dependency '{dep}' for task {task.task_id}"
+                            )
                 task.dependencies = task_dependencies
 
         # Detect cycles using DFS
-        def has_cycle(task_id: str, visited: set, rec_stack: set) -> Tuple[bool, str, str]:
+        def has_cycle(
+            task_id: str, visited: set, rec_stack: set
+        ) -> Tuple[bool, str, str]:
             visited.add(task_id)
             rec_stack.add(task_id)
-            
+
             task = task_map.get(task_id)
             if task and task.dependencies:
                 for dep in task.dependencies:
@@ -456,9 +472,11 @@ class AgentOrchestrator:
                         if result[0]:  # Cycle found
                             return result
                     elif dep in rec_stack:
-                        logger.error(f"Circular dependency detected: {task_id} -> {dep}")
+                        logger.error(
+                            f"Circular dependency detected: {task_id} -> {dep}"
+                        )
                         return (True, task_id, dep)  # Return cycle info
-            
+
             rec_stack.remove(task_id)
             return (False, "", "")
 
@@ -469,7 +487,9 @@ class AgentOrchestrator:
                 has_cycle_result = has_cycle(task_id, visited, set())
                 if has_cycle_result[0]:
                     # Get the cycle path for better error message
-                    cycle_path = self._get_cycle_path(task_map, has_cycle_result[1], has_cycle_result[2])
+                    cycle_path = self._get_cycle_path(
+                        task_map, has_cycle_result[1], has_cycle_result[2]
+                    )
                     cycle_path_str = " -> ".join(cycle_path)
                     error_msg = f"Circular dependencies detected in task graph: {cycle_path_str}"
                     logger.error(error_msg)
@@ -627,7 +647,7 @@ class AgentOrchestrator:
         retry_delay = getattr(task, "retry_delay", self.retry_delay)
         retry_backoff = getattr(task, "retry_backoff", self.retry_backoff)
         retry_timeout = getattr(task, "retry_timeout", self.retry_timeout)
-        
+
         # Enforce global retry limit
         if self._total_retries >= self.max_total_retries:
             logger.warning(f"Global retry limit reached ({self.max_total_retries})")
@@ -657,8 +677,11 @@ class AgentOrchestrator:
                 if self._total_retries >= self.max_total_retries:
                     logger.warning(f"Global retry limit reached during task execution")
                     break
-                    
-                if self._start_time and (time.time() - self._start_time) > self.global_timeout:
+
+                if (
+                    self._start_time
+                    and (time.time() - self._start_time) > self.global_timeout
+                ):
                     logger.warning(f"Global timeout reached during task execution")
                     break
 
@@ -783,7 +806,8 @@ class AgentOrchestrator:
 
         # All retries exhausted - try task decomposition as final fallback
         if (
-            self.available_tools and len(task.task_description) > 100
+            self.available_tools
+            and len(task.task_description) > 100
             and self._decomposition_depth < self.max_decomposition_depth
         ):  # Only for complex tasks and within depth limit
             logger.info(
@@ -833,30 +857,33 @@ class AgentOrchestrator:
         """Process messages through the main agent with subagent delegation capability."""
         # Set start time for global timeout tracking
         self._start_time = time.time()
-        
+
         try:
             # Create a task for the main processing
-            process_task = asyncio.create_task(self.main_agent.process(messages, **kwargs))
-            
+            process_task = asyncio.create_task(
+                self.main_agent.process(messages, **kwargs)
+            )
+
             # Wait with timeout
             remaining_timeout = self.global_timeout
             result = await asyncio.wait_for(process_task, timeout=remaining_timeout)
-            
+
             return result
         except asyncio.TimeoutError:
             logger.error(f"Global orchestration timeout after {self.global_timeout}s")
             # Cancel the task
             process_task.cancel()
-            
+
             # Return a timeout response
             from .providers.base import LLMResponse
+
             return LLMResponse(
                 content=f"Orchestration timed out after {self.global_timeout} seconds. The task was too complex or encountered issues.",
                 input_tokens=0,
                 output_tokens=0,
                 cost_in_cents=0,
                 latency_ms=int((time.time() - self._start_time) * 1000),
-                error="GLOBAL_TIMEOUT"
+                error="GLOBAL_TIMEOUT",
             )
         finally:
             # Reset start time
@@ -904,20 +931,28 @@ class AgentOrchestrator:
             """Dynamically create subagents based on the user's request."""
             # Increment recursion depth first, then check limit
             self._increment_recursion_depth()
-            
+
             try:
                 # Check if we've exceeded the recursion depth limit
                 if self._recursion_depth > self.max_recursion_depth:
-                    logger.warning(f"Max recursion depth exceeded ({self.max_recursion_depth})")
+                    logger.warning(
+                        f"Max recursion depth exceeded ({self.max_recursion_depth})"
+                    )
                     return {
                         "error": "Maximum recursion depth exceeded - cannot create more subagents",
-                        "recursion_depth": self._recursion_depth
+                        "recursion_depth": self._recursion_depth,
                     }
-            
-                logger.info(f"Planning subagents - Recursion depth: {self._recursion_depth}/{self.max_recursion_depth}")
-                logger.debug(f"Total retries so far: {self._total_retries}/{self.max_total_retries}")
-                logger.debug(f"Decomposition depth: {self._decomposition_depth}/{self.max_decomposition_depth}")
-                
+
+                logger.info(
+                    f"Planning subagents - Recursion depth: {self._recursion_depth}/{self.max_recursion_depth}"
+                )
+                logger.debug(
+                    f"Total retries so far: {self._total_retries}/{self.max_total_retries}"
+                )
+                logger.debug(
+                    f"Decomposition depth: {self._decomposition_depth}/{self.max_decomposition_depth}"
+                )
+
                 # Log the start of the request
                 orch_logger.log_request_start(input.user_request)
                 orch_logger.log_planning_analysis(input.analysis)
@@ -983,7 +1018,7 @@ Return a JSON object with this structure:
                 # Create subagents based on the plan
                 created_agents = []
                 tasks = []
-                
+
                 for plan in plan_data.subagent_plans:
                     agent_id = plan.agent_id
 
@@ -995,8 +1030,10 @@ Return a JSON object with this structure:
 
                     # Filter out planning tools to prevent recursive agent creation
                     agent_tools = [
-                        tool for tool in agent_tools 
-                        if tool.__name__ not in ['plan_and_create_subagents', 'delegate_to_subagents']
+                        tool
+                        for tool in agent_tools
+                        if tool.__name__
+                        not in ["plan_and_create_subagents", "delegate_to_subagents"]
                     ]
 
                     # Create the subagent
@@ -1023,7 +1060,7 @@ Return a JSON object with this structure:
 
                 # Execute the tasks
                 results = await self._execute_subagent_tasks(tasks)
-                
+
                 # Format results
                 formatted_results = {
                     "created_agents": created_agents,
@@ -1044,7 +1081,7 @@ Return a JSON object with this structure:
                 orch_logger.log_orchestration_complete(formatted_results)
 
                 return formatted_results
-            
+
             except Exception as e:
                 logger.error(f"Error in planning LLM call: {e}", exc_info=True)
                 return {"error": f"Planning LLM call failed: {str(e)}"}

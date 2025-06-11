@@ -150,7 +150,6 @@ def generate_postgres_schema(
                 "api_key": self.api_key,
                 "schemas": table_columns,
             },
-            
         )
         resp = r.json()
         if "csv" in resp:
@@ -329,7 +328,6 @@ def generate_redshift_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            
         )
         resp = r.json()
         if "csv" in resp:
@@ -405,7 +403,6 @@ def generate_mysql_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            
         )
         resp = r.json()
         if "csv" in resp:
@@ -480,7 +477,6 @@ def generate_databricks_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            
         )
         resp = r.json()
         if "csv" in resp:
@@ -574,7 +570,6 @@ def generate_snowflake_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            
         )
         resp = r.json()
         if "csv" in resp:
@@ -648,7 +643,6 @@ def generate_bigquery_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            
         )
         resp = r.json()
         if "csv" in resp:
@@ -771,7 +765,6 @@ def generate_sqlserver_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            
         )
         resp = r.json()
         if "csv" in resp:
@@ -802,12 +795,12 @@ def generate_sqlite_schema(
 ) -> str:
     """
     Generate schema for SQLite database.
-    
+
     Example:
         # File database
         defog = Defog(db_type="sqlite", db_creds={"database": "/path/to/database.db"})
         schema = defog.generate_db_schema([], upload=False)
-        
+
         # Memory database
         defog = Defog(db_type="sqlite", db_creds={"database": ":memory:"})
         schema = defog.generate_db_schema([], upload=False)
@@ -815,7 +808,9 @@ def generate_sqlite_schema(
     try:
         import sqlite3
     except ImportError as e:
-        raise ImportError("sqlite3 module not available. This should be included with Python by default.") from e
+        raise ImportError(
+            "sqlite3 module not available. This should be included with Python by default."
+        ) from e
 
     database_path = self.db_creds.get("database", ":memory:")
     conn = sqlite3.connect(database_path)
@@ -824,7 +819,9 @@ def generate_sqlite_schema(
 
     if len(tables) == 0:
         # get all tables
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"
+        )
         tables = [row[0] for row in cur.fetchall()]
 
     if return_tables_only:
@@ -856,7 +853,6 @@ def generate_sqlite_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            
         )
         resp = r.json()
         if "csv" in resp:
@@ -887,12 +883,12 @@ def generate_duckdb_schema(
 ) -> str:
     """
     Generate schema for DuckDB database.
-    
+
     Example:
         # File database
         defog = Defog(db_type="duckdb", db_creds={"database": "/path/to/database.duckdb"})
         schema = defog.generate_db_schema([], upload=False)
-        
+
         # Memory database
         defog = Defog(db_type="duckdb", db_creds={"database": ":memory:"})
         schema = defog.generate_db_schema([], upload=False)
@@ -900,7 +896,9 @@ def generate_duckdb_schema(
     try:
         import duckdb
     except ImportError as e:
-        raise ImportError("duckdb not installed. Please install it with `pip install duckdb`.") from e
+        raise ImportError(
+            "duckdb not installed. Please install it with `pip install duckdb`."
+        ) from e
 
     database_path = self.db_creds.get("database", ":memory:")
     conn = duckdb.connect(database_path, read_only=True)
@@ -916,14 +914,16 @@ def generate_duckdb_schema(
         """
         tables_result = conn.execute(tables_query).fetchall()
         tables = [row[0] for row in tables_result]
-        
+
         # For tables in the main schema, also add without schema prefix
-        main_tables = conn.execute("""
+        main_tables = conn.execute(
+            """
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_type = 'BASE TABLE' 
             AND table_schema = 'main'
-        """).fetchall()
+        """
+        ).fetchall()
         tables.extend([row[0] for row in main_tables])
 
     if return_tables_only:
@@ -934,8 +934,8 @@ def generate_duckdb_schema(
     # Get the schema for each table
     for table_name in tables:
         # Handle both schema.table and table formats
-        if '.' in table_name:
-            schema_name, table_only = table_name.split('.', 1)
+        if "." in table_name:
+            schema_name, table_only = table_name.split(".", 1)
             columns_query = f"""
             SELECT column_name, data_type 
             FROM information_schema.columns 
@@ -951,25 +951,25 @@ def generate_duckdb_schema(
             AND table_schema = 'main'
             ORDER BY ordinal_position
             """
-        
+
         rows = conn.execute(columns_query).fetchall()
         rows = [{"column_name": row[0], "data_type": row[1]} for row in rows]
-        
+
         if scan:
             # Create a cursor-like object for DuckDB compatibility
             class DuckDBCursor:
                 def __init__(self, connection):
                     self.connection = connection
-                
+
                 def execute(self, query):
                     self.result = self.connection.execute(query)
-                
+
                 def fetchall(self):
                     return self.result.fetchall()
-            
+
             cursor = DuckDBCursor(conn)
             rows = identify_categorical_columns(cursor, table_name, rows)
-        
+
         if len(rows) > 0:
             schemas[table_name] = rows
 
@@ -987,7 +987,6 @@ def generate_duckdb_schema(
                 "foreign_keys": [],
                 "indexes": [],
             },
-            
         )
         resp = r.json()
         if "csv" in resp:

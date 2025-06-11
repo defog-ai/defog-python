@@ -1,4 +1,8 @@
-from defog.util import async_identify_categorical_columns, make_async_post_request, identify_categorical_columns
+from defog.util import (
+    async_identify_categorical_columns,
+    make_async_post_request,
+    identify_categorical_columns,
+)
 import asyncio
 from io import StringIO
 import pandas as pd
@@ -670,12 +674,12 @@ async def generate_sqlite_schema(
 ) -> str:
     """
     Generate schema for SQLite database (async version).
-    
+
     Example:
         # File database
         defog = Defog(db_type="sqlite", db_creds={"database": "/path/to/database.db"})
         schema = await defog.async_generate_db_schema([], upload=False)
-        
+
         # Memory database
         defog = Defog(db_type="sqlite", db_creds={"database": ":memory:"})
         schema = await defog.async_generate_db_schema([], upload=False)
@@ -683,7 +687,9 @@ async def generate_sqlite_schema(
     try:
         import aiosqlite
     except ImportError as e:
-        raise ImportError("aiosqlite module not available. Please install with 'pip install aiosqlite' for async SQLite support.") from e
+        raise ImportError(
+            "aiosqlite module not available. Please install with 'pip install aiosqlite' for async SQLite support."
+        ) from e
 
     database_path = self.db_creds.get("database", ":memory:")
     async with aiosqlite.connect(database_path) as conn:
@@ -691,7 +697,9 @@ async def generate_sqlite_schema(
 
         if len(tables) == 0:
             # get all tables
-            async with conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';") as cur:
+            async with conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"
+            ) as cur:
                 tables = [row[0] async for row in cur]
 
         if return_tables_only:
@@ -701,7 +709,9 @@ async def generate_sqlite_schema(
         # get the schema for each table
         for table_name in tables:
             async with conn.execute(f"PRAGMA table_info({table_name});") as cur:
-                rows = [{"column_name": row[1], "data_type": row[2]} async for row in cur]
+                rows = [
+                    {"column_name": row[1], "data_type": row[2]} async for row in cur
+                ]
             if scan:
                 rows = await async_identify_categorical_columns(
                     conn=conn, table_name=table_name, rows=rows, db_type="sqlite"
@@ -750,12 +760,12 @@ async def generate_duckdb_schema(
 ) -> str:
     """
     Generate schema for DuckDB database (async version).
-    
+
     Example:
         # File database
         defog = AsyncDefog(db_type="duckdb", db_creds={"database": "/path/to/database.duckdb"})
         schema = await defog.async_generate_db_schema([], upload=False)
-        
+
         # Memory database
         defog = AsyncDefog(db_type="duckdb", db_creds={"database": ":memory:"})
         schema = await defog.async_generate_db_schema([], upload=False)
@@ -763,16 +773,18 @@ async def generate_duckdb_schema(
     try:
         import duckdb
     except ImportError as e:
-        raise ImportError("duckdb not installed. Please install it with `pip install duckdb`.") from e
+        raise ImportError(
+            "duckdb not installed. Please install it with `pip install duckdb`."
+        ) from e
 
     database_path = self.db_creds.get("database", ":memory:")
-    
+
     # DuckDB doesn't have native async support, so we use asyncio.to_thread
     def _get_schema():
         nonlocal tables  # Make tables accessible from outer scope
         conn = duckdb.connect(database_path, read_only=True)
         schemas = {}
-        
+
         try:
             if len(tables) == 0:
                 # Get all tables (DuckDB supports schemas, so we need to check all schemas)
@@ -784,16 +796,18 @@ async def generate_duckdb_schema(
                 """
                 tables_result = conn.execute(tables_query).fetchall()
                 all_tables = [row[0] for row in tables_result]
-                
+
                 # For tables in the main schema, also add without schema prefix
-                main_tables = conn.execute("""
+                main_tables = conn.execute(
+                    """
                     SELECT table_name 
                     FROM information_schema.tables 
                     WHERE table_type = 'BASE TABLE' 
                     AND table_schema = 'main'
-                """).fetchall()
+                """
+                ).fetchall()
                 all_tables.extend([row[0] for row in main_tables])
-                
+
                 if return_tables_only:
                     return all_tables
                 tables = all_tables
@@ -804,8 +818,8 @@ async def generate_duckdb_schema(
             # Get the schema for each table
             for table_name in tables:
                 # Handle both schema.table and table formats
-                if '.' in table_name:
-                    schema_name, table_only = table_name.split('.', 1)
+                if "." in table_name:
+                    schema_name, table_only = table_name.split(".", 1)
                     columns_query = f"""
                     SELECT column_name, data_type 
                     FROM information_schema.columns 
@@ -821,40 +835,40 @@ async def generate_duckdb_schema(
                     AND table_schema = 'main'
                     ORDER BY ordinal_position
                     """
-                
+
                 rows = conn.execute(columns_query).fetchall()
                 rows = [{"column_name": row[0], "data_type": row[1]} for row in rows]
-                
+
                 if scan:
                     # Create a cursor-like object for DuckDB compatibility
                     class DuckDBCursor:
                         def __init__(self, connection):
                             self.connection = connection
-                        
+
                         def execute(self, query):
                             self.result = self.connection.execute(query)
-                        
+
                         def fetchall(self):
                             return self.result.fetchall()
-                    
+
                     cursor = DuckDBCursor(conn)
                     rows = identify_categorical_columns(cursor, table_name, rows)
-                
+
                 if len(rows) > 0:
                     schemas[table_name] = rows
-            
+
             return schemas
         finally:
             conn.close()
-    
+
     # Run synchronous code in thread
     result = await asyncio.to_thread(_get_schema)
-    
+
     if return_tables_only:
         return result
 
     schemas = result
-    
+
     if upload:
         print(
             "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."

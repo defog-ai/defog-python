@@ -80,6 +80,7 @@ class ExecuteQueryOnceTestCase(unittest.TestCase):
         self.assertEqual(colnames, ["col1", "col2"])
         self.assertEqual(results, [("data1", "data2"), ("data3", "data4")])
 
+
 class ExecuteAsyncQueryOnceTestCase(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(self):
@@ -186,6 +187,7 @@ class ExecuteAsyncQueryOnceTestCase(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(colnames, ["col1", "col2"])
         self.assertEqual(results, [["data1", "data2"], ["data3", "data4"]])
+
 
 class TestConnectionError(unittest.TestCase):
     def test_connection_failed(self):

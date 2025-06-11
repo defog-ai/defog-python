@@ -1,6 +1,7 @@
 """
 SQL execution tools for local database operations.
 """
+
 from typing import Dict, List, Optional, Any, Union, Tuple
 from defog.llm.llm_providers import LLMProvider
 from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger
@@ -14,11 +15,11 @@ import json
 
 class SQLAgentConfig:
     """Configuration settings for SQL agent operations."""
-    
+
     # Table filtering thresholds
     TABLE_FILTER_COLUMN_THRESHOLD: int = 1000
     TABLE_FILTER_TABLE_THRESHOLD: int = 5
-    
+
     # Maximum number of tables to return from relevance analysis
     MAX_RELEVANCE_TABLES: int = 10
 
@@ -37,7 +38,7 @@ async def sql_answer_tool(
 ) -> Dict[str, Any]:
     """
     Answer a natural language question by generating and executing SQL on a local database.
-    
+
     Args:
         question: Natural language question to answer
         db_type: Database type (postgres, mysql, bigquery, etc.)
@@ -49,7 +50,7 @@ async def sql_answer_tool(
         previous_context: Optional previous conversation context
         temperature: LLM temperature setting
         config: Optional LLM configuration
-        
+
     Returns:
         Dictionary with query results and metadata
     """
@@ -67,20 +68,22 @@ async def sql_answer_tool(
             tracker.update(20, "Extracting database schema")
             subtask_logger.log_subtask("Extracting table metadata", "processing")
             table_metadata = extract_metadata_from_db(db_type, db_creds)
-            
+
             # Check if we need to filter tables due to large database
             total_tables = len(table_metadata)
             total_columns = sum(len(columns) for columns in table_metadata.values())
-            
+
             # Use table relevance filtering if database is large
-            if (total_columns > SQLAgentConfig.TABLE_FILTER_COLUMN_THRESHOLD and 
-                total_tables > SQLAgentConfig.TABLE_FILTER_TABLE_THRESHOLD):
+            if (
+                total_columns > SQLAgentConfig.TABLE_FILTER_COLUMN_THRESHOLD
+                and total_tables > SQLAgentConfig.TABLE_FILTER_TABLE_THRESHOLD
+            ):
                 tracker.update(30, "Database is large, identifying relevant tables")
                 subtask_logger.log_subtask(
-                    f"Filtering {total_tables} tables with {total_columns} columns", 
-                    "processing"
+                    f"Filtering {total_tables} tables with {total_columns} columns",
+                    "processing",
                 )
-                
+
                 relevance_result = await identify_relevant_tables_tool(
                     question=question,
                     db_type=db_type,
@@ -91,20 +94,20 @@ async def sql_answer_tool(
                     temperature=temperature,
                     config=config,
                 )
-                
+
                 if relevance_result.get("success"):
                     table_metadata = relevance_result["filtered_metadata"]
                     subtask_logger.log_subtask(
-                        f"Filtered to {len(table_metadata)} relevant tables", 
-                        "completed"
+                        f"Filtered to {len(table_metadata)} relevant tables",
+                        "completed",
                     )
                 else:
                     # If filtering fails, continue with all tables but log warning
                     subtask_logger.log_subtask(
-                        f"Table filtering failed: {relevance_result.get('error')}, using all tables", 
-                        "warning"
+                        f"Table filtering failed: {relevance_result.get('error')}, using all tables",
+                        "warning",
                     )
-            
+
             # Generate SQL query
             tracker.update(50, "Generating SQL query")
             subtask_logger.log_subtask("Converting question to SQL", "processing")
@@ -120,7 +123,7 @@ async def sql_answer_tool(
                 temperature=temperature,
                 config=config,
             )
-            
+
             if not sql_result.get("ran_successfully"):
                 return {
                     "success": False,
@@ -128,11 +131,13 @@ async def sql_answer_tool(
                     "query": None,
                     "results": None,
                     "tables_used": len(table_metadata),
-                    "columns_analyzed": sum(len(columns) for columns in table_metadata.values()),
+                    "columns_analyzed": sum(
+                        len(columns) for columns in table_metadata.values()
+                    ),
                 }
-            
+
             generated_sql = sql_result["query_generated"]
-            
+
             # Execute the SQL query
             tracker.update(80, "Executing SQL query")
             subtask_logger.log_subtask("Running query on database", "processing")
@@ -150,7 +155,7 @@ async def sql_answer_tool(
                     "results": None,
                     "columns": None,
                 }
-            
+
             return {
                 "success": True,
                 "error": None,
@@ -158,7 +163,7 @@ async def sql_answer_tool(
                 "columns": colnames,
                 "results": results,
             }
-            
+
         except Exception as e:
             return {
                 "success": False,
@@ -182,7 +187,7 @@ async def identify_relevant_tables_tool(
     """
     Identify the most relevant tables in a database for answering a specific question.
     This is particularly useful for databases with hundreds or thousands of tables.
-    
+
     Args:
         question: Natural language question
         db_type: Database type (postgres, mysql, bigquery, etc.)
@@ -192,7 +197,7 @@ async def identify_relevant_tables_tool(
         max_tables: Maximum number of tables to return
         temperature: LLM temperature setting
         config: Optional LLM configuration
-        
+
     Returns:
         Dictionary with relevant tables and their relevance scores
     """
@@ -210,31 +215,37 @@ async def identify_relevant_tables_tool(
             tracker.update(30, "Extracting complete database schema")
             subtask_logger.log_subtask("Getting all table metadata", "processing")
             all_table_metadata = extract_metadata_from_db(db_type, db_creds)
-            
+
             # Build table summary for LLM analysis
             tracker.update(50, "Analyzing table relevance")
             subtask_logger.log_subtask("Scoring table relevance", "processing")
-            
+
             # Create a concise summary of each table
             table_summaries = []
             for table_name, columns in all_table_metadata.items():
-                column_names = [col.get('column_name', '') for col in columns]
-                column_types = [col.get('data_type', '') for col in columns]
-                
+                column_names = [col.get("column_name", "") for col in columns]
+                column_types = [col.get("data_type", "") for col in columns]
+
                 # Create a brief description
                 summary = f"Table: {table_name}\n"
-                summary += f"Columns: {', '.join(column_names[:10])}"  # First 10 columns
+                summary += (
+                    f"Columns: {', '.join(column_names[:10])}"  # First 10 columns
+                )
                 if len(column_names) > 10:
                     summary += f" ... and {len(column_names) - 10} more"
                 summary += f"\nColumn types: {', '.join(set(column_types))}"
-                
+
                 # Add column descriptions if available
-                descriptions = [col.get('column_description', '') for col in columns if col.get('column_description')]
+                descriptions = [
+                    col.get("column_description", "")
+                    for col in columns
+                    if col.get("column_description")
+                ]
                 if descriptions:
                     summary += f"\nDescriptions available: {len(descriptions)} columns"
-                
+
                 table_summaries.append(summary)
-            
+
             # Use LLM to identify relevant tables
             analysis_prompt = f"""Given the following question and database tables, identify the {max_tables} most relevant tables that would be needed to answer the question.
 
@@ -263,10 +274,13 @@ Focus on tables that contain data directly related to the question. Consider:
 Return only the JSON response."""
 
             analysis_messages = [
-                {"role": "system", "content": "You are a database analyst expert at identifying relevant tables for SQL queries."},
-                {"role": "user", "content": analysis_prompt}
+                {
+                    "role": "system",
+                    "content": "You are a database analyst expert at identifying relevant tables for SQL queries.",
+                },
+                {"role": "user", "content": analysis_prompt},
             ]
-            
+
             analysis_response = await chat_async(
                 provider=provider,
                 model=model,
@@ -275,33 +289,42 @@ Return only the JSON response."""
                 max_completion_tokens=2000,
                 config=config,
             )
-            
+
             # Parse the JSON response
             try:
                 analysis_result = json.loads(analysis_response.content.strip())
                 relevant_tables = analysis_result.get("relevant_tables", [])
-                
+
                 # Sort by relevance score and limit to max_tables
-                relevant_tables.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+                relevant_tables.sort(
+                    key=lambda x: x.get("relevance_score", 0), reverse=True
+                )
                 relevant_tables = relevant_tables[:max_tables]
-                
+
                 # Extract the filtered metadata for only relevant tables
-                relevant_table_names = [table["table_name"] for table in relevant_tables]
+                relevant_table_names = [
+                    table["table_name"] for table in relevant_tables
+                ]
                 filtered_metadata = {
-                    name: metadata for name, metadata in all_table_metadata.items() 
+                    name: metadata
+                    for name, metadata in all_table_metadata.items()
                     if name in relevant_table_names
                 }
-                
+
                 tracker.update(100, "Analysis complete")
                 subtask_logger.log_result_summary(
                     "Table Relevance Analysis",
                     {
                         "total_tables": len(all_table_metadata),
                         "relevant_tables": len(relevant_tables),
-                        "top_score": relevant_tables[0]["relevance_score"] if relevant_tables else 0,
+                        "top_score": (
+                            relevant_tables[0]["relevance_score"]
+                            if relevant_tables
+                            else 0
+                        ),
                     },
                 )
-                
+
                 return {
                     "success": True,
                     "error": None,
@@ -310,7 +333,7 @@ Return only the JSON response."""
                     "total_tables_analyzed": len(all_table_metadata),
                     "tables_selected": len(relevant_tables),
                 }
-                
+
             except json.JSONDecodeError as e:
                 return {
                     "success": False,
@@ -320,7 +343,7 @@ Return only the JSON response."""
                     "total_tables_analyzed": len(all_table_metadata),
                     "tables_selected": 0,
                 }
-                
+
         except Exception as e:
             return {
                 "success": False,
