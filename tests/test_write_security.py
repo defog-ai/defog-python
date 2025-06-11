@@ -65,6 +65,55 @@ class TestSQLInjectionPrevention:
             with pytest.raises(ValueError, match="Invalid SQL identifier|contains invalid pattern"):
                 _validate_sql_identifier(identifier)
     
+    def test_validate_sql_identifier_length_limit(self):
+        """Test that overly long identifiers are rejected."""
+        # Test identifier at the limit (255 bytes)
+        max_length_identifier = "a" * 255
+        result = _validate_sql_identifier(max_length_identifier)
+        assert result == max_length_identifier
+        
+        # Test identifier over the limit
+        too_long_identifier = "a" * 256
+        with pytest.raises(ValueError, match="SQL identifier too long"):
+            _validate_sql_identifier(too_long_identifier)
+        
+        # Test quoted identifier over the limit
+        too_long_quoted = '"' + "a" * 254 + '"'
+        with pytest.raises(ValueError, match="SQL identifier too long"):
+            _validate_sql_identifier(too_long_quoted)
+        
+        # Test UTF-8 multi-byte characters
+        # Each emoji is 4 bytes, so 64 emojis = 256 bytes
+        emoji_identifier = "🎉" * 64
+        with pytest.raises(ValueError, match="SQL identifier too long"):
+            _validate_sql_identifier(emoji_identifier)
+    
+    def test_validate_sql_identifier_zero_width_chars(self):
+        """Test that zero-width and invisible characters are rejected."""
+        # Zero-width space
+        with pytest.raises(ValueError, match="invisible/zero-width characters"):
+            _validate_sql_identifier("users\u200btable")
+        
+        # Zero-width non-joiner
+        with pytest.raises(ValueError, match="invisible/zero-width characters"):
+            _validate_sql_identifier("users\u200ctable")
+        
+        # Zero-width joiner
+        with pytest.raises(ValueError, match="invisible/zero-width characters"):
+            _validate_sql_identifier("users\u200dtable")
+        
+        # Zero-width no-break space (BOM)
+        with pytest.raises(ValueError, match="invisible/zero-width characters"):
+            _validate_sql_identifier("\ufeffusers")
+        
+        # Word joiner
+        with pytest.raises(ValueError, match="invisible/zero-width characters"):
+            _validate_sql_identifier("users\u2060table")
+        
+        # Also test in quoted identifiers
+        with pytest.raises(ValueError, match="invisible/zero-width characters"):
+            _validate_sql_identifier('"users\u200btable"')
+    
     def test_postgres_get_sample_data_injection_prevention(self):
         """Test that _get_sample_data prevents SQL injection for Postgres."""
         documenter = SchemaDocumenter("postgres", {"host": "localhost"})
