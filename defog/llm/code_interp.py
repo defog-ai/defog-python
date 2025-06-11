@@ -1,5 +1,10 @@
 from defog.llm.llm_providers import LLMProvider
-from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger, NoOpToolProgressTracker, NoOpSubTaskLogger
+from defog.llm.utils_logging import (
+    ToolProgressTracker,
+    SubTaskLogger,
+    NoOpToolProgressTracker,
+    NoOpSubTaskLogger,
+)
 import os
 from io import BytesIO
 
@@ -17,7 +22,7 @@ async def code_interpreter_tool(
     """
     tracker_class = ToolProgressTracker if verbose else NoOpToolProgressTracker
     logger_class = SubTaskLogger if verbose else NoOpSubTaskLogger
-    
+
     async with tracker_class(
         "Code Interpreter",
         f"Executing code to answer: {question[:50]}{'...' if len(question) > 50 else ''}",

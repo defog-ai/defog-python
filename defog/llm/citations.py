@@ -1,5 +1,10 @@
 from defog.llm.llm_providers import LLMProvider
-from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger, NoOpToolProgressTracker, NoOpSubTaskLogger
+from defog.llm.utils_logging import (
+    ToolProgressTracker,
+    SubTaskLogger,
+    NoOpToolProgressTracker,
+    NoOpSubTaskLogger,
+)
 import os
 import asyncio
 
@@ -44,7 +49,7 @@ async def citations_tool(
     """
     tracker_class = ToolProgressTracker if verbose else NoOpToolProgressTracker
     logger_class = SubTaskLogger if verbose else NoOpSubTaskLogger
-    
+
     async with tracker_class(
         "Citations Tool", f"Generating citations for {len(documents)} documents"
     ) as tracker:
@@ -136,7 +141,10 @@ async def citations_tool(
             tracker.update(95, "Processing results")
             subtask_logger.log_result_summary(
                 "Citations",
-                {"blocks_generated": len(blocks), "documents_processed": len(documents)},
+                {
+                    "blocks_generated": len(blocks),
+                    "documents_processed": len(documents),
+                },
             )
 
             return blocks
@@ -179,7 +187,9 @@ async def citations_tool(
             ]
 
             tracker.update(70, "Generating citations")
-            subtask_logger.log_subtask("Calling Anthropic API with citations", "processing")
+            subtask_logger.log_subtask(
+                "Calling Anthropic API with citations", "processing"
+            )
 
             response = await client.messages.create(
                 model=model,
