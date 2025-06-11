@@ -39,7 +39,8 @@ async def web_search(input: WebSearchInput) -> Dict[str, Any]:
     result = await web_search_tool(
         question=input.query,
         model="gpt-4.1",
-        provider="openai"
+        provider="openai",
+        verbose=False
     )
     return {
         "content": result.get("content", ""),
@@ -58,7 +59,8 @@ async def execute_python(input: CodeExecutionInput) -> Dict[str, Any]:
         model="gpt-4.1",
         provider="openai",
         csv_string=input.data,
-        instructions="Execute the provided code and return the output"
+        instructions="Execute the provided code and return the output",
+        verbose=False
     )
     return {
         "output": result.get("output", ""),
@@ -103,7 +105,8 @@ else:
         question="Analyze this data",
         model="claude-3-7-sonnet-latest",
         provider="anthropic",
-        instructions=code
+        instructions=code,
+        verbose=False
     )
     return {"analysis": result.get("output", "")}
 
@@ -137,7 +140,8 @@ else:
         question="Process file content",
         model="claude-3-7-sonnet-latest",
         provider="anthropic",
-        instructions=code
+        instructions=code,
+        verbose=False
     )
     return {"result": result.get("output", "")}
 
@@ -160,11 +164,10 @@ async def cricket_sql_query(input: SQLQueryInput) -> Dict[str, Any]:
             db_creds=db_creds,
             model="claude-sonnet-4-20250514",
             provider=LLMProvider.ANTHROPIC,
-            temperature=0.0
+            temperature=0.0,
+            verbose=False
         )
 
-        print(result)
-        
         if result.get("success"):
             return {
                 "success": True,
