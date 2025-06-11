@@ -83,19 +83,16 @@ def generate_postgres_schema(
                 for key, value in documentation_config.items():
                     if hasattr(config, key):
                         setattr(config, key, value)
-            
+
             # Run async documentation with proper async handling
             try:
                 # First try using asyncio.run()
                 documentation = asyncio.run(
-                    document_schema_for_defog(
-                        "postgres", 
-                        self.db_creds, 
-                        tables, 
-                        config
-                    )
+                    document_schema_for_defog("postgres", self.db_creds, tables, config)
                 )
-                print(f"Schema documentation completed for {len(documentation)} tables.")
+                print(
+                    f"Schema documentation completed for {len(documentation)} tables."
+                )
             except RuntimeError as e:
                 if "asyncio.run() cannot be called from a running event loop" in str(e):
                     # We're already in an event loop, use current loop
@@ -103,20 +100,22 @@ def generate_postgres_schema(
                         loop = asyncio.get_running_loop()
                         # Create a task and wait for it synchronously
                         import concurrent.futures
+
                         with concurrent.futures.ThreadPoolExecutor() as executor:
                             future = executor.submit(
                                 asyncio.run,
                                 document_schema_for_defog(
-                                    "postgres", 
-                                    self.db_creds, 
-                                    tables, 
-                                    config
-                                )
+                                    "postgres", self.db_creds, tables, config
+                                ),
                             )
                             documentation = future.result()
-                        print(f"Schema documentation completed for {len(documentation)} tables.")
+                        print(
+                            f"Schema documentation completed for {len(documentation)} tables."
+                        )
                     except Exception as inner_e:
-                        print(f"Warning: Failed to run documentation in nested event loop: {inner_e}")
+                        print(
+                            f"Warning: Failed to run documentation in nested event loop: {inner_e}"
+                        )
                         raise
                 else:
                     raise
@@ -133,18 +132,25 @@ def generate_postgres_schema(
             schema, table_name = table_name.split(".", 1)
         else:
             schema = "public"
-        
+
         # Get table comment
-        cur.execute("""
+        cur.execute(
+            """
             SELECT obj_description(c.oid, 'pg_class') as table_comment
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relname = %s AND n.nspname = %s
-        """, (table_name, schema))
-        
+        """,
+            (table_name, schema),
+        )
+
         table_comment_result = cur.fetchone()
-        table_description = table_comment_result[0] if table_comment_result and table_comment_result[0] else ""
-        
+        table_description = (
+            table_comment_result[0]
+            if table_comment_result and table_comment_result[0]
+            else ""
+        )
+
         # Get column information
         cur.execute(
             """
@@ -201,13 +207,10 @@ def generate_postgres_schema(
         if len(rows) > 0:
             if scan:
                 rows = identify_categorical_columns(cur, table_name, rows)
-            
+
             # Create table schema with table description
-            table_schema = {
-                "table_description": table_description,
-                "columns": rows
-            }
-            
+            table_schema = {"table_description": table_description, "columns": rows}
+
             if schema == "public":
                 table_columns[table_name] = table_schema
             else:
@@ -1017,19 +1020,16 @@ def generate_duckdb_schema(
                 for key, value in documentation_config.items():
                     if hasattr(config, key):
                         setattr(config, key, value)
-            
+
             # Run async documentation with proper async handling
             try:
                 # First try using asyncio.run()
                 documentation = asyncio.run(
-                    document_schema_for_defog(
-                        "duckdb", 
-                        self.db_creds, 
-                        tables, 
-                        config
-                    )
+                    document_schema_for_defog("duckdb", self.db_creds, tables, config)
                 )
-                print(f"Schema documentation completed for {len(documentation)} tables.")
+                print(
+                    f"Schema documentation completed for {len(documentation)} tables."
+                )
             except RuntimeError as e:
                 if "asyncio.run() cannot be called from a running event loop" in str(e):
                     # We're already in an event loop, use current loop
@@ -1037,20 +1037,22 @@ def generate_duckdb_schema(
                         loop = asyncio.get_running_loop()
                         # Create a task and wait for it synchronously
                         import concurrent.futures
+
                         with concurrent.futures.ThreadPoolExecutor() as executor:
                             future = executor.submit(
                                 asyncio.run,
                                 document_schema_for_defog(
-                                    "duckdb", 
-                                    self.db_creds, 
-                                    tables, 
-                                    config
-                                )
+                                    "duckdb", self.db_creds, tables, config
+                                ),
                             )
                             documentation = future.result()
-                        print(f"Schema documentation completed for {len(documentation)} tables.")
+                        print(
+                            f"Schema documentation completed for {len(documentation)} tables."
+                        )
                     except Exception as inner_e:
-                        print(f"Warning: Failed to run documentation in nested event loop: {inner_e}")
+                        print(
+                            f"Warning: Failed to run documentation in nested event loop: {inner_e}"
+                        )
                         raise
                 else:
                     raise
@@ -1064,17 +1066,22 @@ def generate_duckdb_schema(
         try:
             # Validate table name for safety
             import re
-            if not re.match(r'^[a-zA-Z0-9_.]+$', table_name):
+
+            if not re.match(r"^[a-zA-Z0-9_.]+$", table_name):
                 print(f"Warning: Skipping table {table_name} due to invalid identifier")
                 continue
-            
+
             if "." in table_name:
                 schema_name, table_only = table_name.split(".", 1)
                 # Validate both parts
-                if not re.match(r'^[a-zA-Z0-9_]+$', schema_name) or not re.match(r'^[a-zA-Z0-9_]+$', table_only):
-                    print(f"Warning: Skipping table {table_name} due to invalid schema or table name")
+                if not re.match(r"^[a-zA-Z0-9_]+$", schema_name) or not re.match(
+                    r"^[a-zA-Z0-9_]+$", table_only
+                ):
+                    print(
+                        f"Warning: Skipping table {table_name} due to invalid schema or table name"
+                    )
                     continue
-                    
+
                 columns_query = """
                 SELECT column_name, data_type 
                 FROM information_schema.columns 
@@ -1091,7 +1098,7 @@ def generate_duckdb_schema(
                 AND table_schema = ?
                 ORDER BY ordinal_position
                 """
-                rows = conn.execute(columns_query, (table_name, 'main')).fetchall()
+                rows = conn.execute(columns_query, (table_name, "main")).fetchall()
         except Exception as e:
             print(f"Warning: Could not retrieve columns for {table_name}: {e}")
             continue
@@ -1116,7 +1123,7 @@ def generate_duckdb_schema(
             # Create table schema with table description (DuckDB has limited comment support)
             table_schema = {
                 "table_description": "",  # DuckDB doesn't have native table comment support
-                "columns": rows
+                "columns": rows,
             }
             schemas[table_name] = table_schema
 
