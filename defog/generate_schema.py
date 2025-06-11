@@ -3,7 +3,9 @@ from defog.util import identify_categorical_columns
 from io import StringIO
 import pandas as pd
 import json
-from typing import List, Dict, Union
+import asyncio
+from typing import List, Dict, Union, Optional
+from defog.schema_documenter import DocumentationConfig, document_schema_for_defog
 
 
 def generate_postgres_schema(
@@ -14,15 +16,18 @@ def generate_postgres_schema(
     scan: bool = True,
     return_tables_only: bool = False,
     schemas: List[str] = [],
+    self_document: bool = False,
+    documentation_config: Optional[Dict] = None,
 ) -> Union[Dict, List, str]:
     """
-    Returns the schema of the tables in the database. Keys: column_name, data_type, column_description, custom_type_labels
+    Returns the schema of the tables in the database. Keys: column_name, data_type, column_description, custom_type_labels, table_description
     If tables is non-empty, we only generate the schema for the mentioned tables in the list.
     If schemas is non-empty, we only generate the schema for the mentioned schemas in the list.
     If return_tables_only is True, we return only the table names as a list.
     If upload is True, we send the schema to the defog servers and generate a CSV.
     If upload is False, we return the schema as a dict.
     If scan is True, we also scan the tables for categorical columns to enhance the column description.
+    If self_document is True, we use LLMs to generate table and column descriptions and store them as database comments.
     """
     try:
         import psycopg2
@@ -68,6 +73,35 @@ def generate_postgres_schema(
         conn.close()
         return tables
 
+    # Run self-documentation if requested
+    if self_document:
+        print("Running LLM-powered schema documentation...")
+        try:
+            # Create documentation config
+            config = DocumentationConfig()
+            if documentation_config:
+                for key, value in documentation_config.items():
+                    if hasattr(config, key):
+                        setattr(config, key, value)
+            
+            # Run async documentation
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                documentation = loop.run_until_complete(
+                    document_schema_for_defog(
+                        "postgres", 
+                        self.db_creds, 
+                        tables, 
+                        config
+                    )
+                )
+                print(f"Schema documentation completed for {len(documentation)} tables.")
+            finally:
+                loop.close()
+        except Exception as e:
+            print(f"Warning: Schema documentation failed: {e}")
+
     print("Getting schema for each table that you selected...")
 
     table_columns = {}
@@ -78,6 +112,19 @@ def generate_postgres_schema(
             schema, table_name = table_name.split(".", 1)
         else:
             schema = "public"
+        
+        # Get table comment
+        cur.execute("""
+            SELECT obj_description(c.oid, 'pg_class') as table_comment
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relname = %s AND n.nspname = %s
+        """, (table_name, schema))
+        
+        table_comment_result = cur.fetchone()
+        table_description = table_comment_result[0] if table_comment_result and table_comment_result[0] else ""
+        
+        # Get column information
         cur.execute(
             """
             SELECT 
@@ -133,10 +180,17 @@ def generate_postgres_schema(
         if len(rows) > 0:
             if scan:
                 rows = identify_categorical_columns(cur, table_name, rows)
+            
+            # Create table schema with table description
+            table_schema = {
+                "table_description": table_description,
+                "columns": rows
+            }
+            
             if schema == "public":
-                table_columns[table_name] = rows
+                table_columns[table_name] = table_schema
             else:
-                table_columns[schema + "." + table_name] = rows
+                table_columns[schema + "." + table_name] = table_schema
     conn.close()
 
     if upload:
@@ -880,6 +934,8 @@ def generate_duckdb_schema(
     return_format: str = "csv",
     scan: bool = True,
     return_tables_only: bool = False,
+    self_document: bool = False,
+    documentation_config: Optional[Dict] = None,
 ) -> str:
     """
     Generate schema for DuckDB database.
@@ -930,6 +986,35 @@ def generate_duckdb_schema(
         conn.close()
         return tables
 
+    # Run self-documentation if requested
+    if self_document:
+        print("Running LLM-powered schema documentation for DuckDB...")
+        try:
+            # Create documentation config
+            config = DocumentationConfig()
+            if documentation_config:
+                for key, value in documentation_config.items():
+                    if hasattr(config, key):
+                        setattr(config, key, value)
+            
+            # Run async documentation
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                documentation = loop.run_until_complete(
+                    document_schema_for_defog(
+                        "duckdb", 
+                        self.db_creds, 
+                        tables, 
+                        config
+                    )
+                )
+                print(f"Schema documentation completed for {len(documentation)} tables.")
+            finally:
+                loop.close()
+        except Exception as e:
+            print(f"Warning: Schema documentation failed: {e}")
+
     print("Getting schema for each table that you selected...")
     # Get the schema for each table
     for table_name in tables:
@@ -971,7 +1056,12 @@ def generate_duckdb_schema(
             rows = identify_categorical_columns(cursor, table_name, rows)
 
         if len(rows) > 0:
-            schemas[table_name] = rows
+            # Create table schema with table description (DuckDB has limited comment support)
+            table_schema = {
+                "table_description": "",  # DuckDB doesn't have native table comment support
+                "columns": rows
+            }
+            schemas[table_name] = table_schema
 
     conn.close()
 
@@ -1014,6 +1104,8 @@ def generate_db_schema(
     upload: bool = True,
     return_tables_only: bool = False,
     return_format: str = "csv",
+    self_document: bool = False,
+    documentation_config: Optional[Dict] = None,
 ) -> str:
     if self.db_type == "postgres":
         return self.generate_postgres_schema(
@@ -1022,6 +1114,8 @@ def generate_db_schema(
             scan=scan,
             upload=upload,
             return_tables_only=return_tables_only,
+            self_document=self_document,
+            documentation_config=documentation_config,
         )
     elif self.db_type == "mysql":
         return self.generate_mysql_schema(
@@ -1085,6 +1179,8 @@ def generate_db_schema(
             scan=scan,
             upload=upload,
             return_tables_only=return_tables_only,
+            self_document=self_document,
+            documentation_config=documentation_config,
         )
     else:
         raise ValueError(
