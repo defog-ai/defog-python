@@ -85,10 +85,8 @@ def generate_postgres_schema(
                         setattr(config, key, value)
             
             # Run async documentation
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
             try:
-                documentation = loop.run_until_complete(
+                documentation = asyncio.run(
                     document_schema_for_defog(
                         "postgres", 
                         self.db_creds, 
@@ -97,8 +95,22 @@ def generate_postgres_schema(
                     )
                 )
                 print(f"Schema documentation completed for {len(documentation)} tables.")
-            finally:
-                loop.close()
+            except RuntimeError:
+                # If we're already in an event loop, use the loop management approach
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    documentation = loop.run_until_complete(
+                        document_schema_for_defog(
+                            "postgres", 
+                            self.db_creds, 
+                            tables, 
+                            config
+                        )
+                    )
+                    print(f"Schema documentation completed for {len(documentation)} tables.")
+                finally:
+                    loop.close()
         except Exception as e:
             print(f"Warning: Schema documentation failed: {e}")
 
@@ -998,10 +1010,8 @@ def generate_duckdb_schema(
                         setattr(config, key, value)
             
             # Run async documentation
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
             try:
-                documentation = loop.run_until_complete(
+                documentation = asyncio.run(
                     document_schema_for_defog(
                         "duckdb", 
                         self.db_creds, 
@@ -1010,8 +1020,22 @@ def generate_duckdb_schema(
                     )
                 )
                 print(f"Schema documentation completed for {len(documentation)} tables.")
-            finally:
-                loop.close()
+            except RuntimeError:
+                # If we're already in an event loop, use the loop management approach
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    documentation = loop.run_until_complete(
+                        document_schema_for_defog(
+                            "duckdb", 
+                            self.db_creds, 
+                            tables, 
+                            config
+                        )
+                    )
+                    print(f"Schema documentation completed for {len(documentation)} tables.")
+                finally:
+                    loop.close()
         except Exception as e:
             print(f"Warning: Schema documentation failed: {e}")
 
