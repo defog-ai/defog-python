@@ -51,7 +51,7 @@ class AnthropicProvider(BaseLLMProvider):
         else:
             sys_msg = ""
 
-        if reasoning_effort is not None:
+        if reasoning_effort is not None and ("3-7" in model or "-4-" in model):
             temperature = 1.0
             if reasoning_effort == "low":
                 thinking = {
