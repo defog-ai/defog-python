@@ -150,6 +150,24 @@ def execute_query_once(db_type: str, db_creds, query: str):
             rows = cur.fetchall()
         return colnames, rows
 
+    elif db_type == "duckdb":
+        try:
+            import duckdb
+        except ImportError as e:
+            raise ImportError("duckdb not installed. Please install it with `pip install duckdb`.") from e
+        
+        database_path = db_creds.get("database", ":memory:")
+        if database_path != ":memory:" and not isinstance(database_path, str):
+            raise ValueError("Database path must be a string or ':memory:'")
+        
+        # DuckDB supports both file-based and in-memory databases
+        with duckdb.connect(database_path, read_only=True) as conn:
+            # Execute the query and fetch results
+            result = conn.execute(query)
+            colnames = [desc[0] for desc in result.description] if result.description else []
+            rows = result.fetchall()
+        return colnames, rows
+
     else:
         raise Exception(f"Database type {db_type} not yet supported.")
 
@@ -328,6 +346,27 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
             colnames = [desc[0] for desc in cur.description] if cur.description else []
             rows = await cur.fetchall()
             await cur.close()
+        return colnames, rows
+    
+    elif db_type == "duckdb":
+        try:
+            import duckdb
+        except ImportError as e:
+            raise ImportError("duckdb not installed. Please install it with `pip install duckdb`.") from e
+        
+        database_path = db_creds.get("database", ":memory:")
+        if database_path != ":memory:" and not isinstance(database_path, str):
+            raise ValueError("Database path must be a string or ':memory:'")
+        
+        # DuckDB doesn't have native async support, so we use asyncio.to_thread
+        def _execute_duckdb():
+            with duckdb.connect(database_path, read_only=True) as conn:
+                result = conn.execute(query)
+                colnames = [desc[0] for desc in result.description] if result.description else []
+                rows = result.fetchall()
+            return colnames, rows
+        
+        colnames, rows = await asyncio.to_thread(_execute_duckdb)
         return colnames, rows
     
     else:
