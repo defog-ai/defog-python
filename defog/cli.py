@@ -204,6 +204,16 @@ def init():
             "user": user,
             "password": password,
         }
+    elif db_type == "sqlite":
+        database = prompt("Please enter your database file path (or ':memory:' for in-memory database)\n").strip()
+        db_creds = {
+            "database": database
+        }
+    elif db_type == "duckdb":
+        database = prompt("Please enter your DuckDB database file path (or ':memory:' for in-memory database)\n").strip()
+        db_creds = {
+            "database": database
+        }
 
     # write to filepath and print confirmation
     with open(filepath, "w") as f:

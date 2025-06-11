@@ -5,12 +5,12 @@ This example demonstrates:
 1. Dynamic subagent creation based on task requirements
 2. Web search capabilities for real-time information
 3. Code execution for data analysis and calculations
-4. SQL querying of Cricket World Cup 2015 database using sql_answer_tool
+4. SQL querying of Cricket World Cup 2015 DuckDB database using sql_answer_tool
 5. File processing operations
 
 The Cricket World Cup 2015 database contains ball-by-ball data from all matches,
 including batting/bowling statistics, team performance, and match details.
-Run setup_cricket_db.py first to create the database from CSV files.
+Run setup_cricket_db.py first to create the DuckDB database from CSV files.
 """
 
 import asyncio
@@ -148,7 +148,7 @@ class SQLQueryInput(BaseModel):
 async def cricket_sql_query(input: SQLQueryInput) -> Dict[str, Any]:
     """Answer questions about Cricket World Cup 2015 using SQL queries on the ball-by-ball data."""
     # Database configuration for Cricket World Cup 2015
-    db_path = os.path.join(os.path.dirname(__file__), "cricket_wc2015.db")
+    db_path = os.path.join(os.path.dirname(__file__), "cricket_wc2015.duckdb")
     db_creds = {
         "database": db_path
     }
@@ -156,7 +156,7 @@ async def cricket_sql_query(input: SQLQueryInput) -> Dict[str, Any]:
     try:
         result = await sql_answer_tool(
             question=input.question,
-            db_type="sqlite",
+            db_type="duckdb",
             db_creds=db_creds,
             model="claude-sonnet-4-20250514",
             provider=LLMProvider.ANTHROPIC,
@@ -204,8 +204,6 @@ async def dynamic_orchestration_example():
         2. Use the plan_and_create_subagents tool to dynamically create the right subagents
         3. The tool will automatically create subagents with appropriate tools and execute tasks
         4. Synthesize the results and provide a comprehensive response
-        
-        IMPORTANT: When multiple subagents need to use cricket_sql_query tool, they MUST run sequentially (not parallel) to avoid SQLite database locking issues. Only non-database tools can run in parallel.
         
         You must use the plan_and_create_subagents tool to handle complex requests that require multiple specialized tasks.""",
         memory_config={"token_threshold": 50000, "preserve_last_n_messages": 10}
