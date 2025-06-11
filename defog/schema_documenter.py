@@ -14,11 +14,52 @@ from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 import re
 import time
+from contextlib import contextmanager
 
 # Import LLM providers
 from defog.llm.providers.anthropic_provider import AnthropicProvider
 from defog.llm.providers.openai_provider import OpenAIProvider
 from defog.llm.providers.gemini_provider import GeminiProvider
+
+# Constants for data analysis
+MAX_CATEGORICAL_VALUES = 20
+CATEGORICAL_THRESHOLD = 0.5
+SAMPLE_VALUES_LIMIT = 3
+MAX_CATEGORY_EXAMPLES = 10
+EMAIL_PATTERN_THRESHOLD = 0.8
+URL_PATTERN_THRESHOLD = 0.8
+UUID_PATTERN_THRESHOLD = 0.8
+PHONE_PATTERN_THRESHOLD = 0.8
+
+
+def _escape_sql_identifier(identifier: str) -> str:
+    """
+    Safely escape SQL identifiers (table names, column names) to prevent injection.
+    
+    Args:
+        identifier: The SQL identifier to escape
+        
+    Returns:
+        Escaped identifier safe for use in SQL queries
+        
+    Raises:
+        ValueError: If identifier contains invalid characters
+    """
+    # Basic validation - only allow alphanumeric, underscore, dot, and dash
+    if not re.match(r'^[a-zA-Z0-9_."-]+$', identifier):
+        raise ValueError(f"Invalid SQL identifier: {identifier}")
+    
+    # Split on dots to handle schema.table format
+    parts = identifier.split('.')
+    escaped_parts = []
+    
+    for part in parts:
+        # Remove existing quotes and re-quote
+        clean_part = part.strip('"').strip("'")
+        # Double-quote the identifier for safety
+        escaped_parts.append(f'"{clean_part}"')
+    
+    return '.'.join(escaped_parts)
 
 
 @dataclass
@@ -85,6 +126,15 @@ class SchemaDocumenter:
             return GeminiProvider()
         else:
             raise ValueError(f"Unsupported LLM provider: {self.config.provider}")
+
+    @contextmanager
+    def _get_cursor(self, conn):
+        """Context manager for database cursor."""
+        cursor = conn.cursor()
+        try:
+            yield cursor
+        finally:
+            cursor.close()
 
     def _get_connection(self):
         """Get database connection based on db_type."""
@@ -254,10 +304,14 @@ class SchemaDocumenter:
     def _get_sample_data(self, cursor, table_name: str, columns_info: List[Dict]) -> Dict[str, List]:
         """Get sample data for analysis."""
         column_names = [col["name"] for col in columns_info]
-        column_list = ", ".join(f'"{name}"' for name in column_names)
         
         try:
-            query = f'SELECT {column_list} FROM "{table_name}" LIMIT {self.config.sample_size}'
+            # Safely escape identifiers
+            escaped_table = _escape_sql_identifier(table_name)
+            escaped_columns = [_escape_sql_identifier(name) for name in column_names]
+            column_list = ", ".join(escaped_columns)
+            
+            query = f'SELECT {column_list} FROM {escaped_table} LIMIT {self.config.sample_size}'
             cursor.execute(query)
             rows = cursor.fetchall()
             
@@ -269,21 +323,25 @@ class SchemaDocumenter:
                         sample_data[col_name].append(row[i])
             
             return sample_data
-        except Exception as e:
-            self.logger.warning(f"Could not retrieve sample data for {table_name}: {e}")
+        except (ValueError, Exception) as e:
+            if isinstance(e, ValueError):
+                self.logger.error(f"Invalid identifier in table {table_name}: {e}")
+            else:
+                self.logger.warning(f"Could not retrieve sample data for {table_name}: {e}")
             return {col_name: [] for col_name in column_names}
 
     def _get_row_count(self, conn, table_name: str) -> int:
         """Get approximate row count for the table."""
-        cursor = conn.cursor()
         try:
-            cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
-            result = cursor.fetchone()
-            return result[0] if result else 0
-        except Exception:
+            with self._get_cursor(conn) as cursor:
+                escaped_table = _escape_sql_identifier(table_name)
+                cursor.execute(f'SELECT COUNT(*) FROM {escaped_table}')
+                result = cursor.fetchone()
+                return result[0] if result else 0
+        except (ValueError, Exception) as e:
+            if isinstance(e, ValueError):
+                self.logger.error(f"Invalid table identifier: {table_name}")
             return 0
-        finally:
-            cursor.close()
 
     def _analyze_data_patterns(self, sample_data: Dict[str, List], columns_info: List[Dict]) -> Dict[str, Dict]:
         """Analyze patterns in the sample data."""
@@ -327,29 +385,29 @@ class SchemaDocumenter:
         
         # Email pattern
         email_count = sum(1 for item in data if self._is_email(str(item)))
-        if email_count / len(data) > 0.8:
+        if email_count / len(data) > EMAIL_PATTERN_THRESHOLD:
             patterns["email"] = True
         
         # URL pattern
         url_count = sum(1 for item in data if self._is_url(str(item)))
-        if url_count / len(data) > 0.8:
+        if url_count / len(data) > URL_PATTERN_THRESHOLD:
             patterns["url"] = True
         
         # UUID pattern
         uuid_count = sum(1 for item in data if self._is_uuid(str(item)))
-        if uuid_count / len(data) > 0.8:
+        if uuid_count / len(data) > UUID_PATTERN_THRESHOLD:
             patterns["uuid"] = True
         
         # Phone number pattern
         phone_count = sum(1 for item in data if self._is_phone(str(item)))
-        if phone_count / len(data) > 0.8:
+        if phone_count / len(data) > PHONE_PATTERN_THRESHOLD:
             patterns["phone"] = True
         
         # Categories (limited unique values)
         unique_values = set(str(item) for item in data)
-        if len(unique_values) <= 20 and len(unique_values) < len(data) * 0.5:
+        if len(unique_values) <= MAX_CATEGORICAL_VALUES and len(unique_values) < len(data) * CATEGORICAL_THRESHOLD:
             patterns["categorical"] = True
-            patterns["categories"] = list(unique_values)[:10]  # Limit to 10 examples
+            patterns["categories"] = list(unique_values)[:MAX_CATEGORY_EXAMPLES]
         
         return patterns
 
@@ -468,7 +526,7 @@ COLUMNS:
             
             # Add sample values
             if col_name in sample_data and sample_data[col_name]:
-                samples = sample_data[col_name][:3]  # First 3 samples
+                samples = sample_data[col_name][:SAMPLE_VALUES_LIMIT]
                 sample_str = ", ".join(f"'{s}'" for s in samples if s is not None)
                 if sample_str:
                     prompt += f" [SAMPLES: {sample_str}]"
@@ -672,39 +730,42 @@ Guidelines:
 
     def _apply_table_comment(self, conn, table_name: str, description: str) -> bool:
         """Apply table comment to database."""
-        cursor = conn.cursor()
-        
         try:
-            if self.db_type == "postgres":
-                cursor.execute(f'COMMENT ON TABLE "{table_name}" IS %s', (description,))
-            elif self.db_type == "duckdb":
-                # DuckDB comment support is limited, log for now
-                self.logger.info(f"Would set table comment for {table_name}: {description}")
-            
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to set table comment for {table_name}: {e}")
+            with self._get_cursor(conn) as cursor:
+                if self.db_type == "postgres":
+                    escaped_table = _escape_sql_identifier(table_name)
+                    cursor.execute(f'COMMENT ON TABLE {escaped_table} IS %s', (description,))
+                elif self.db_type == "duckdb":
+                    # DuckDB comment support is limited, log for now
+                    self.logger.info(f"Would set table comment for {table_name}: {description}")
+                
+                return True
+        except (ValueError, Exception) as e:
+            if isinstance(e, ValueError):
+                self.logger.error(f"Invalid table identifier {table_name}: {e}")
+            else:
+                self.logger.error(f"Failed to set table comment for {table_name}: {e}")
             return False
-        finally:
-            cursor.close()
 
     def _apply_column_comment(self, conn, table_name: str, column_name: str, description: str) -> bool:
         """Apply column comment to database."""
-        cursor = conn.cursor()
-        
         try:
-            if self.db_type == "postgres":
-                cursor.execute(f'COMMENT ON COLUMN "{table_name}"."{column_name}" IS %s', (description,))
-            elif self.db_type == "duckdb":
-                # DuckDB comment support is limited, log for now
-                self.logger.info(f"Would set column comment for {table_name}.{column_name}: {description}")
-            
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to set column comment for {table_name}.{column_name}: {e}")
+            with self._get_cursor(conn) as cursor:
+                if self.db_type == "postgres":
+                    escaped_table = _escape_sql_identifier(table_name)
+                    escaped_column = _escape_sql_identifier(column_name)
+                    cursor.execute(f'COMMENT ON COLUMN {escaped_table}.{escaped_column} IS %s', (description,))
+                elif self.db_type == "duckdb":
+                    # DuckDB comment support is limited, log for now
+                    self.logger.info(f"Would set column comment for {table_name}.{column_name}: {description}")
+                
+                return True
+        except (ValueError, Exception) as e:
+            if isinstance(e, ValueError):
+                self.logger.error(f"Invalid identifier for {table_name}.{column_name}: {e}")
+            else:
+                self.logger.error(f"Failed to set column comment for {table_name}.{column_name}: {e}")
             return False
-        finally:
-            cursor.close()
 
     def _log_documentation_preview(self, documentation: Dict[str, TableDocumentation]):
         """Log documentation preview for dry run."""
