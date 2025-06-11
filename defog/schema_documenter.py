@@ -45,8 +45,25 @@ def _validate_sql_identifier(identifier: str) -> str:
     Raises:
         ValueError: If identifier contains invalid characters
     """
-    # Strict validation - only allow alphanumeric, underscore, and dot
-    # Remove quotes and hyphens which can be problematic
+    # Handle quoted identifiers (double quotes)
+    if identifier.startswith('"') and identifier.endswith('"'):
+        # For quoted identifiers, we're more permissive but still check for truly dangerous patterns
+        inner_content = identifier[1:-1]
+        # Check for dangerous SQL injection patterns within quotes
+        # We allow SQL keywords as table/column names when quoted, but not injection patterns
+        dangerous_patterns = [
+            r'[;\-\-]',  # Semicolon and SQL comments
+            r'/\*.*\*/',  # Block comments
+            r"'.*'",  # Single quotes (potential injection)
+        ]
+        
+        for pattern in dangerous_patterns:
+            if re.search(pattern, inner_content, re.IGNORECASE):
+                raise ValueError(f"SQL identifier contains invalid pattern: {identifier}")
+        
+        return identifier
+    
+    # For unquoted identifiers, strict validation - only allow alphanumeric, underscore, and dot
     if not re.match(r'^[a-zA-Z0-9_.]+$', identifier):
         raise ValueError(f"Invalid SQL identifier: {identifier}")
     
