@@ -499,3 +499,47 @@ class SubTaskLogger:
                     padding=(1, 2),
                 )
             )
+
+
+class NoOpToolProgressTracker:
+    """No-op version of ToolProgressTracker for when verbose=False."""
+
+    def __init__(self, tool_name: str = "", description: str = ""):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def update(self, progress: float, description: str = None):
+        pass
+
+
+class NoOpSubTaskLogger:
+    """No-op version of SubTaskLogger for when verbose=False."""
+
+    def __init__(self):
+        pass
+
+    def log_subtask(self, message: str, status: str = "info"):
+        pass
+
+    def log_provider_info(self, provider: str, model: str):
+        pass
+
+    def log_document_upload(self, doc_name: str, doc_index: int, total_docs: int):
+        pass
+
+    def log_vector_store_status(self, completed: int, total: int):
+        pass
+
+    def log_search_status(self, query: str, max_results: int = None):
+        pass
+
+    def log_code_execution(self, language: str = "python"):
+        pass
+
+    def log_result_summary(self, result_type: str, details: Dict[str, Any] = None):
+        pass
