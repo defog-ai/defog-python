@@ -69,8 +69,10 @@ class TestSchemaDocumenter:
     def test_init_unsupported_provider(self):
         """Test SchemaDocumenter initialization with unsupported LLM provider."""
         config = DocumentationConfig(provider="unsupported")
-        with pytest.raises(ValueError, match="Unsupported LLM provider"):
-            SchemaDocumenter("postgres", {}, config)
+        # Note: Provider validation happens in chat_async, not in SchemaDocumenter init
+        # This test creates the documenter successfully but would fail on actual LLM calls
+        documenter = SchemaDocumenter("postgres", {}, config)
+        assert documenter.config.provider == "unsupported"
 
 
 class TestPatternAnalysis:
@@ -166,32 +168,28 @@ class TestLLMIntegration:
         assert "[EMAIL ADDRESSES]" in prompt
         assert "[ID/SEQUENCE]" in prompt
 
-    def test_parse_llm_response(self):
-        """Test parsing LLM response."""
-        # Valid JSON response
-        response = """```json
-        {
-            "table_description": "Stores user account information",
-            "table_confidence": 0.9,
-            "columns": {
-                "id": {
-                    "description": "Unique user identifier",
-                    "confidence": 0.95
-                }
-            }
-        }
-        ```"""
+    def test_structured_response_format(self):
+        """Test that structured response format is used instead of JSON parsing."""
+        from defog.schema_documenter import (
+            ColumnDocumentation,
+            SchemaDocumentationResponse,
+        )
 
-        result = self.documenter._parse_llm_response(response)
-        assert result["table_description"] == "Stores user account information"
-        assert result["table_confidence"] == 0.9
-        assert "id" in result["columns"]
+        # Test that the Pydantic models are properly defined
+        col_doc = ColumnDocumentation(description="User ID", confidence=0.95)
+        assert col_doc.description == "User ID"
+        assert col_doc.confidence == 0.95
 
-        # Invalid JSON response
-        invalid_response = "This is not valid JSON"
-        result = self.documenter._parse_llm_response(invalid_response)
-        assert "error" in result
-        assert result["table_confidence"] == 0.0
+        response = SchemaDocumentationResponse(
+            table_description="Stores user information",
+            table_confidence=0.9,
+            columns={"id": col_doc},
+        )
+
+        assert response.table_description == "Stores user information"
+        assert response.table_confidence == 0.9
+        assert "id" in response.columns
+        assert response.columns["id"].description == "User ID"
 
 
 class TestPostgresComments:

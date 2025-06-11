@@ -7,19 +7,32 @@ then storing these descriptions as database comments.
 """
 
 import asyncio
-import json
 import logging
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
-from concurrent.futures import ThreadPoolExecutor
 import re
-import time
 from contextlib import contextmanager
 
 # Import LLM providers
-from defog.llm.providers.anthropic_provider import AnthropicProvider
-from defog.llm.providers.openai_provider import OpenAIProvider
-from defog.llm.providers.gemini_provider import GeminiProvider
+from defog.llm.utils import chat_async
+
+from pydantic import BaseModel
+
+
+class ColumnDocumentation(BaseModel):
+    """Pydantic model for column documentation."""
+
+    description: str
+    confidence: float
+
+
+class SchemaDocumentationResponse(BaseModel):
+    """Pydantic model for LLM response containing schema documentation."""
+
+    table_description: str
+    table_confidence: float
+    columns: Dict[str, ColumnDocumentation]
+
 
 # Constants for data analysis
 MAX_CATEGORICAL_VALUES = 20
@@ -55,7 +68,7 @@ def _validate_sql_identifier(identifier: str) -> str:
     invisible_chars = ["\u200b", "\u200c", "\u200d", "\ufeff", "\u2060"]
     for char in invisible_chars:
         if char in identifier:
-            raise ValueError(f"SQL identifier contains invisible/zero-width characters")
+            raise ValueError("SQL identifier contains invisible/zero-width characters")
 
     # Handle quoted identifiers (double quotes)
     if identifier.startswith('"') and identifier.endswith('"'):
@@ -146,20 +159,6 @@ class SchemaDocumenter:
             raise ValueError(
                 f"Database type '{db_type}' not supported. Use 'postgres' or 'duckdb'."
             )
-
-        # Initialize LLM provider
-        self.llm_provider = self._init_llm_provider()
-
-    def _init_llm_provider(self):
-        """Initialize the appropriate LLM provider."""
-        if self.config.provider == "anthropic":
-            return AnthropicProvider()
-        elif self.config.provider == "openai":
-            return OpenAIProvider()
-        elif self.config.provider == "gemini":
-            return GeminiProvider()
-        else:
-            raise ValueError(f"Unsupported LLM provider: {self.config.provider}")
 
     @contextmanager
     def _get_cursor(self, conn):
@@ -603,16 +602,30 @@ class SchemaDocumenter:
         prompt = self._build_documentation_prompt(table_name, analysis)
 
         try:
-            # Make async call to LLM
-            response = await self.llm_provider.generate_async(
+            # Make async call to LLM with structured response format
+            response = await chat_async(
                 messages=[{"role": "user", "content": prompt}],
+                provider=self.config.provider,
                 model=self.config.model,
-                max_tokens=2000,
+                max_completion_tokens=2000,
                 temperature=0.1,
+                response_format=SchemaDocumentationResponse,
             )
 
-            # Parse the structured response
-            return self._parse_llm_response(response)
+            # Convert the structured response to dictionary format
+            result = {
+                "table_description": response.content.table_description,
+                "table_confidence": response.content.table_confidence,
+                "columns": {},
+            }
+
+            for col_name, col_doc in response.content.columns.items():
+                result["columns"][col_name] = {
+                    "description": col_doc.description,
+                    "confidence": col_doc.confidence,
+                }
+
+            return result
 
         except Exception as e:
             self.logger.error(f"Error generating description for {table_name}: {e}")
@@ -668,21 +681,9 @@ COLUMNS:
                 if sample_str:
                     prompt += f" [SAMPLES: {sample_str}]"
 
-        prompt += f"""
+        prompt += """
 
-Please provide documentation in the following JSON format:
-
-{{
-    "table_description": "A clear, concise description of what this table stores and its purpose (1-2 sentences)",
-    "table_confidence": 0.85,
-    "columns": {{
-        "column_name": {{
-            "description": "Clear description of what this column stores",
-            "confidence": 0.90
-        }},
-        ...
-    }}
-}}
+Please provide concise documentation for this table and its columns.
 
 Guidelines:
 - Keep descriptions concise but informative
@@ -692,37 +693,11 @@ Guidelines:
 - For ID columns, mention what entity they identify
 - For categorical columns, explain what the categories represent
 - For timestamp columns, explain when the event occurred
+- Provide a clear table description (1-2 sentences) explaining what this table stores and its purpose
+- For each column, provide a clear description of what it stores and a confidence score
 """
 
         return prompt
-
-    def _parse_llm_response(self, response: str) -> Dict[str, Any]:
-        """Parse the LLM's structured JSON response."""
-        try:
-            # Extract JSON from response (handle markdown code blocks)
-            json_match = re.search(r"```(?:json)?\n?(.*?)\n?```", response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1)
-            else:
-                json_str = response
-
-            # Parse JSON
-            parsed = json.loads(json_str)
-
-            # Validate structure
-            if "table_description" not in parsed or "columns" not in parsed:
-                raise ValueError("Invalid response structure")
-
-            return parsed
-
-        except (json.JSONDecodeError, ValueError) as e:
-            self.logger.error(f"Failed to parse LLM response: {e}")
-            return {
-                "table_description": "Auto-generated documentation failed",
-                "table_confidence": 0.0,
-                "columns": {},
-                "error": str(e),
-            }
 
     async def document_schema(
         self, tables: Optional[List[str]] = None
