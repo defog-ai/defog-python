@@ -14,6 +14,8 @@ def generate_postgres_schema(
     scan: bool = True,
     return_tables_only: bool = False,
     schemas: List[str] = [],
+    self_document: bool = False,
+    documentation_config: Dict = None,
 ) -> Union[Dict, List, str]:
     """
     Returns the schema of the tables in the database. Keys: column_name, data_type, column_description, custom_type_labels
@@ -23,6 +25,8 @@ def generate_postgres_schema(
     If upload is True, we send the schema to the defog servers and generate a CSV.
     If upload is False, we return the schema as a dict.
     If scan is True, we also scan the tables for categorical columns to enhance the column description.
+    If self_document is True, use LLMs to generate and store table/column descriptions as database comments.
+    documentation_config is a dict of configuration options for LLM-powered documentation.
     """
     try:
         import psycopg2
@@ -63,6 +67,39 @@ def generate_postgres_schema(
                     tables.append(row[0])
                 else:
                     tables.append(f"{row[1]}.{row[0]}")
+
+    # Apply LLM-powered self-documentation if requested
+    if self_document and tables:
+        try:
+            import asyncio
+            from .schema_documenter import document_and_apply_schema, DocumentationConfig
+            
+            print(f"Generating LLM-powered documentation for {len(tables)} tables...")
+            
+            # Create documentation config
+            config = DocumentationConfig()
+            if documentation_config:
+                for key, value in documentation_config.items():
+                    if hasattr(config, key):
+                        setattr(config, key, value)
+            
+            # Run documentation process
+            documentation_result = asyncio.run(
+                document_and_apply_schema(
+                    db_type="postgres",
+                    db_creds=self.db_creds,
+                    tables=tables,
+                    schemas=schemas,
+                    config=config,
+                    dry_run=False,
+                )
+            )
+            
+            print(f"Documentation complete: {documentation_result['summary']['tables_applied']} tables documented successfully")
+            
+        except Exception as e:
+            print(f"Warning: LLM documentation failed: {e}")
+            print("Continuing with standard schema generation...")
 
     if return_tables_only:
         conn.close()
@@ -880,14 +917,25 @@ def generate_duckdb_schema(
     return_format: str = "csv",
     scan: bool = True,
     return_tables_only: bool = False,
+    self_document: bool = False,
+    documentation_config: Dict = None,
 ) -> str:
     """
     Generate schema for DuckDB database.
+    
+    Args:
+        tables: List of specific tables to generate schema for. If empty, generates for all tables.
+        upload: Whether to send schema to Defog servers for enhancement.
+        return_format: Format of return value ('csv' or 'json').
+        scan: Whether to scan tables for categorical columns.
+        return_tables_only: If True, returns only table names as a list.
+        self_document: If True, use LLMs to generate and store table/column descriptions as database comments.
+        documentation_config: Dict of configuration options for LLM-powered documentation.
 
     Example:
-        # File database
+        # File database with LLM documentation
         defog = Defog(db_type="duckdb", db_creds={"database": "/path/to/database.duckdb"})
-        schema = defog.generate_db_schema([], upload=False)
+        schema = defog.generate_db_schema([], upload=False, self_document=True)
 
         # Memory database
         defog = Defog(db_type="duckdb", db_creds={"database": ":memory:"})
@@ -925,6 +973,38 @@ def generate_duckdb_schema(
         """
         ).fetchall()
         tables.extend([row[0] for row in main_tables])
+
+    # Apply LLM-powered self-documentation if requested
+    if self_document and tables:
+        try:
+            import asyncio
+            from .schema_documenter import document_and_apply_schema, DocumentationConfig
+            
+            print(f"Generating LLM-powered documentation for {len(tables)} tables...")
+            
+            # Create documentation config
+            config = DocumentationConfig()
+            if documentation_config:
+                for key, value in documentation_config.items():
+                    if hasattr(config, key):
+                        setattr(config, key, value)
+            
+            # Run documentation process
+            documentation_result = asyncio.run(
+                document_and_apply_schema(
+                    db_type="duckdb",
+                    db_creds=self.db_creds,
+                    tables=tables,
+                    config=config,
+                    dry_run=False,
+                )
+            )
+            
+            print(f"Documentation complete: {documentation_result['summary']['tables_applied']} tables documented successfully")
+            
+        except Exception as e:
+            print(f"Warning: LLM documentation failed: {e}")
+            print("Continuing with standard schema generation...")
 
     if return_tables_only:
         conn.close()
@@ -1014,6 +1094,9 @@ def generate_db_schema(
     upload: bool = True,
     return_tables_only: bool = False,
     return_format: str = "csv",
+    self_document: bool = False,
+    documentation_config: Dict = None,
+    schemas: List[str] = [],
 ) -> str:
     if self.db_type == "postgres":
         return self.generate_postgres_schema(
@@ -1022,6 +1105,9 @@ def generate_db_schema(
             scan=scan,
             upload=upload,
             return_tables_only=return_tables_only,
+            schemas=schemas,
+            self_document=self_document,
+            documentation_config=documentation_config,
         )
     elif self.db_type == "mysql":
         return self.generate_mysql_schema(
@@ -1085,6 +1171,8 @@ def generate_db_schema(
             scan=scan,
             upload=upload,
             return_tables_only=return_tables_only,
+            self_document=self_document,
+            documentation_config=documentation_config,
         )
     else:
         raise ValueError(
