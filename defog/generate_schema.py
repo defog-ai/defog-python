@@ -84,8 +84,9 @@ def generate_postgres_schema(
                     if hasattr(config, key):
                         setattr(config, key, value)
             
-            # Run async documentation
+            # Run async documentation with proper async handling
             try:
+                # First try using asyncio.run()
                 documentation = asyncio.run(
                     document_schema_for_defog(
                         "postgres", 
@@ -95,22 +96,30 @@ def generate_postgres_schema(
                     )
                 )
                 print(f"Schema documentation completed for {len(documentation)} tables.")
-            except RuntimeError:
-                # If we're already in an event loop, use the loop management approach
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    documentation = loop.run_until_complete(
-                        document_schema_for_defog(
-                            "postgres", 
-                            self.db_creds, 
-                            tables, 
-                            config
-                        )
-                    )
-                    print(f"Schema documentation completed for {len(documentation)} tables.")
-                finally:
-                    loop.close()
+            except RuntimeError as e:
+                if "asyncio.run() cannot be called from a running event loop" in str(e):
+                    # We're already in an event loop, use current loop
+                    try:
+                        loop = asyncio.get_running_loop()
+                        # Create a task and wait for it synchronously
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(
+                                asyncio.run,
+                                document_schema_for_defog(
+                                    "postgres", 
+                                    self.db_creds, 
+                                    tables, 
+                                    config
+                                )
+                            )
+                            documentation = future.result()
+                        print(f"Schema documentation completed for {len(documentation)} tables.")
+                    except Exception as inner_e:
+                        print(f"Warning: Failed to run documentation in nested event loop: {inner_e}")
+                        raise
+                else:
+                    raise
         except Exception as e:
             print(f"Warning: Schema documentation failed: {e}")
 
@@ -1009,8 +1018,9 @@ def generate_duckdb_schema(
                     if hasattr(config, key):
                         setattr(config, key, value)
             
-            # Run async documentation
+            # Run async documentation with proper async handling
             try:
+                # First try using asyncio.run()
                 documentation = asyncio.run(
                     document_schema_for_defog(
                         "duckdb", 
@@ -1020,48 +1030,71 @@ def generate_duckdb_schema(
                     )
                 )
                 print(f"Schema documentation completed for {len(documentation)} tables.")
-            except RuntimeError:
-                # If we're already in an event loop, use the loop management approach
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    documentation = loop.run_until_complete(
-                        document_schema_for_defog(
-                            "duckdb", 
-                            self.db_creds, 
-                            tables, 
-                            config
-                        )
-                    )
-                    print(f"Schema documentation completed for {len(documentation)} tables.")
-                finally:
-                    loop.close()
+            except RuntimeError as e:
+                if "asyncio.run() cannot be called from a running event loop" in str(e):
+                    # We're already in an event loop, use current loop
+                    try:
+                        loop = asyncio.get_running_loop()
+                        # Create a task and wait for it synchronously
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(
+                                asyncio.run,
+                                document_schema_for_defog(
+                                    "duckdb", 
+                                    self.db_creds, 
+                                    tables, 
+                                    config
+                                )
+                            )
+                            documentation = future.result()
+                        print(f"Schema documentation completed for {len(documentation)} tables.")
+                    except Exception as inner_e:
+                        print(f"Warning: Failed to run documentation in nested event loop: {inner_e}")
+                        raise
+                else:
+                    raise
         except Exception as e:
             print(f"Warning: Schema documentation failed: {e}")
 
     print("Getting schema for each table that you selected...")
     # Get the schema for each table
     for table_name in tables:
-        # Handle both schema.table and table formats
-        if "." in table_name:
-            schema_name, table_only = table_name.split(".", 1)
-            columns_query = f"""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_schema = '{schema_name}' 
-            AND table_name = '{table_only}'
-            ORDER BY ordinal_position
-            """
-        else:
-            columns_query = f"""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = '{table_name}'
-            AND table_schema = 'main'
-            ORDER BY ordinal_position
-            """
-
-        rows = conn.execute(columns_query).fetchall()
+        # Handle both schema.table and table formats with proper parameterization
+        try:
+            # Validate table name for safety
+            import re
+            if not re.match(r'^[a-zA-Z0-9_.]+$', table_name):
+                print(f"Warning: Skipping table {table_name} due to invalid identifier")
+                continue
+            
+            if "." in table_name:
+                schema_name, table_only = table_name.split(".", 1)
+                # Validate both parts
+                if not re.match(r'^[a-zA-Z0-9_]+$', schema_name) or not re.match(r'^[a-zA-Z0-9_]+$', table_only):
+                    print(f"Warning: Skipping table {table_name} due to invalid schema or table name")
+                    continue
+                    
+                columns_query = """
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_schema = ? 
+                AND table_name = ?
+                ORDER BY ordinal_position
+                """
+                rows = conn.execute(columns_query, (schema_name, table_only)).fetchall()
+            else:
+                columns_query = """
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_name = ?
+                AND table_schema = ?
+                ORDER BY ordinal_position
+                """
+                rows = conn.execute(columns_query, (table_name, 'main')).fetchall()
+        except Exception as e:
+            print(f"Warning: Could not retrieve columns for {table_name}: {e}")
+            continue
         rows = [{"column_name": row[0], "data_type": row[1]} for row in rows]
 
         if scan:

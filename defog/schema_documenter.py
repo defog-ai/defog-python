@@ -32,34 +32,36 @@ UUID_PATTERN_THRESHOLD = 0.8
 PHONE_PATTERN_THRESHOLD = 0.8
 
 
-def _escape_sql_identifier(identifier: str) -> str:
+def _validate_sql_identifier(identifier: str) -> str:
     """
-    Safely escape SQL identifiers (table names, column names) to prevent injection.
+    Validate SQL identifiers (table names, column names) to prevent injection.
     
     Args:
-        identifier: The SQL identifier to escape
+        identifier: The SQL identifier to validate
         
     Returns:
-        Escaped identifier safe for use in SQL queries
+        Validated identifier safe for use in SQL queries
         
     Raises:
         ValueError: If identifier contains invalid characters
     """
-    # Basic validation - only allow alphanumeric, underscore, dot, and dash
-    if not re.match(r'^[a-zA-Z0-9_."-]+$', identifier):
+    # Strict validation - only allow alphanumeric, underscore, and dot
+    # Remove quotes and hyphens which can be problematic
+    if not re.match(r'^[a-zA-Z0-9_.]+$', identifier):
         raise ValueError(f"Invalid SQL identifier: {identifier}")
     
-    # Split on dots to handle schema.table format
-    parts = identifier.split('.')
-    escaped_parts = []
+    # Additional validation for dangerous patterns
+    dangerous_patterns = [
+        r'\b(drop|delete|insert|update|alter|create|exec|union|select)\b',
+        r'[;\-\+\*\/\\]',
+        r'\s+',  # No whitespace
+    ]
     
-    for part in parts:
-        # Remove existing quotes and re-quote
-        clean_part = part.strip('"').strip("'")
-        # Double-quote the identifier for safety
-        escaped_parts.append(f'"{clean_part}"')
+    for pattern in dangerous_patterns:
+        if re.search(pattern, identifier, re.IGNORECASE):
+            raise ValueError(f"SQL identifier contains invalid pattern: {identifier}")
     
-    return '.'.join(escaped_parts)
+    return identifier
 
 
 @dataclass
@@ -269,50 +271,84 @@ class SchemaDocumenter:
         ]
 
     def _get_duckdb_columns(self, cursor, table_name: str) -> List[Dict]:
-        """Get column information for DuckDB."""
-        if "." in table_name:
-            schema_name, table_only = table_name.split(".", 1)
-            query = f"""
-                SELECT column_name, data_type, is_nullable, column_default
-                FROM information_schema.columns 
-                WHERE table_schema = '{schema_name}' AND table_name = '{table_only}'
-                ORDER BY ordinal_position
-            """
-        else:
-            query = f"""
-                SELECT column_name, data_type, is_nullable, column_default
-                FROM information_schema.columns 
-                WHERE table_name = '{table_name}' AND table_schema = 'main'
-                ORDER BY ordinal_position
-            """
-        
-        cursor.execute(query)
-        
-        return [
-            {
-                "name": row[0],
-                "type": row[1], 
-                "nullable": row[2] == "YES",
-                "default": row[3],
-                "max_length": None,
-                "precision": None,
-                "scale": None
-            }
-            for row in cursor.fetchall()
-        ]
+        """Get column information for DuckDB using parameterized queries."""
+        try:
+            validated_table = _validate_sql_identifier(table_name)
+            
+            if "." in validated_table:
+                schema_name, table_only = validated_table.split(".", 1)
+                query = """
+                    SELECT column_name, data_type, is_nullable, column_default
+                    FROM information_schema.columns 
+                    WHERE table_schema = ? AND table_name = ?
+                    ORDER BY ordinal_position
+                """
+                cursor.execute(query, (schema_name, table_only))
+            else:
+                query = """
+                    SELECT column_name, data_type, is_nullable, column_default
+                    FROM information_schema.columns 
+                    WHERE table_name = ? AND table_schema = ?
+                    ORDER BY ordinal_position
+                """
+                cursor.execute(query, (validated_table, 'main'))
+            
+            return [
+                {
+                    "name": row[0],
+                    "type": row[1], 
+                    "nullable": row[2] == "YES",
+                    "default": row[3],
+                    "max_length": None,
+                    "precision": None,
+                    "scale": None
+                }
+                for row in cursor.fetchall()
+            ]
+        except ValueError as e:
+            self.logger.error(f"Invalid table name {table_name}: {e}")
+            return []
 
     def _get_sample_data(self, cursor, table_name: str, columns_info: List[Dict]) -> Dict[str, List]:
-        """Get sample data for analysis."""
+        """Get sample data for analysis using parameterized queries."""
         column_names = [col["name"] for col in columns_info]
         
         try:
-            # Safely escape identifiers
-            escaped_table = _escape_sql_identifier(table_name)
-            escaped_columns = [_escape_sql_identifier(name) for name in column_names]
-            column_list = ", ".join(escaped_columns)
+            # Validate identifiers strictly
+            validated_table = _validate_sql_identifier(table_name)
+            validated_columns = [_validate_sql_identifier(name) for name in column_names]
             
-            query = f'SELECT {column_list} FROM {escaped_table} LIMIT {self.config.sample_size}'
-            cursor.execute(query)
+            # Build query with proper identifier quoting (not parameterization as identifiers can't be parameterized)
+            if self.db_type == "postgres":
+                # Parse schema.table if present
+                if "." in validated_table:
+                    schema, table = validated_table.split(".", 1)
+                    quoted_table = f'"{schema}"."{table}"'
+                else:
+                    quoted_table = f'"{validated_table}"'
+                
+                quoted_columns = [f'"{col}"' for col in validated_columns]
+                column_list = ", ".join(quoted_columns)
+                
+                # Use parameterized limit
+                query = f'SELECT {column_list} FROM {quoted_table} LIMIT %s'
+                cursor.execute(query, (self.config.sample_size,))
+                
+            elif self.db_type == "duckdb":
+                # DuckDB uses different parameter syntax
+                if "." in validated_table:
+                    schema, table = validated_table.split(".", 1)
+                    quoted_table = f'"{schema}"."{table}"'
+                else:
+                    quoted_table = f'"{validated_table}"'
+                
+                quoted_columns = [f'"{col}"' for col in validated_columns]
+                column_list = ", ".join(quoted_columns)
+                
+                # Use parameterized limit with DuckDB syntax
+                query = f'SELECT {column_list} FROM {quoted_table} LIMIT ?'
+                cursor.execute(query, (self.config.sample_size,))
+            
             rows = cursor.fetchall()
             
             # Organize data by column
@@ -323,24 +359,43 @@ class SchemaDocumenter:
                         sample_data[col_name].append(row[i])
             
             return sample_data
-        except (ValueError, Exception) as e:
-            if isinstance(e, ValueError):
-                self.logger.error(f"Invalid identifier in table {table_name}: {e}")
-            else:
-                self.logger.warning(f"Could not retrieve sample data for {table_name}: {e}")
+        except ValueError as e:
+            self.logger.error(f"Invalid identifier in table {table_name}: {e}")
+            return {col_name: [] for col_name in column_names}
+        except Exception as e:
+            self.logger.warning(f"Could not retrieve sample data for {table_name}: {e}")
             return {col_name: [] for col_name in column_names}
 
     def _get_row_count(self, conn, table_name: str) -> int:
-        """Get approximate row count for the table."""
+        """Get approximate row count for the table using safe identifier validation."""
         try:
+            validated_table = _validate_sql_identifier(table_name)
+            
             with self._get_cursor(conn) as cursor:
-                escaped_table = _escape_sql_identifier(table_name)
-                cursor.execute(f'SELECT COUNT(*) FROM {escaped_table}')
+                # Build properly quoted query (identifiers can't be parameterized)
+                if self.db_type == "postgres":
+                    if "." in validated_table:
+                        schema, table = validated_table.split(".", 1)
+                        quoted_table = f'"{schema}"."{table}"'
+                    else:
+                        quoted_table = f'"{validated_table}"'
+                elif self.db_type == "duckdb":
+                    if "." in validated_table:
+                        schema, table = validated_table.split(".", 1)
+                        quoted_table = f'"{schema}"."{table}"'
+                    else:
+                        quoted_table = f'"{validated_table}"'
+                else:
+                    quoted_table = f'"{validated_table}"'
+                
+                cursor.execute(f'SELECT COUNT(*) FROM {quoted_table}')
                 result = cursor.fetchone()
                 return result[0] if result else 0
-        except (ValueError, Exception) as e:
-            if isinstance(e, ValueError):
-                self.logger.error(f"Invalid table identifier: {table_name}")
+        except ValueError as e:
+            self.logger.error(f"Invalid table identifier: {table_name} - {e}")
+            return 0
+        except Exception as e:
+            self.logger.warning(f"Could not get row count for {table_name}: {e}")
             return 0
 
     def _analyze_data_patterns(self, sample_data: Dict[str, List], columns_info: List[Dict]) -> Dict[str, Dict]:
@@ -729,42 +784,62 @@ Guidelines:
         return results
 
     def _apply_table_comment(self, conn, table_name: str, description: str) -> bool:
-        """Apply table comment to database."""
+        """Apply table comment to database using safe identifier validation."""
         try:
+            validated_table = _validate_sql_identifier(table_name)
+            
             with self._get_cursor(conn) as cursor:
                 if self.db_type == "postgres":
-                    escaped_table = _escape_sql_identifier(table_name)
-                    cursor.execute(f'COMMENT ON TABLE {escaped_table} IS %s', (description,))
+                    # Build properly quoted identifier
+                    if "." in validated_table:
+                        schema, table = validated_table.split(".", 1)
+                        quoted_table = f'"{schema}"."{table}"'
+                    else:
+                        quoted_table = f'"{validated_table}"'
+                    
+                    # Use parameterized query for the description value
+                    cursor.execute(f'COMMENT ON TABLE {quoted_table} IS %s', (description,))
                 elif self.db_type == "duckdb":
                     # DuckDB comment support is limited, log for now
                     self.logger.info(f"Would set table comment for {table_name}: {description}")
                 
                 return True
-        except (ValueError, Exception) as e:
-            if isinstance(e, ValueError):
-                self.logger.error(f"Invalid table identifier {table_name}: {e}")
-            else:
-                self.logger.error(f"Failed to set table comment for {table_name}: {e}")
+        except ValueError as e:
+            self.logger.error(f"Invalid table identifier {table_name}: {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Failed to set table comment for {table_name}: {e}")
             return False
 
     def _apply_column_comment(self, conn, table_name: str, column_name: str, description: str) -> bool:
-        """Apply column comment to database."""
+        """Apply column comment to database using safe identifier validation."""
         try:
+            validated_table = _validate_sql_identifier(table_name)
+            validated_column = _validate_sql_identifier(column_name)
+            
             with self._get_cursor(conn) as cursor:
                 if self.db_type == "postgres":
-                    escaped_table = _escape_sql_identifier(table_name)
-                    escaped_column = _escape_sql_identifier(column_name)
-                    cursor.execute(f'COMMENT ON COLUMN {escaped_table}.{escaped_column} IS %s', (description,))
+                    # Build properly quoted identifiers
+                    if "." in validated_table:
+                        schema, table = validated_table.split(".", 1)
+                        quoted_table = f'"{schema}"."{table}"'
+                    else:
+                        quoted_table = f'"{validated_table}"'
+                    
+                    quoted_column = f'"{validated_column}"'
+                    
+                    # Use parameterized query for the description value
+                    cursor.execute(f'COMMENT ON COLUMN {quoted_table}.{quoted_column} IS %s', (description,))
                 elif self.db_type == "duckdb":
                     # DuckDB comment support is limited, log for now
                     self.logger.info(f"Would set column comment for {table_name}.{column_name}: {description}")
                 
                 return True
-        except (ValueError, Exception) as e:
-            if isinstance(e, ValueError):
-                self.logger.error(f"Invalid identifier for {table_name}.{column_name}: {e}")
-            else:
-                self.logger.error(f"Failed to set column comment for {table_name}.{column_name}: {e}")
+        except ValueError as e:
+            self.logger.error(f"Invalid identifier for {table_name}.{column_name}: {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Failed to set column comment for {table_name}.{column_name}: {e}")
             return False
 
     def _log_documentation_preview(self, documentation: Dict[str, TableDocumentation]):
