@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Setup script to download Cricket World Cup 2015 data and create SQLite database.
+Setup script to download Cricket World Cup 2015 data and create DuckDB database.
 """
-import sqlite3
+import duckdb
 import pandas as pd
 import requests
 import os
@@ -34,6 +34,12 @@ def download_csv_files():
         url = base_url + filename
         filepath = data_dir / filename
         
+        # Check if file already exists
+        if filepath.exists():
+            print(f"✓ {filename} already exists, skipping download")
+            downloaded_files.append(filepath)
+            continue
+        
         try:
             print(f"Downloading {filename}...")
             response = requests.get(url)
@@ -50,19 +56,26 @@ def download_csv_files():
     
     return downloaded_files
 
-def create_cricket_database(csv_files, db_path="cricket_wc2015.db"):
-    """Create SQLite database from CSV files."""
-    print(f"\nCreating SQLite database: {db_path}")
+def create_cricket_database(csv_files, db_path="cricket_wc2015.duckdb"):
+    """Create DuckDB database from CSV files."""
+    print(f"\nCreating DuckDB database: {db_path}")
     
     # Remove existing database
     if os.path.exists(db_path):
         os.remove(db_path)
     
-    conn = sqlite3.connect(db_path)
+    conn = duckdb.connect(db_path)
     
     # First, let's check the structure of the CSV files
-    sample_df = pd.read_csv(csv_files[0])
+    sample_df = pd.read_csv(csv_files[0], index_col=0)
     print(f"CSV columns: {list(sample_df.columns)}")
+    
+    # Check what columns are available in the first CSV
+    conn.execute(f"CREATE TEMP TABLE sample_csv AS SELECT * FROM read_csv('{csv_files[0]}', auto_detect=true)")
+    columns_result = conn.execute("PRAGMA table_info('sample_csv')").fetchall()
+    conn.execute("DROP TABLE sample_csv")
+    csv_columns = [col[1] for col in columns_result]
+    print(f"Available CSV columns: {csv_columns}")
     
     # Create main table for ball-by-ball data with flexible schema
     conn.execute("""
@@ -105,53 +118,62 @@ def create_cricket_database(csv_files, db_path="cricket_wc2015.db"):
     for csv_file in csv_files:
         try:
             print(f"Processing {csv_file.name}...")
-            df = pd.read_csv(csv_file, index_col=0)  # Skip the unnamed index column
             
             # Extract match ID from filename
             match_id = int(csv_file.stem.split('_')[0])
-            df['match_id'] = match_id
             
-            # Reorder columns to match our table schema
-            column_mapping = {
-                'inning': 'inning',
-                'batting_team': 'batting_team', 
-                'bowling_team': 'bowling_team',
-                'batsman': 'batsman',
-                'bowler': 'bowler',
-                'batsman_name': 'batsman_name',
-                'non_striker': 'non_striker',
-                'bowler_name': 'bowler_name',
-                'bat_right_handed': 'bat_right_handed',
-                'ovr': 'ovr',
-                'runs_batter': 'runs_batter',
-                'runs_w_extras': 'runs_w_extras',
-                'extras': 'extras',
-                'cumul_runs': 'cumul_runs',
-                'wicket': 'wicket',
-                'wicket_method': 'wicket_method',
-                'who_out': 'who_out',
-                'control': 'control',
-                'extras_type': 'extras_type',
-                'x': 'x',
-                'y': 'y', 
-                'z': 'z',
-                'landing_x': 'landing_x',
-                'landing_y': 'landing_y',
-                'ended_x': 'ended_x',
-                'ended_y': 'ended_y',
-                'ball_speed': 'ball_speed',
-                'match_id': 'match_id'
-            }
+            # Use DuckDB to read CSV directly and insert
+            temp_table_name = f"temp_match_{match_id}"
             
-            # Select and rename columns to match our schema
-            df_clean = df[list(column_mapping.keys())].copy()
+            # Read CSV into temporary table
+            conn.execute(f"""
+                CREATE TEMP TABLE {temp_table_name} AS 
+                SELECT *, {match_id} as match_id 
+                FROM read_csv('{csv_file}', auto_detect=true)
+            """)
             
-            # Insert data into database
-            df_clean.to_sql('ball_by_ball', conn, if_exists='append', index=False)
+            # Insert into main table with proper column ordering
+            conn.execute(f"""
+                INSERT INTO ball_by_ball 
+                SELECT 
+                    match_id,
+                    inning,
+                    batting_team,
+                    bowling_team,
+                    batsman,
+                    bowler,
+                    batsman_name,
+                    non_striker,
+                    bowler_name,
+                    bat_right_handed,
+                    ovr,
+                    runs_batter,
+                    runs_w_extras,
+                    extras,
+                    cumul_runs,
+                    wicket,
+                    wicket_method,
+                    who_out,
+                    control,
+                    extras_type,
+                    x,
+                    y,
+                    z,
+                    landing_x,
+                    landing_y,
+                    ended_x,
+                    ended_y,
+                    ball_speed
+                FROM {temp_table_name}
+            """)
             
-            total_records += len(df_clean)
+            # Get record count and clean up
+            record_count = conn.execute(f"SELECT COUNT(*) FROM {temp_table_name}").fetchone()[0]
+            conn.execute(f"DROP TABLE {temp_table_name}")
+            
+            total_records += record_count
             matches_processed += 1
-            print(f"✓ Processed {csv_file.name} - {len(df_clean)} records")
+            print(f"✓ Processed {csv_file.name} - {record_count} records")
             
         except Exception as e:
             print(f"✗ Error processing {csv_file.name}: {e}")
@@ -251,21 +273,13 @@ def main():
     
     # Test the database
     print("\nTesting database...")
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    conn = duckdb.connect(db_path)
     
     # Get some basic stats
-    cursor.execute("SELECT COUNT(*) FROM ball_by_ball")
-    total_balls = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT COUNT(DISTINCT match_id) FROM ball_by_ball")
-    total_matches = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT COUNT(DISTINCT batsman_name) FROM ball_by_ball WHERE batsman_name IS NOT NULL")
-    unique_batsmen = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT COUNT(DISTINCT bowler_name) FROM ball_by_ball WHERE bowler_name IS NOT NULL")
-    unique_bowlers = cursor.fetchone()[0]
+    total_balls = conn.execute("SELECT COUNT(*) FROM ball_by_ball").fetchone()[0]
+    total_matches = conn.execute("SELECT COUNT(DISTINCT match_id) FROM ball_by_ball").fetchone()[0]
+    unique_batsmen = conn.execute("SELECT COUNT(DISTINCT batsman_name) FROM ball_by_ball WHERE batsman_name IS NOT NULL").fetchone()[0]
+    unique_bowlers = conn.execute("SELECT COUNT(DISTINCT bowler_name) FROM ball_by_ball WHERE bowler_name IS NOT NULL").fetchone()[0]
     
     print(f"Database Statistics:")
     print(f"  Total balls: {total_balls}")
