@@ -96,6 +96,7 @@ async def chat_async(
     post_tool_function: Optional[Callable] = None,
     config: Optional[LLMConfig] = None,
     mcp_servers: Optional[List[Dict[str, Any]]] = None,
+    image_result_keys: Optional[List[str]] = None,
 ) -> LLMResponse:
     """
     Execute a chat completion with explicit provider parameter.
@@ -121,6 +122,7 @@ async def chat_async(
         post_tool_function: Function to call after each tool execution
         config: LLM configuration object
         mcp_servers: List of MCP server configurations (Anthropic only)
+        image_result_keys: List of keys to check in tool results for image data (e.g., ['image_base64', 'screenshot_data'])
 
     Returns:
         LLMResponse object containing the result
@@ -174,6 +176,7 @@ async def chat_async(
                 reasoning_effort=reasoning_effort,
                 post_tool_function=post_tool_function,
                 mcp_servers=mcp_servers,
+                image_result_keys=image_result_keys,
             )
 
         except Exception as e:

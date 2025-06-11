@@ -369,6 +369,7 @@ class OpenAIProvider(BaseLLMProvider):
         reasoning_effort: Optional[str] = None,
         post_tool_function: Optional[Callable] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
+        image_result_keys: Optional[List[str]] = None,
         **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with OpenAI."""

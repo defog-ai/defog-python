@@ -1,7 +1,7 @@
 import os
 import time
 import json
-from typing import Dict, List, Any, Optional, Callable, Tuple
+from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
@@ -9,6 +9,7 @@ from ..config import LLMConfig
 from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs, convert_tool_choice
 from ..image_utils import convert_to_anthropic_format
+from ..utils_image_support import process_tool_results_with_images
 
 
 class AnthropicProvider(BaseLLMProvider):
@@ -34,6 +35,53 @@ class AnthropicProvider(BaseLLMProvider):
     def convert_content_to_anthropic(self, content: Any) -> Any:
         """Convert message content to Anthropic format."""
         return convert_to_anthropic_format(content)
+    
+    def create_image_message(
+        self,
+        image_base64: Union[str, List[str]],
+        description: str = "Tool generated image",
+    ) -> Dict[str, Any]:
+        """Create an image message in Anthropic format.
+        
+        Args:
+            image_base64: Base64 encoded image string or list of strings
+            description: Description text for the image(s)
+            
+        Returns:
+            Dict containing the formatted message with image(s)
+        """
+        from typing import Union
+        
+        if isinstance(image_base64, str):
+            image_base64 = [image_base64]
+            
+        content = []
+        
+        # Add description text first
+        if description:
+            content.append({"type": "text", "text": description})
+            
+        # Add each image
+        for img_data in image_base64:
+            # Detect MIME type from base64 data if it has a data URI prefix
+            if img_data.startswith("data:"):
+                # Extract MIME type and clean base64 data
+                media_type = img_data.split(";")[0].split(":")[1]
+                img_data = img_data.split(",")[1]
+            else:
+                # Default to JPEG if no prefix
+                media_type = "image/jpeg"
+                
+            content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": img_data,
+                },
+            })
+            
+        return {"role": "user", "content": content}
 
     def build_params(
         self,
@@ -178,6 +226,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         response_format=None,
         post_tool_function: Optional[Callable] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
+        image_result_keys: Optional[List[str]] = None,
         **kwargs,
     ) -> Tuple[
         Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
@@ -377,19 +426,41 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                     }
                                 )
 
-                                # Build user response with all tool results
+                                # Build user response with all tool results and handle images
+                                tool_results_data = process_tool_results_with_images(
+                                    tool_call_blocks, results, image_result_keys
+                                )
+                                
+                                # Build tool results content
                                 tool_results_content = []
-                                for tool_call_block, result in zip(
-                                    tool_call_blocks, results
-                                ):
-                                    tool_id = tool_call_block.id
-                                    tool_results_content.append(
-                                        {
-                                            "type": "tool_result",
-                                            "tool_use_id": tool_id,
-                                            "content": str(result),
-                                        }
-                                    )
+                                for tool_data in tool_results_data:
+                                    tool_result = {
+                                        "type": "tool_result",
+                                        "tool_use_id": tool_data.tool_id,
+                                        "content": tool_data.result
+                                    }
+                                    
+                                    # If there are images, add them to the content
+                                    if tool_data.images:
+                                        tool_result["content"] = []
+                                        # Add text content first
+                                        tool_result["content"].append({
+                                            "type": "text",
+                                            "text": tool_data.result
+                                        })
+                                        # Add image content
+                                        for image_data in tool_data.images:
+                                            image_message = self.create_image_message(
+                                                image_data["image_base64"],
+                                                image_data.get("description", "Tool generated image")
+                                            )
+                                            # Extract the image blocks from the message content
+                                            if isinstance(image_message["content"], list):
+                                                for content_item in image_message["content"]:
+                                                    if content_item.get("type") == "image":
+                                                        tool_result["content"].append(content_item)
+                                    
+                                    tool_results_content.append(tool_result)
 
                                 # Append all tool results in a single user message
                                 request_params["messages"].append(
@@ -490,6 +561,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         reasoning_effort: Optional[str] = None,
         post_tool_function: Optional[Callable] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
+        image_result_keys: Optional[List[str]] = None,
         **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with Anthropic."""
@@ -552,6 +624,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 response_format=response_format,
                 post_tool_function=post_tool_function,
                 mcp_servers=mcp_servers,
+                image_result_keys=image_result_keys,
             )
         except Exception as e:
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
