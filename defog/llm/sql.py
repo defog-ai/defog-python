@@ -4,7 +4,12 @@ SQL execution tools for local database operations.
 
 from typing import Dict, List, Optional, Any, Union, Tuple
 from defog.llm.llm_providers import LLMProvider
-from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger, NoOpToolProgressTracker, NoOpSubTaskLogger
+from defog.llm.utils_logging import (
+    ToolProgressTracker,
+    SubTaskLogger,
+    NoOpToolProgressTracker,
+    NoOpSubTaskLogger,
+)
 from defog.llm.sql_generator import generate_sql_query_local
 from defog.local_metadata_extractor import extract_metadata_from_db
 from defog.query import async_execute_query
@@ -58,7 +63,7 @@ async def sql_answer_tool(
     """
     tracker_class = ToolProgressTracker if verbose else NoOpToolProgressTracker
     logger_class = SubTaskLogger if verbose else NoOpSubTaskLogger
-    
+
     async with tracker_class(
         "SQL Query Answer",
         f"Answering: {question[:50]}{'...' if len(question) > 50 else ''}",
@@ -211,7 +216,7 @@ async def identify_relevant_tables_tool(
     """
     tracker_class = ToolProgressTracker if verbose else NoOpToolProgressTracker
     logger_class = SubTaskLogger if verbose else NoOpSubTaskLogger
-    
+
     async with tracker_class(
         "Table Relevance Analysis",
         f"Finding relevant tables for: {question[:50]}{'...' if len(question) > 50 else ''}",

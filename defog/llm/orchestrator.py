@@ -128,7 +128,7 @@ class Agent:
 
         # Merge kwargs
         call_kwargs = {**self.kwargs, **kwargs}
-        
+
         # Add reasoning_effort if not already specified in kwargs
         if "reasoning_effort" not in call_kwargs and self.reasoning_effort:
             call_kwargs["reasoning_effort"] = self.reasoning_effort

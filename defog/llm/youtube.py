@@ -1,5 +1,10 @@
 # converts a youtube video to a detailed, ideally diarized transcript
-from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger, NoOpToolProgressTracker, NoOpSubTaskLogger
+from defog.llm.utils_logging import (
+    ToolProgressTracker,
+    SubTaskLogger,
+    NoOpToolProgressTracker,
+    NoOpSubTaskLogger,
+)
 import os
 import re
 from urllib.parse import urlparse
@@ -42,7 +47,7 @@ async def get_youtube_summary(
     """
     tracker_class = ToolProgressTracker if verbose else NoOpToolProgressTracker
     logger_class = SubTaskLogger if verbose else NoOpSubTaskLogger
-    
+
     async with tracker_class(
         "YouTube Transcript",
         f"Transcribing video from: {video_url[:50]}{'...' if len(video_url) > 50 else ''}",

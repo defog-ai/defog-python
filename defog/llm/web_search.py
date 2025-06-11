@@ -1,5 +1,10 @@
 from defog.llm.llm_providers import LLMProvider
-from defog.llm.utils_logging import ToolProgressTracker, SubTaskLogger, NoOpToolProgressTracker, NoOpSubTaskLogger
+from defog.llm.utils_logging import (
+    ToolProgressTracker,
+    SubTaskLogger,
+    NoOpToolProgressTracker,
+    NoOpSubTaskLogger,
+)
 import os
 
 
@@ -15,7 +20,7 @@ async def web_search_tool(
     """
     tracker_class = ToolProgressTracker if verbose else NoOpToolProgressTracker
     logger_class = SubTaskLogger if verbose else NoOpSubTaskLogger
-    
+
     async with tracker_class(
         "Web Search",
         f"Searching for: {question[:50]}{'...' if len(question) > 50 else ''}",
