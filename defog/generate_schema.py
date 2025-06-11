@@ -877,6 +877,137 @@ def generate_sqlite_schema(
         return schemas
 
 
+def generate_duckdb_schema(
+    self,
+    tables: list,
+    upload: bool = True,
+    return_format: str = "csv",
+    scan: bool = True,
+    return_tables_only: bool = False,
+) -> str:
+    """
+    Generate schema for DuckDB database.
+    
+    Example:
+        # File database
+        defog = Defog(db_type="duckdb", db_creds={"database": "/path/to/database.duckdb"})
+        schema = defog.generate_db_schema([], upload=False)
+        
+        # Memory database
+        defog = Defog(db_type="duckdb", db_creds={"database": ":memory:"})
+        schema = defog.generate_db_schema([], upload=False)
+    """
+    try:
+        import duckdb
+    except ImportError as e:
+        raise ImportError("duckdb not installed. Please install it with `pip install duckdb`.") from e
+
+    database_path = self.db_creds.get("database", ":memory:")
+    conn = duckdb.connect(database_path, read_only=True)
+    schemas = {}
+
+    if len(tables) == 0:
+        # Get all tables (DuckDB supports schemas, so we need to check all schemas)
+        tables_query = """
+        SELECT table_schema || '.' || table_name as full_table_name
+        FROM information_schema.tables 
+        WHERE table_type = 'BASE TABLE'
+        AND table_schema NOT IN ('information_schema', 'pg_catalog')
+        """
+        tables_result = conn.execute(tables_query).fetchall()
+        tables = [row[0] for row in tables_result]
+        
+        # For tables in the main schema, also add without schema prefix
+        main_tables = conn.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_type = 'BASE TABLE' 
+            AND table_schema = 'main'
+        """).fetchall()
+        tables.extend([row[0] for row in main_tables])
+
+    if return_tables_only:
+        conn.close()
+        return tables
+
+    print("Getting schema for each table that you selected...")
+    # Get the schema for each table
+    for table_name in tables:
+        # Handle both schema.table and table formats
+        if '.' in table_name:
+            schema_name, table_only = table_name.split('.', 1)
+            columns_query = f"""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_schema = '{schema_name}' 
+            AND table_name = '{table_only}'
+            ORDER BY ordinal_position
+            """
+        else:
+            columns_query = f"""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = '{table_name}'
+            AND table_schema = 'main'
+            ORDER BY ordinal_position
+            """
+        
+        rows = conn.execute(columns_query).fetchall()
+        rows = [{"column_name": row[0], "data_type": row[1]} for row in rows]
+        
+        if scan:
+            # Create a cursor-like object for DuckDB compatibility
+            class DuckDBCursor:
+                def __init__(self, connection):
+                    self.connection = connection
+                
+                def execute(self, query):
+                    self.result = self.connection.execute(query)
+                
+                def fetchall(self):
+                    return self.result.fetchall()
+            
+            cursor = DuckDBCursor(conn)
+            rows = identify_categorical_columns(cursor, table_name, rows)
+        
+        if len(rows) > 0:
+            schemas[table_name] = rows
+
+    conn.close()
+
+    if upload:
+        print(
+            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
+        )
+        r = requests.post(
+            f"{self.base_url}/get_schema_csv",
+            json={
+                "api_key": self.api_key,
+                "schemas": schemas,
+                "foreign_keys": [],
+                "indexes": [],
+            },
+            
+        )
+        resp = r.json()
+        if "csv" in resp:
+            csv = resp["csv"]
+            if return_format == "csv":
+                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
+                return "defog_metadata.csv"
+            else:
+                return csv
+        else:
+            print(f"We got an error!")
+            if "message" in resp:
+                print(f"Error message: {resp['message']}")
+            print(
+                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
+            )
+    else:
+        return schemas
+
+
 def generate_db_schema(
     self,
     tables: list,
@@ -942,6 +1073,14 @@ def generate_db_schema(
         )
     elif self.db_type == "sqlite":
         return self.generate_sqlite_schema(
+            tables,
+            return_format=return_format,
+            scan=scan,
+            upload=upload,
+            return_tables_only=return_tables_only,
+        )
+    elif self.db_type == "duckdb":
+        return self.generate_duckdb_schema(
             tables,
             return_format=return_format,
             scan=scan,
