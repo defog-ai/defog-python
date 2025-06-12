@@ -259,7 +259,7 @@ async def chat_async_legacy(
     seed: int = 0,
     store: bool = True,
     metadata: Optional[Dict[str, str]] = None,
-    timeout: int = 100,
+    timeout: int = 600,
     backup_model: Optional[str] = None,
     prediction: Optional[Dict[str, str]] = None,
     reasoning_effort: Optional[str] = None,
