@@ -25,8 +25,8 @@ class DataPointIdentification(BaseModel):
     description: str = Field(description="Description of what this datapoint contains")
     data_type: str = Field(description="Type of data: 'table', 'key_value_pairs', 'list', 'metrics', 'chart_data'")
     location_hint: str = Field(description="Hint about where in the PDF this data is located")
-    schema_fields: List[Dict[str, str]] = Field(
-        description="List of fields for extraction. Each field should have: 'name' (snake_case field name), 'type' (data type), 'description' (what the field contains), and 'optional' (always true). For financial tables, use descriptive names like 'revenue_q1_2024' instead of generic names."
+    schema_fields: List[Dict[str, Any]] = Field(
+        description="List of fields for extraction. Each field should have: 'name' (snake_case field name), 'type' (data type), 'description' (what the field contains), and 'optional' (boolean, preferably true). For financial tables, use descriptive names like 'revenue_q1_2024' instead of generic names."
     )
 
 
