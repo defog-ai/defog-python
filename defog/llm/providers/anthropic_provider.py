@@ -111,9 +111,27 @@ RESPONSE FORMAT INSTRUCTIONS:
 
 THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS BEFORE OR AFTER.
 """
-                # Update system message
+                # Update system message (handle both string and list formats)
                 if sys_msg:
-                    params["system"] = sys_msg + "\n\n" + structured_instruction
+                    if isinstance(sys_msg, str):
+                        # Simple string system message
+                        params["system"] = sys_msg + "\n\n" + structured_instruction
+                    elif isinstance(sys_msg, list):
+                        # List format (e.g., with cache control)
+                        # Find the text content and append to it
+                        updated_content = []
+                        for item in sys_msg:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                # Append structured instruction to existing text
+                                new_item = item.copy()
+                                new_item["text"] = item["text"] + "\n\n" + structured_instruction
+                                updated_content.append(new_item)
+                            else:
+                                updated_content.append(item)
+                        params["system"] = updated_content
+                    else:
+                        # Fallback
+                        params["system"] = structured_instruction
                 else:
                     params["system"] = structured_instruction
 
@@ -431,7 +449,13 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             try:
                 # Extract the raw text response and clean it
                 content = content.strip()
-                print(content)
+                # remove the ```json and ``` from the content
+                if content.startswith("```json"):
+                    content = content[len("```json"):]
+                if content.endswith("```"):
+                    content = content[:-len("```")]
+                # strip the content again
+                content = content.strip()
                 content = json.loads(content)
 
                 # Parse the response into the specified Pydantic model
@@ -443,14 +467,16 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 content = content
 
         usage = response.usage
-        total_input_tokens += usage.input_tokens
+        total_input_tokens += usage.input_tokens + usage.cache_creation_input_tokens
         total_output_tokens += usage.output_tokens
+        cached_input_tokens = usage.cache_read_input_tokens
+        
         return (
             content,
             tool_outputs,
             total_input_tokens,
             total_output_tokens,
-            None,
+            cached_input_tokens,
             None,
         )
 
