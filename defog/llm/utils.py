@@ -96,7 +96,7 @@ async def chat_async(
     seed: int = 0,
     store: bool = True,
     metadata: Optional[Dict[str, str]] = None,
-    timeout: int = 100,
+    timeout: int = 600,
     backup_model: Optional[str] = None,
     backup_provider: Optional[Union[LLMProvider, str]] = None,
     prediction: Optional[Dict[str, str]] = None,
