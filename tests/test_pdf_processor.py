@@ -10,6 +10,8 @@ import base64
 from defog.llm.pdf_processor import PDFAnalysisInput, ClaudePDFProcessor, analyze_pdf
 from defog.llm.pdf_utils import PDFProcessor
 
+from pydantic import BaseModel
+
 
 class TestPDFProcessor:
     """Test PDF processing utilities."""
@@ -233,7 +235,7 @@ class TestPDFAnalysisTool:
         input_data = PDFAnalysisInput(
             url="https://example.com/test.pdf",
             task="Analyze this PDF",
-            response_format="JSON summary"
+            response_format=BaseModel
         )
         
         result = await analyze_pdf(input_data)
@@ -270,12 +272,12 @@ class TestPDFAnalysisInput:
         input_data = PDFAnalysisInput(
             url="https://example.com/test.pdf",
             task="Summarize the document",
-            response_format="JSON"
+            response_format=BaseModel
         )
         
         assert input_data.url == "https://example.com/test.pdf"
         assert input_data.task == "Summarize the document"
-        assert input_data.response_format == "JSON"
+        assert input_data.response_format == BaseModel
     
     def test_input_without_response_format(self):
         """Test input creation without response format."""
