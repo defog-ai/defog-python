@@ -4,8 +4,7 @@ structured data from PDFs in parallel.
 """
 
 import asyncio
-import json
-from defog.llm.pdf_data_extractor import PDFDataExtractor, extract_pdf_data
+from defog.llm.pdf_data_extractor import PDFDataExtractor
 
 
 async def example_financial_report():
