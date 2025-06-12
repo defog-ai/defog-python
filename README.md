@@ -313,6 +313,50 @@ response, tool_outputs = await mcp_client.mcp_chat(
 )
 ```
 
+### PDF Analysis Tool
+
+Analyze PDFs from URLs with Claude's advanced capabilities, including input caching and smart chunking:
+
+```python
+from defog.llm.pdf_processor import analyze_pdf, PDFAnalysisInput
+from pydantic import BaseModel, Field
+
+# Define structured response format
+class DocumentSummary(BaseModel):
+    title: str = Field(description="Document title")
+    main_topics: list[str] = Field(description="List of main topics covered")
+    key_findings: list[str] = Field(description="Key findings or conclusions")
+
+# Analyze PDF with structured output
+pdf_input = PDFAnalysisInput(
+    url="https://arxiv.org/pdf/2301.07041.pdf",
+    task="Summarize this research paper, focusing on the main contributions and findings.",
+    response_format=DocumentSummary  # Optional: structured Pydantic response
+)
+
+result = await analyze_pdf(pdf_input)
+
+if result["success"]:
+    print(f"Analysis: {result['result']}")
+    print(f"Cost: ${result['metadata']['total_cost_in_cents'] / 100:.4f}")
+    print(f"Cached tokens: {result['metadata']['cached_tokens']}")
+else:
+    print(f"Error: {result['error']}")
+```
+
+Key features:
+- **Anthropic Input Caching** - 5-minute cache for repeated analysis, dramatically reducing costs
+- **Smart Chunking** - Automatically splits PDFs >80 pages or >24MB for optimal processing
+- **Structured Output** - Support for Pydantic models for consistent response formatting
+- **Concurrent Processing** - Multiple chunks processed in parallel for faster results
+- **Cost Tracking** - Detailed token usage and cost information
+
+The tool handles large documents intelligently:
+- PDFs are downloaded and processed locally
+- Large files are split into manageable chunks automatically
+- Each chunk is processed with proper context awareness
+- Results are combined into coherent analysis
+
 ### SQL Agent Tools
 
 Convert natural language questions to SQL queries and execute them on local databases:
