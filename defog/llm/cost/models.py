@@ -54,8 +54,16 @@ MODEL_COSTS = {
     "gpt-4-turbo": {"input_cost_per1k": 0.01, "output_cost_per1k": 0.03},
     "gpt-3.5-turbo": {"input_cost_per1k": 0.0005, "output_cost_per1k": 0.0015},
     "claude-3-5-sonnet": {"input_cost_per1k": 0.003, "output_cost_per1k": 0.015},
-    "claude-sonnet-4": {"input_cost_per1k": 0.003, "output_cost_per1k": 0.015},
-    "claude-opus-4": {"input_cost_per1k": 0.015, "output_cost_per1k": 0.075},
+    "claude-sonnet-4": {
+        "input_cost_per1k": 0.003,
+        "cached_input_cost_per1k": 0.00075,
+        "output_cost_per1k": 0.015,
+    },
+    "claude-opus-4": {
+        "input_cost_per1k": 0.015,
+        "cached_input_cost_per1k": 0.00375,
+        "output_cost_per1k": 0.075,
+    },
     "claude-3-5-haiku": {"input_cost_per1k": 0.00025, "output_cost_per1k": 0.00125},
     "claude-3-opus": {"input_cost_per1k": 0.015, "output_cost_per1k": 0.075},
     "claude-3-sonnet": {"input_cost_per1k": 0.003, "output_cost_per1k": 0.015},
