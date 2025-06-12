@@ -13,6 +13,7 @@ from .memory import (
     TokenCounter,
 )
 from .pdf_processor import analyze_pdf, PDFAnalysisInput, ClaudePDFProcessor
+from .pdf_data_extractor import PDFDataExtractor, extract_pdf_data
 
 __all__ = [
     # Core functions
@@ -30,4 +31,6 @@ __all__ = [
     "analyze_pdf",
     "PDFAnalysisInput",
     "ClaudePDFProcessor",
+    "PDFDataExtractor",
+    "extract_pdf_data",
 ]
