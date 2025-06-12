@@ -124,7 +124,9 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                             if isinstance(item, dict) and item.get("type") == "text":
                                 # Append structured instruction to existing text
                                 new_item = item.copy()
-                                new_item["text"] = item["text"] + "\n\n" + structured_instruction
+                                new_item["text"] = (
+                                    item["text"] + "\n\n" + structured_instruction
+                                )
                                 updated_content.append(new_item)
                             else:
                                 updated_content.append(item)
@@ -451,9 +453,9 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 content = content.strip()
                 # remove the ```json and ``` from the content
                 if content.startswith("```json"):
-                    content = content[len("```json"):]
+                    content = content[len("```json") :]
                 if content.endswith("```"):
-                    content = content[:-len("```")]
+                    content = content[: -len("```")]
                 # strip the content again
                 content = content.strip()
                 content = json.loads(content)
@@ -470,7 +472,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         total_input_tokens += usage.input_tokens + usage.cache_creation_input_tokens
         total_output_tokens += usage.output_tokens
         cached_input_tokens = usage.cache_read_input_tokens
-        
+
         return (
             content,
             tool_outputs,
