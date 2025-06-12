@@ -452,10 +452,10 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 # Extract the raw text response and clean it
                 content = content.strip()
                 # remove the ```json and ``` from the content
-                if content.startswith("```json"):
-                    content = content[len("```json") :]
-                if content.endswith("```"):
-                    content = content[: -len("```")]
+                if "```json" in content:
+                    content = content[content.index("```json") + len("```json") :]
+                if "```" in content:
+                    content = content[: content.index("```")]
                 # strip the content again
                 content = content.strip()
                 content = json.loads(content)
@@ -465,6 +465,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             except Exception as e:
                 # If parsing fails, return the raw content
                 print(f"Warning: Failed to parse structured output: {e}")
+                print(content)
                 # We keep the raw content in this case
                 content = content
 
