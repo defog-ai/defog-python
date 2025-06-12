@@ -89,15 +89,16 @@ class AnthropicProvider(BaseLLMProvider):
 
         # Handle structured output for Anthropic models
         if response_format:
-            # Add instructions to the system message to enforce structured output
+            # Add instructions to the latest user message to enforce structured output
             if isinstance(response_format, type) and hasattr(
                 response_format, "model_json_schema"
             ):
                 schema = response_format.model_json_schema()
                 schema_str = json.dumps(schema, indent=2)
 
-                # Append structured output instructions to system prompt
+                # Append structured output instructions to the latest user message
                 structured_instruction = f"""
+
 IMPORTANT: You must respond with ONLY a valid, properly formatted JSON object that conforms to the following JSON schema:
 {schema_str}
 
@@ -111,31 +112,21 @@ RESPONSE FORMAT INSTRUCTIONS:
 
 THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS BEFORE OR AFTER.
 """
-                # Update system message (handle both string and list formats)
-                if sys_msg:
-                    if isinstance(sys_msg, str):
-                        # Simple string system message
-                        params["system"] = sys_msg + "\n\n" + structured_instruction
-                    elif isinstance(sys_msg, list):
-                        # List format (e.g., with cache control)
-                        # Find the text content and append to it
-                        updated_content = []
-                        for item in sys_msg:
-                            if isinstance(item, dict) and item.get("type") == "text":
-                                # Append structured instruction to existing text
-                                new_item = item.copy()
-                                new_item["text"] = (
-                                    item["text"] + "\n\n" + structured_instruction
-                                )
-                                updated_content.append(new_item)
-                            else:
-                                updated_content.append(item)
-                        params["system"] = updated_content
-                    else:
-                        # Fallback
-                        params["system"] = structured_instruction
-                else:
-                    params["system"] = structured_instruction
+                # Find the latest user message and append the structured instruction
+                if messages and len(messages) > 0:
+                    # Find the last user message
+                    for i in range(len(messages) - 1, -1, -1):
+                        if messages[i].get("role") == "user":
+                            # Handle both string content and list content
+                            if isinstance(messages[i]["content"], str):
+                                messages[i]["content"] += structured_instruction
+                            elif isinstance(messages[i]["content"], list):
+                                # For list content, append a text block with the instruction
+                                messages[i]["content"].append({
+                                    "type": "text",
+                                    "text": structured_instruction
+                                })
+                            break
 
         if tools:
             function_specs = get_function_specs(tools, model)
