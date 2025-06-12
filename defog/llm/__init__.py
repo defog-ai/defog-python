@@ -12,6 +12,7 @@ from .memory import (
     compactify_messages,
     TokenCounter,
 )
+from .pdf_processor import analyze_pdf, PDFAnalysisInput, ClaudePDFProcessor
 
 __all__ = [
     # Core functions
@@ -25,4 +26,8 @@ __all__ = [
     "create_memory_manager",
     "compactify_messages",
     "TokenCounter",
+    # PDF processing
+    "analyze_pdf",
+    "PDFAnalysisInput",
+    "ClaudePDFProcessor",
 ]
