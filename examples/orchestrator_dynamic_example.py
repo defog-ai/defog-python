@@ -26,7 +26,9 @@ from defog.llm.sql import sql_answer_tool
 from defog.llm.llm_providers import LLMProvider
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -34,23 +36,22 @@ logger = logging.getLogger(__name__)
 class WebSearchInput(BaseModel):
     query: str = Field(description="The search query")
 
+
 async def web_search(input: WebSearchInput) -> Dict[str, Any]:
     """Search the web for information using available search providers."""
     result = await web_search_tool(
-        question=input.query,
-        model="gpt-4.1",
-        provider="openai",
-        verbose=False
+        question=input.query, model="gpt-4.1", provider="openai", verbose=False
     )
     return {
         "content": result.get("content", ""),
-        "sources": result.get("websites_cited", [])
+        "sources": result.get("websites_cited", []),
     }
 
 
 class CodeExecutionInput(BaseModel):
     code: str = Field(description="Python code to execute")
     data: str = Field(default="", description="Optional CSV data for analysis")
+
 
 async def execute_python(input: CodeExecutionInput) -> Dict[str, Any]:
     """Execute Python code in a sandboxed environment with optional data."""
@@ -60,17 +61,18 @@ async def execute_python(input: CodeExecutionInput) -> Dict[str, Any]:
         provider="openai",
         csv_string=input.data,
         instructions="Execute the provided code and return the output",
-        verbose=False
+        verbose=False,
     )
     return {
         "output": result.get("output", ""),
-        "code_generated": result.get("code", "")
+        "code_generated": result.get("code", ""),
     }
 
 
 class DataAnalysisInput(BaseModel):
     data: str = Field(description="Data to analyze as a valid JSON string")
     analysis_type: str = Field(description="Type of analysis to perform")
+
 
 async def analyze_data(input: DataAnalysisInput) -> Dict[str, Any]:
     """Analyze data using statistical or visualization methods."""
@@ -100,13 +102,13 @@ if analysis_type == 'statistical':
 else:
     print(f"Analysis type '{analysis_type}' not implemented")
 """
-    
+
     result = await code_interpreter_tool(
         question="Analyze this data",
         model="claude-3-7-sonnet-latest",
         provider="anthropic",
         instructions=code,
-        verbose=False
+        verbose=False,
     )
     return {"analysis": result.get("output", "")}
 
@@ -114,6 +116,7 @@ else:
 class FileProcessingInput(BaseModel):
     content: str = Field(description="File content to process")
     operation: str = Field(description="Operation to perform on the file")
+
 
 async def process_file(input: FileProcessingInput) -> Dict[str, Any]:
     """Process file content with various operations."""
@@ -135,28 +138,29 @@ elif operation == 'extract_numbers':
 else:
     print(f"Operation '{operation}' not supported")
 """
-    
+
     result = await code_interpreter_tool(
         question="Process file content",
         model="claude-3-7-sonnet-latest",
         provider="anthropic",
         instructions=code,
-        verbose=False
+        verbose=False,
     )
     return {"result": result.get("output", "")}
 
 
 class SQLQueryInput(BaseModel):
-    question: str = Field(description="Natural language question to answer using Cricket World Cup 2015 data")
+    question: str = Field(
+        description="Natural language question to answer using Cricket World Cup 2015 data"
+    )
+
 
 async def cricket_sql_query(input: SQLQueryInput) -> Dict[str, Any]:
     """Answer questions about Cricket World Cup 2015 using SQL queries on the ball-by-ball data."""
     # Database configuration for Cricket World Cup 2015
     db_path = os.path.join(os.path.dirname(__file__), "cricket_wc2015.duckdb")
-    db_creds = {
-        "database": db_path
-    }
-    
+    db_creds = {"database": db_path}
+
     try:
         result = await sql_answer_tool(
             question=input.question,
@@ -165,7 +169,7 @@ async def cricket_sql_query(input: SQLQueryInput) -> Dict[str, Any]:
             model="claude-sonnet-4-20250514",
             provider=LLMProvider.ANTHROPIC,
             temperature=0.0,
-            verbose=False
+            verbose=False,
         )
 
         if result.get("success"):
@@ -174,27 +178,22 @@ async def cricket_sql_query(input: SQLQueryInput) -> Dict[str, Any]:
                 "query": result.get("query"),
                 "columns": result.get("columns"),
                 "results": result.get("results"),
-                "error": None
+                "error": None,
             }
         else:
             return {
                 "success": False,
                 "query": result.get("query"),
                 "results": None,
-                "error": result.get("error")
+                "error": result.get("error"),
             }
     except Exception as e:
-        return {
-            "success": False,
-            "query": None,
-            "results": None,
-            "error": str(e)
-        }
+        return {"success": False, "query": None, "results": None, "error": str(e)}
 
 
 async def dynamic_orchestration_example():
     """Example where the orchestrator dynamically creates subagents based on the task."""
-    
+
     # Create main orchestrator agent with dynamic capabilities
     main_agent = Agent(
         agent_id="dynamic_orchestrator",
@@ -209,9 +208,9 @@ async def dynamic_orchestration_example():
         4. Synthesize the results and provide a comprehensive response
         
         You must use the plan_and_create_subagents tool to handle complex requests that require multiple specialized tasks.""",
-        memory_config={"token_threshold": 50000, "preserve_last_n_messages": 10}
+        memory_config={"token_threshold": 50000, "preserve_last_n_messages": 10},
     )
-    
+
     # Create orchestrator with available tools and infinite loop prevention
     orchestrator = AgentOrchestrator(
         main_agent=main_agent,
@@ -220,58 +219,60 @@ async def dynamic_orchestration_example():
             execute_python,
             analyze_data,
             process_file,
-            cricket_sql_query
+            cricket_sql_query,
         ],
         subagent_provider="anthropic",
         subagent_model="claude-sonnet-4-20250514",
         planning_provider="anthropic",
         planning_model="claude-sonnet-4-20250514",
         max_recursion_depth=2,  # Prevent deep agent nesting
-        max_total_retries=15,   # Global retry limit
+        max_total_retries=15,  # Global retry limit
         max_decomposition_depth=1,  # Limit task decomposition
-        global_timeout=600.0    # 10 minute timeout
+        global_timeout=600.0,  # 10 minute timeout
     )
-    
+
     # Example 1: Research and analysis task
     # print("=== Example 1: Research and Analysis ===")
     # messages = [{
     #     "role": "user",
-    #     "content": """I need to understand the current state of quantum computing. 
-    #     Please research recent breakthroughs, analyze the market size and growth projections, 
+    #     "content": """I need to understand the current state of quantum computing.
+    #     Please research recent breakthroughs, analyze the market size and growth projections,
     #     and create a simple table comparing the qubit counts of major quantum computers."""
     # }]
-    
+
     # response = await orchestrator.process(messages)
     # print(f"Response:\n{response.content}\n")
-    
+
     # Example 2: Cricket World Cup 2015 Analysis
     print("=== Example 2: Cricket World Cup 2015 Analysis ===")
-    messages = [{
-        "role": "user",
-        "content": """I want to analyze the Cricket World Cup 2015 data. Please help me understand:
+    messages = [
+        {
+            "role": "user",
+            "content": """I want to analyze the Cricket World Cup 2015 data. Please help me understand:
         1. Which player scored the most runs in the tournament?
         2. Who took the most wickets?
         3. Which team had the best batting average?
         4. What was the highest individual score in an innings?
-        5. Create a summary comparing the performance of the top 3 teams"""
-    }]
-    
+        5. Create a summary comparing the performance of the top 3 teams""",
+        }
+    ]
+
     response = await orchestrator.process(messages)
     print(f"Response:\n{response.content}\n")
 
 
 async def simple_dynamic_example():
     """A simpler example showing dynamic agent creation."""
-    
+
     logger.info("Creating main agent...")
     main_agent = Agent(
         agent_id="orchestrator",
         provider="anthropic",
         model="claude-sonnet-4-20250514",
         system_prompt="""You are an orchestrator that creates specialized agents dynamically.
-        Use plan_and_create_subagents to break down tasks and create appropriate subagents."""
+        Use plan_and_create_subagents to break down tasks and create appropriate subagents.""",
     )
-    
+
     logger.info("Creating orchestrator...")
     orchestrator = AgentOrchestrator(
         main_agent=main_agent,
@@ -282,15 +283,17 @@ async def simple_dynamic_example():
         subagent_model="gpt-4.1",
         max_recursion_depth=2,
         max_total_retries=10,
-        global_timeout=120.0  # 2 minute timeout for simple example
+        global_timeout=120.0,  # 2 minute timeout for simple example
     )
-    
+
     logger.info("Processing request...")
-    messages = [{
-        "role": "user",
-        "content": "Who is the current MP from Rae Bareli in 2025, how many degrees Celsius is 75 Fahrenheit, and who was the top run scorer in Cricket World Cup 2015?"
-    }]
-    
+    messages = [
+        {
+            "role": "user",
+            "content": "Who is the current MP from Rae Bareli in 2025, how many degrees Celsius is 75 Fahrenheit, and who was the top run scorer in Cricket World Cup 2015?",
+        }
+    ]
+
     try:
         response = await orchestrator.process(messages)
         print(f"Result:\n{response.content}")
@@ -301,7 +304,7 @@ async def simple_dynamic_example():
 
 if __name__ == "__main__":
     import sys
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == "simple":
         print("Running simple dynamic example...")
         asyncio.run(simple_dynamic_example())
