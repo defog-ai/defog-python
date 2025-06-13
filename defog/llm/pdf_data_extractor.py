@@ -20,11 +20,17 @@ logger = logging.getLogger(__name__)
 
 class DataPointIdentification(BaseModel):
     """Identified data point in a PDF that can be extracted."""
-    
-    name: str = Field(description="Name of the datapoint (e.g., 'financial_summary_table')")
+
+    name: str = Field(
+        description="Name of the datapoint (e.g., 'financial_summary_table')"
+    )
     description: str = Field(description="Description of what this datapoint contains")
-    data_type: str = Field(description="Type of data: 'table', 'key_value_pairs', 'list', 'metrics', 'chart_data'")
-    location_hint: str = Field(description="Hint about where in the PDF this data is located")
+    data_type: str = Field(
+        description="Type of data: 'table', 'key_value_pairs', 'list', 'metrics', 'chart_data'"
+    )
+    location_hint: str = Field(
+        description="Hint about where in the PDF this data is located"
+    )
     schema_fields: List[Dict[str, Any]] = Field(
         description="List of fields for extraction. Each field should have: 'name' (snake_case field name), 'type' (data type), 'description' (what the field contains), and 'optional' (boolean, preferably true). For financial tables, use descriptive names like 'revenue_q1_2024' instead of generic names."
     )
@@ -32,8 +38,10 @@ class DataPointIdentification(BaseModel):
 
 class PDFAnalysisResponse(BaseModel):
     """Response from PDF structure analysis."""
-    
-    document_type: str = Field(description="Type of document (e.g., 'financial_report', 'research_paper')")
+
+    document_type: str = Field(
+        description="Type of document (e.g., 'financial_report', 'research_paper')"
+    )
     total_pages: int = Field(description="Total number of pages analyzed")
     identified_datapoints: List[DataPointIdentification] = Field(
         description="List of all identified extractable datapoints"
@@ -42,7 +50,7 @@ class PDFAnalysisResponse(BaseModel):
 
 class DataExtractionResult(BaseModel):
     """Result of extracting a single datapoint."""
-    
+
     datapoint_name: str
     success: bool
     extracted_data: Optional[Any] = None
@@ -55,7 +63,7 @@ class DataExtractionResult(BaseModel):
 
 class PDFDataExtractionResult(BaseModel):
     """Complete result of PDF data extraction."""
-    
+
     pdf_url: str
     document_type: str
     total_datapoints_identified: int
@@ -72,7 +80,7 @@ class PDFDataExtractor:
     Intelligent PDF data extractor that identifies and extracts
     structured data from PDFs using parallel agent orchestration.
     """
-    
+
     def __init__(
         self,
         analysis_provider: Union[str, LLMProvider] = "anthropic",
@@ -84,7 +92,7 @@ class PDFDataExtractor:
     ):
         """
         Initialize PDF Data Extractor.
-        
+
         Args:
             analysis_provider: Provider for PDF analysis
             analysis_model: Model for PDF analysis
@@ -99,26 +107,22 @@ class PDFDataExtractor:
         self.extraction_model = extraction_model
         self.max_parallel_extractions = max_parallel_extractions
         self.temperature = temperature
-        
+
         # Initialize PDF processor for initial analysis
         self.pdf_processor = ClaudePDFProcessor(
-            provider=analysis_provider,
-            model=analysis_model,
-            temperature=temperature
+            provider=analysis_provider, model=analysis_model, temperature=temperature
         )
-    
+
     async def analyze_pdf_structure(
-        self,
-        pdf_url: str,
-        focus_areas: Optional[List[str]] = None
+        self, pdf_url: str, focus_areas: Optional[List[str]] = None
     ) -> tuple[PDFAnalysisResponse, Dict[str, Any]]:
         """
         Analyze PDF to identify extractable datapoints.
-        
+
         Args:
             pdf_url: URL of the PDF to analyze
             focus_areas: Optional list of areas to focus on
-            
+
         Returns:
             Tuple of (PDFAnalysisResponse with identified datapoints, cost metadata dict)
         """
@@ -148,34 +152,31 @@ IMPORTANT: For tables, ensure you identify meaningful column names based on the 
 Be thorough and identify ALL potential datapoints that could be valuable when converted to structured format for database storage."""
 
         result = await self.pdf_processor.analyze_pdf(
-            url=pdf_url,
-            task=analysis_task,
-            response_format=PDFAnalysisResponse
+            url=pdf_url, task=analysis_task, response_format=PDFAnalysisResponse
         )
-        
+
         if not result.success:
             raise Exception(f"PDF analysis failed: {result.error}")
-            
+
         # Extract cost metadata
         cost_metadata = {
             "cost_cents": result.metadata.get("total_cost_in_cents", 0.0),
             "input_tokens": result.metadata.get("total_input_tokens", 0),
             "output_tokens": result.metadata.get("total_output_tokens", 0),
-            "cached_tokens": result.metadata.get("cached_tokens", 0)
+            "cached_tokens": result.metadata.get("cached_tokens", 0),
         }
-            
+
         return result.result, cost_metadata
-    
+
     def _generate_pydantic_schema(
-        self,
-        datapoint: DataPointIdentification
+        self, datapoint: DataPointIdentification
     ) -> Type[BaseModel]:
         """
         Generate a Pydantic model dynamically based on identified schema fields.
-        
+
         Args:
             datapoint: Identified datapoint with schema information
-            
+
         Returns:
             Dynamically created Pydantic model
         """
@@ -196,88 +197,99 @@ Be thorough and identify ALL potential datapoints that could be valuable when co
             "list": List[str],  # Default to list of strings
             "dict": Dict[str, Any],
         }
-        
+
         # Build field definitions
         field_definitions = {}
         for field_info in datapoint.schema_fields:
             field_name = field_info.get("name", "").replace(" ", "_").lower()
             field_type_str = field_info.get("type", "string").lower()
             field_description = field_info.get("description", f"Field {field_name}")
-            
+
             # Get Python type
             python_type = type_mapping.get(field_type_str, str)
-            
+
             # Make all fields optional by default for better data handling
             is_optional = field_info.get("optional", True)
             if is_optional:
                 python_type = Optional[python_type]
-            
+
             # Create field with description
             field_definitions[field_name] = (
                 python_type,
-                Field(description=field_description)
+                Field(description=field_description),
             )
-        
+
         # Handle different data types
         if datapoint.data_type == "table":
             # For tables, if we only have generic field definitions, create a flexible schema
-            if len(field_definitions) == 0 or all(name.startswith("column") or name == "" for name in field_definitions.keys()):
+            if len(field_definitions) == 0 or all(
+                name.startswith("column") or name == ""
+                for name in field_definitions.keys()
+            ):
                 # Create a flexible dict-based schema for tables with dynamic columns
                 return create_model(
                     datapoint.name,
-                    rows=(List[Dict[str, Optional[Union[str, int, float]]]], Field(description="Table rows with dynamic columns")),
-                    column_headers=(Optional[List[str]], Field(default=None, description="Column headers if available")),
-                    table_name=(Optional[str], Field(default=datapoint.name, description="Table name")),
-                    row_count=(Optional[int], Field(default=None, description="Number of rows"))
+                    rows=(
+                        List[Dict[str, Optional[Union[str, int, float]]]],
+                        Field(description="Table rows with dynamic columns"),
+                    ),
+                    column_headers=(
+                        Optional[List[str]],
+                        Field(default=None, description="Column headers if available"),
+                    ),
+                    table_name=(
+                        Optional[str],
+                        Field(default=datapoint.name, description="Table name"),
+                    ),
+                    row_count=(
+                        Optional[int],
+                        Field(default=None, description="Number of rows"),
+                    ),
                 )
             else:
                 # For tables with known columns, create a structured row model
-                row_model = create_model(
-                    f"{datapoint.name}_Row",
-                    **field_definitions
-                )
+                row_model = create_model(f"{datapoint.name}_Row", **field_definitions)
                 # Return a model that contains a list of rows
                 return create_model(
                     datapoint.name,
                     rows=(List[row_model], Field(description="Table rows")),
-                    table_name=(Optional[str], Field(default=datapoint.name, description="Table name")),
-                    row_count=(Optional[int], Field(default=None, description="Number of rows"))
+                    table_name=(
+                        Optional[str],
+                        Field(default=datapoint.name, description="Table name"),
+                    ),
+                    row_count=(
+                        Optional[int],
+                        Field(default=None, description="Number of rows"),
+                    ),
                 )
         elif datapoint.data_type == "key_value_pairs":
             # For key-value pairs, use the fields directly
-            return create_model(
-                datapoint.name,
-                **field_definitions
-            )
+            return create_model(datapoint.name, **field_definitions)
         elif datapoint.data_type == "list":
             # For lists, create a model with an items field
-            item_type = list(field_definitions.values())[0][0] if field_definitions else str
+            item_type = (
+                list(field_definitions.values())[0][0] if field_definitions else str
+            )
             return create_model(
                 datapoint.name,
                 items=(List[item_type], Field(description="List items")),
-                count=(int, Field(description="Number of items"))
+                count=(int, Field(description="Number of items")),
             )
         else:
             # Default: use fields as-is
-            return create_model(
-                datapoint.name,
-                **field_definitions
-            )
-    
+            return create_model(datapoint.name, **field_definitions)
+
     async def extract_single_datapoint(
-        self,
-        pdf_url: str,
-        datapoint: DataPointIdentification,
-        schema: Type[BaseModel]
+        self, pdf_url: str, datapoint: DataPointIdentification, schema: Type[BaseModel]
     ) -> DataExtractionResult:
         """
         Extract a single datapoint from the PDF.
-        
+
         Args:
             pdf_url: URL of the PDF
             datapoint: Datapoint to extract
             schema: Pydantic schema for extraction
-            
+
         Returns:
             DataExtractionResult
         """
@@ -314,15 +326,13 @@ Be precise and include all available data that matches the schema."""
             processor = ClaudePDFProcessor(
                 provider=self.extraction_provider,
                 model=self.extraction_model,
-                temperature=self.temperature
+                temperature=self.temperature,
             )
-            
+
             result = await processor.analyze_pdf(
-                url=pdf_url,
-                task=extraction_task,
-                response_format=schema
+                url=pdf_url, task=extraction_task, response_format=schema
             )
-            
+
             if result.success:
                 return DataExtractionResult(
                     datapoint_name=datapoint.name,
@@ -331,7 +341,7 @@ Be precise and include all available data that matches the schema."""
                     cost_cents=result.metadata.get("total_cost_in_cents", 0.0),
                     input_tokens=result.metadata.get("total_input_tokens", 0),
                     output_tokens=result.metadata.get("total_output_tokens", 0),
-                    cached_tokens=result.metadata.get("cached_tokens", 0)
+                    cached_tokens=result.metadata.get("cached_tokens", 0),
                 )
             else:
                 return DataExtractionResult(
@@ -341,10 +351,9 @@ Be precise and include all available data that matches the schema."""
                     cost_cents=result.metadata.get("total_cost_in_cents", 0.0),
                     input_tokens=result.metadata.get("total_input_tokens", 0),
                     output_tokens=result.metadata.get("total_output_tokens", 0),
-                    cached_tokens=result.metadata.get("cached_tokens", 0)
+                    cached_tokens=result.metadata.get("cached_tokens", 0),
                 )
-                
-                
+
         except Exception as e:
             logger.error(f"Error extracting datapoint {datapoint.name}: {e}")
             return DataExtractionResult(
@@ -354,47 +363,56 @@ Be precise and include all available data that matches the schema."""
                 cost_cents=0.0,
                 input_tokens=0,
                 output_tokens=0,
-                cached_tokens=0
+                cached_tokens=0,
             )
-    
+
     async def extract_all_data(
         self,
         pdf_url: str,
         focus_areas: Optional[List[str]] = None,
-        datapoint_filter: Optional[List[str]] = None
+        datapoint_filter: Optional[List[str]] = None,
     ) -> PDFDataExtractionResult:
         """
         Extract all identified datapoints from a PDF in parallel.
-        
+
         Args:
             pdf_url: URL of the PDF to process
             focus_areas: Optional areas to focus analysis on
             datapoint_filter: Optional list of datapoint names to extract
-            
+
         Returns:
             PDFDataExtractionResult with all extracted data
         """
         start_time = asyncio.get_event_loop().time()
-        
+
         # Step 1: Analyze PDF structure
         logger.info(f"Analyzing PDF structure: {pdf_url}")
-        analysis, analysis_cost_metadata = await self.analyze_pdf_structure(pdf_url, focus_areas)
-        
+        analysis, analysis_cost_metadata = await self.analyze_pdf_structure(
+            pdf_url, focus_areas
+        )
+
         logger.info(f"Step 1 - PDF Analysis completed:")
         logger.info(f"  • Identified {len(analysis.identified_datapoints)} datapoints")
-        logger.info(f"  • Cost: ${analysis_cost_metadata.get('cost_cents', 0.0) / 100:.4f}")
-        logger.info(f"  • Input tokens: {analysis_cost_metadata.get('input_tokens', 0):,}")
-        logger.info(f"  • Output tokens: {analysis_cost_metadata.get('output_tokens', 0):,}")
-        logger.info(f"  • Cached tokens: {analysis_cost_metadata.get('cached_tokens', 0):,}")
-        
+        logger.info(
+            f"  • Cost: ${analysis_cost_metadata.get('cost_cents', 0.0) / 100:.4f}"
+        )
+        logger.info(
+            f"  • Input tokens: {analysis_cost_metadata.get('input_tokens', 0):,}"
+        )
+        logger.info(
+            f"  • Output tokens: {analysis_cost_metadata.get('output_tokens', 0):,}"
+        )
+        logger.info(
+            f"  • Cached tokens: {analysis_cost_metadata.get('cached_tokens', 0):,}"
+        )
+
         # Filter datapoints if requested
         datapoints_to_extract = analysis.identified_datapoints
         if datapoint_filter:
             datapoints_to_extract = [
-                dp for dp in datapoints_to_extract 
-                if dp.name in datapoint_filter
+                dp for dp in datapoints_to_extract if dp.name in datapoint_filter
             ]
-        
+
         # Step 2: Generate schemas for each datapoint
         schemas = {}
         for datapoint in datapoints_to_extract:
@@ -404,44 +422,44 @@ Be precise and include all available data that matches the schema."""
                 logger.info(f"Generated schema for {datapoint.name}")
             except Exception as e:
                 logger.error(f"Failed to generate schema for {datapoint.name}: {e}")
-        
+
         # Step 3: Extract data in parallel
         extraction_tasks = []
         for datapoint in datapoints_to_extract:
             if datapoint.name in schemas:
                 task = self.extract_single_datapoint(
-                    pdf_url,
-                    datapoint,
-                    schemas[datapoint.name]
+                    pdf_url, datapoint, schemas[datapoint.name]
                 )
                 extraction_tasks.append(task)
-        
+
         # Limit concurrency
         semaphore = asyncio.Semaphore(self.max_parallel_extractions)
-        
+
         async def extract_with_limit(task):
             async with semaphore:
                 return await task
-        
-        logger.info(f"Step 2 - Starting parallel extraction of {len(extraction_tasks)} datapoints")
+
+        logger.info(
+            f"Step 2 - Starting parallel extraction of {len(extraction_tasks)} datapoints"
+        )
         extraction_results = await asyncio.gather(
             *[extract_with_limit(task) for task in extraction_tasks],
-            return_exceptions=True
+            return_exceptions=True,
         )
-        
+
         logger.info(f"Step 2 - Individual extraction costs:")
-        
+
         # Process results
         final_results = []
         successful = 0
         failed = 0
-        
+
         # Start with analysis costs
         total_cost = analysis_cost_metadata.get("cost_cents", 0.0)
         total_input_tokens = analysis_cost_metadata.get("input_tokens", 0)
         total_output_tokens = analysis_cost_metadata.get("output_tokens", 0)
         total_cached_tokens = analysis_cost_metadata.get("cached_tokens", 0)
-        
+
         for result in extraction_results:
             if isinstance(result, Exception):
                 failed += 1
@@ -453,7 +471,7 @@ Be precise and include all available data that matches the schema."""
                         cost_cents=0.0,
                         input_tokens=0,
                         output_tokens=0,
-                        cached_tokens=0
+                        cached_tokens=0,
                     )
                 )
             else:
@@ -463,29 +481,39 @@ Be precise and include all available data that matches the schema."""
                 total_input_tokens += result.input_tokens
                 total_output_tokens += result.output_tokens
                 total_cached_tokens += result.cached_tokens
-                
+
                 # Log individual extraction costs
                 if result.cost_cents > 0:
-                    logger.info(f"  • {result.datapoint_name}: ${result.cost_cents / 100:.4f} "
-                              f"(in:{result.input_tokens:,}, out:{result.output_tokens:,}, "
-                              f"cached:{result.cached_tokens:,}) - {'✅' if result.success else '❌'}")
-                
+                    logger.info(
+                        f"  • {result.datapoint_name}: ${result.cost_cents / 100:.4f} "
+                        f"(in:{result.input_tokens:,}, out:{result.output_tokens:,}, "
+                        f"cached:{result.cached_tokens:,}) - {'✅' if result.success else '❌'}"
+                    )
+
                 if result.success:
                     successful += 1
                 else:
                     failed += 1
-        
+
         end_time = asyncio.get_event_loop().time()
-        
+
         # Log final summary
         logger.info(f"PDF Data Extraction completed:")
         logger.info(f"  • Total time: {(end_time - start_time):.2f} seconds")
         logger.info(f"  • Total cost: ${total_cost / 100:.4f}")
-        logger.info(f"  • Analysis cost: ${analysis_cost_metadata.get('cost_cents', 0.0) / 100:.4f}")
-        logger.info(f"  • Extraction cost: ${(total_cost - analysis_cost_metadata.get('cost_cents', 0.0)) / 100:.4f}")
-        logger.info(f"  • Total tokens: {total_input_tokens + total_output_tokens:,} (in:{total_input_tokens:,}, out:{total_output_tokens:,}, cached:{total_cached_tokens:,})")
-        logger.info(f"  • Success rate: {successful}/{successful + failed} ({100 * successful / (successful + failed) if (successful + failed) > 0 else 0:.1f}%)")
-        
+        logger.info(
+            f"  • Analysis cost: ${analysis_cost_metadata.get('cost_cents', 0.0) / 100:.4f}"
+        )
+        logger.info(
+            f"  • Extraction cost: ${(total_cost - analysis_cost_metadata.get('cost_cents', 0.0)) / 100:.4f}"
+        )
+        logger.info(
+            f"  • Total tokens: {total_input_tokens + total_output_tokens:,} (in:{total_input_tokens:,}, out:{total_output_tokens:,}, cached:{total_cached_tokens:,})"
+        )
+        logger.info(
+            f"  • Success rate: {successful}/{successful + failed} ({100 * successful / (successful + failed) if (successful + failed) > 0 else 0:.1f}%)"
+        )
+
         return PDFDataExtractionResult(
             pdf_url=pdf_url,
             document_type=analysis.document_type,
@@ -502,29 +530,30 @@ Be precise and include all available data that matches the schema."""
                 "total_output_tokens": total_output_tokens,
                 "total_cached_tokens": total_cached_tokens,
                 "analysis_cost_cents": analysis_cost_metadata.get("cost_cents", 0.0),
-                "extraction_cost_cents": total_cost - analysis_cost_metadata.get("cost_cents", 0.0)
-            }
+                "extraction_cost_cents": total_cost
+                - analysis_cost_metadata.get("cost_cents", 0.0),
+            },
         )
-    
+
     async def extract_as_dict(
         self,
         pdf_url: str,
         focus_areas: Optional[List[str]] = None,
-        datapoint_filter: Optional[List[str]] = None
+        datapoint_filter: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Extract all data and return as a dictionary for easy access.
-        
+
         Args:
             pdf_url: URL of the PDF to process
             focus_areas: Optional areas to focus analysis on
             datapoint_filter: Optional list of datapoint names to extract
-            
+
         Returns:
             Dictionary with datapoint names as keys and extracted data as values
         """
         result = await self.extract_all_data(pdf_url, focus_areas, datapoint_filter)
-        
+
         extracted_data = {
             "metadata": {
                 "pdf_url": result.pdf_url,
@@ -534,33 +563,33 @@ Be precise and include all available data that matches the schema."""
                     "successful": result.successful_extractions,
                     "failed": result.failed_extractions,
                     "time_ms": result.total_time_ms,
-                    "cost_cents": result.total_cost_cents
-                }
+                    "cost_cents": result.total_cost_cents,
+                },
             },
-            "data": {}
+            "data": {},
         }
-        
+
         for extraction in result.extraction_results:
             if extraction.success and extraction.extracted_data:
-                extracted_data["data"][extraction.datapoint_name] = extraction.extracted_data
-        
+                extracted_data["data"][
+                    extraction.datapoint_name
+                ] = extraction.extracted_data
+
         return extracted_data
 
 
 # Convenience function for simple usage
 async def extract_pdf_data(
-    pdf_url: str,
-    focus_areas: Optional[List[str]] = None,
-    **kwargs
+    pdf_url: str, focus_areas: Optional[List[str]] = None, **kwargs
 ) -> Dict[str, Any]:
     """
     Convenience function to extract all data from a PDF.
-    
+
     Args:
         pdf_url: URL of the PDF to process
         focus_areas: Optional areas to focus on
         **kwargs: Additional arguments for PDFDataExtractor
-        
+
     Returns:
         Dictionary with extracted data
     """

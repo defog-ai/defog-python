@@ -122,10 +122,9 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                 messages[i]["content"] += structured_instruction
                             elif isinstance(messages[i]["content"], list):
                                 # For list content, append a text block with the instruction
-                                messages[i]["content"].append({
-                                    "type": "text",
-                                    "text": structured_instruction
-                                })
+                                messages[i]["content"].append(
+                                    {"type": "text", "text": structured_instruction}
+                                )
                             break
 
         if tools:
