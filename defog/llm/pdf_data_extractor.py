@@ -247,12 +247,26 @@ Be thorough and identify ALL potential datapoints that could be valuable when co
                     ),
                 )
             else:
-                # For tables with known columns, create a structured row model
-                row_model = create_model(f"{datapoint.name}_Row", **field_definitions)
-                # Return a model that contains a list of rows
+                # For tables with known columns, use columnar format to save tokens
+                # Extract column names from field definitions
+                column_names = list(field_definitions.keys())
+
+                # Create a model with columns and data arrays
                 return create_model(
                     datapoint.name,
-                    rows=(List[row_model], Field(description="Table rows")),
+                    columns=(
+                        List[str],
+                        Field(
+                            default=column_names,
+                            description="Column names for the table",
+                        ),
+                    ),
+                    data=(
+                        List[List[Optional[Union[str, int, float]]]],
+                        Field(
+                            description="Table data as array of arrays (each inner array is a row)"
+                        ),
+                    ),
                     table_name=(
                         Optional[str],
                         Field(default=datapoint.name, description="Table name"),
@@ -341,11 +355,14 @@ Location hint: {datapoint.location_hint}
 
 IMPORTANT EXTRACTION GUIDELINES:
 1. For tables:
-   - Use the actual column headers from the PDF as field names
-   - Each row should have ALL columns populated with their values
-   - If a cell is empty, use null or an empty string
-   - For financial data with time periods, use descriptive field names like 'q1_2024_revenue' not just 'value'
+   - Extract data in COLUMNAR FORMAT to minimize tokens:
+     * 'columns' field: array of column names matching the PDF headers
+     * 'data' field: array of arrays, where each inner array is a row
+   - The order of values in each row MUST match the order of columns
+   - Example: columns: ["item", "q1_2024", "q2_2024"], data: [["Revenue", 100, 150], ["Cost", 50, 60]]
+   - If a cell is empty, use null
    - Extract numbers as pure numeric values without currency symbols or commas
+   - For financial data with time periods, use descriptive column names like 'q1_2024_revenue'
 
 2. For key-value pairs:
    - Use the actual labels/keys from the document
