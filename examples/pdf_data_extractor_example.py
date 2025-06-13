@@ -7,8 +7,44 @@ import asyncio
 from defog.llm.pdf_data_extractor import PDFDataExtractor
 import json
 import logging
+from urllib.parse import urlparse
+import re
 
 logging.basicConfig(level=logging.INFO)
+
+
+def generate_safe_filename(url: str) -> str:
+    """
+    Generate a safe filename from a URL for saving extracted data.
+    
+    Args:
+        url: The URL to convert to a filename
+        
+    Returns:
+        A safe filename string
+    """
+    try:
+        parsed = urlparse(url)
+        # Use the path component, removing leading slash and .pdf extension
+        path_part = parsed.path.lstrip('/').replace('.pdf', '')
+        # If path is empty, use the netloc (domain)
+        if not path_part:
+            path_part = parsed.netloc
+        # Replace invalid filename characters with underscores
+        safe_name = re.sub(r'[^\w\-_.]', '_', path_part)
+        # Remove multiple consecutive underscores
+        safe_name = re.sub(r'_+', '_', safe_name)
+        # Remove leading/trailing underscores
+        safe_name = safe_name.strip('_')
+        # Ensure we have a non-empty filename
+        if not safe_name:
+            safe_name = "extracted_data"
+        return f"extracted_data_{safe_name}.json"
+    except Exception:
+        # Fallback to a simple timestamp-based name if URL parsing fails
+        import time
+        timestamp = int(time.time())
+        return f"extracted_data_{timestamp}.json"
 
 
 async def extract(url):
@@ -56,7 +92,8 @@ async def extract(url):
                 print(f"   Cost: ${extraction.cost_cents / 100:.4f} | Tokens: {extraction.input_tokens + extraction.output_tokens:,}")
     
     # save the extracted data to a json file
-    with open(f"extracted_data_{url.split('://')[-1].replace("/", "_").replace(".pdf", "").replace(".", "_")}.json", "w") as f:
+    filename = generate_safe_filename(url)
+    with open(filename, "w") as f:
         json.dump(result.model_dump(), f, indent=2)
 
 
