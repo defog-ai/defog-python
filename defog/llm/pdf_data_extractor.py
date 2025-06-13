@@ -279,6 +279,44 @@ Be thorough and identify ALL potential datapoints that could be valuable when co
             # Default: use fields as-is
             return create_model(datapoint.name, **field_definitions)
 
+    def _aggregate_cost_and_token_metadata(
+        self,
+        analysis_metadata: Dict[str, Any],
+        extraction_results: List[DataExtractionResult],
+    ) -> Dict[str, Any]:
+        """
+        Aggregate cost and token metadata from analysis and extraction results.
+        
+        Args:
+            analysis_metadata: Cost metadata from PDF analysis
+            extraction_results: List of extraction results with individual costs
+            
+        Returns:
+            Dictionary with aggregated totals
+        """
+        # Start with analysis costs
+        total_cost = analysis_metadata.get("cost_cents", 0.0)
+        total_input_tokens = analysis_metadata.get("input_tokens", 0)
+        total_output_tokens = analysis_metadata.get("output_tokens", 0)
+        total_cached_tokens = analysis_metadata.get("cached_tokens", 0)
+        
+        # Aggregate costs from individual extractions
+        for result in extraction_results:
+            if not isinstance(result, Exception):
+                total_cost += result.cost_cents
+                total_input_tokens += result.input_tokens
+                total_output_tokens += result.output_tokens
+                total_cached_tokens += result.cached_tokens
+        
+        return {
+            "total_cost_cents": total_cost,
+            "total_input_tokens": total_input_tokens,
+            "total_output_tokens": total_output_tokens,
+            "total_cached_tokens": total_cached_tokens,
+            "analysis_cost_cents": analysis_metadata.get("cost_cents", 0.0),
+            "extraction_cost_cents": total_cost - analysis_metadata.get("cost_cents", 0.0),
+        }
+
     async def extract_single_datapoint(
         self, pdf_url: str, datapoint: DataPointIdentification, schema: Type[BaseModel]
     ) -> DataExtractionResult:
@@ -454,12 +492,6 @@ Be precise and include all available data that matches the schema."""
         successful = 0
         failed = 0
 
-        # Start with analysis costs
-        total_cost = analysis_cost_metadata.get("cost_cents", 0.0)
-        total_input_tokens = analysis_cost_metadata.get("input_tokens", 0)
-        total_output_tokens = analysis_cost_metadata.get("output_tokens", 0)
-        total_cached_tokens = analysis_cost_metadata.get("cached_tokens", 0)
-
         for result in extraction_results:
             if isinstance(result, Exception):
                 failed += 1
@@ -476,11 +508,6 @@ Be precise and include all available data that matches the schema."""
                 )
             else:
                 final_results.append(result)
-                # Aggregate costs from individual extractions
-                total_cost += result.cost_cents
-                total_input_tokens += result.input_tokens
-                total_output_tokens += result.output_tokens
-                total_cached_tokens += result.cached_tokens
 
                 # Log individual extraction costs
                 if result.cost_cents > 0:
@@ -495,20 +522,25 @@ Be precise and include all available data that matches the schema."""
                 else:
                     failed += 1
 
+        # Aggregate cost and token metadata using helper method
+        cost_metadata = self._aggregate_cost_and_token_metadata(
+            analysis_cost_metadata, final_results
+        )
+
         end_time = asyncio.get_event_loop().time()
 
         # Log final summary
         logger.info(f"PDF Data Extraction completed:")
         logger.info(f"  • Total time: {(end_time - start_time):.2f} seconds")
-        logger.info(f"  • Total cost: ${total_cost / 100:.4f}")
+        logger.info(f"  • Total cost: ${cost_metadata['total_cost_cents'] / 100:.4f}")
         logger.info(
-            f"  • Analysis cost: ${analysis_cost_metadata.get('cost_cents', 0.0) / 100:.4f}"
+            f"  • Analysis cost: ${cost_metadata['analysis_cost_cents'] / 100:.4f}"
         )
         logger.info(
-            f"  • Extraction cost: ${(total_cost - analysis_cost_metadata.get('cost_cents', 0.0)) / 100:.4f}"
+            f"  • Extraction cost: ${cost_metadata['extraction_cost_cents'] / 100:.4f}"
         )
         logger.info(
-            f"  • Total tokens: {total_input_tokens + total_output_tokens:,} (in:{total_input_tokens:,}, out:{total_output_tokens:,}, cached:{total_cached_tokens:,})"
+            f"  • Total tokens: {cost_metadata['total_input_tokens'] + cost_metadata['total_output_tokens']:,} (in:{cost_metadata['total_input_tokens']:,}, out:{cost_metadata['total_output_tokens']:,}, cached:{cost_metadata['total_cached_tokens']:,})"
         )
         logger.info(
             f"  • Success rate: {successful}/{successful + failed} ({100 * successful / (successful + failed) if (successful + failed) > 0 else 0:.1f}%)"
@@ -522,16 +554,15 @@ Be precise and include all available data that matches the schema."""
             failed_extractions=failed,
             extraction_results=final_results,
             total_time_ms=int((end_time - start_time) * 1000),
-            total_cost_cents=total_cost,
+            total_cost_cents=cost_metadata["total_cost_cents"],
             metadata={
                 "filtered_datapoints": len(datapoints_to_extract),
                 "schemas_generated": len(schemas),
-                "total_input_tokens": total_input_tokens,
-                "total_output_tokens": total_output_tokens,
-                "total_cached_tokens": total_cached_tokens,
-                "analysis_cost_cents": analysis_cost_metadata.get("cost_cents", 0.0),
-                "extraction_cost_cents": total_cost
-                - analysis_cost_metadata.get("cost_cents", 0.0),
+                "total_input_tokens": cost_metadata["total_input_tokens"],
+                "total_output_tokens": cost_metadata["total_output_tokens"],
+                "total_cached_tokens": cost_metadata["total_cached_tokens"],
+                "analysis_cost_cents": cost_metadata["analysis_cost_cents"],
+                "extraction_cost_cents": cost_metadata["extraction_cost_cents"],
             },
         )
 
