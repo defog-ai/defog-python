@@ -286,11 +286,11 @@ Be thorough and identify ALL potential datapoints that could be valuable when co
     ) -> Dict[str, Any]:
         """
         Aggregate cost and token metadata from analysis and extraction results.
-        
+
         Args:
             analysis_metadata: Cost metadata from PDF analysis
             extraction_results: List of extraction results with individual costs
-            
+
         Returns:
             Dictionary with aggregated totals
         """
@@ -299,7 +299,7 @@ Be thorough and identify ALL potential datapoints that could be valuable when co
         total_input_tokens = analysis_metadata.get("input_tokens", 0)
         total_output_tokens = analysis_metadata.get("output_tokens", 0)
         total_cached_tokens = analysis_metadata.get("cached_tokens", 0)
-        
+
         # Aggregate costs from individual extractions
         for result in extraction_results:
             if not isinstance(result, Exception):
@@ -307,14 +307,15 @@ Be thorough and identify ALL potential datapoints that could be valuable when co
                 total_input_tokens += result.input_tokens
                 total_output_tokens += result.output_tokens
                 total_cached_tokens += result.cached_tokens
-        
+
         return {
             "total_cost_cents": total_cost,
             "total_input_tokens": total_input_tokens,
             "total_output_tokens": total_output_tokens,
             "total_cached_tokens": total_cached_tokens,
             "analysis_cost_cents": analysis_metadata.get("cost_cents", 0.0),
-            "extraction_cost_cents": total_cost - analysis_metadata.get("cost_cents", 0.0),
+            "extraction_cost_cents": total_cost
+            - analysis_metadata.get("cost_cents", 0.0),
         }
 
     async def extract_single_datapoint(

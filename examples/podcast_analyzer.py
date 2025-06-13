@@ -18,22 +18,22 @@ from defog.llm.youtube import get_youtube_summary
 
 class PodcastAnalyzer:
     """Main analyzer class that orchestrates the entire process"""
-    
+
     def __init__(self):
         pass
-        
+
     async def analyze_content(self, url: str) -> Dict[str, Any]:
         """Analyze podcast and return structured analysis"""
-        
+
         # Analyze content using LLM
         print("Analyzing content segments and extracting insights...")
         analysis = await self._analyze_with_llm(url)
-        
+
         return analysis
-    
+
     async def _analyze_with_llm(self, url) -> str:
         """Use LLM with citations to analyze content and extract segments with insights"""
-        
+
         summary = await get_youtube_summary(
             url,
             system_instructions=[
@@ -45,7 +45,7 @@ class PodcastAnalyzer:
                 "4. Provide exact quotes when highlighting key points",
                 "5. Use proper citations to reference specific parts of the content",
                 "6. Structure your analysis in a clear, comprehensive markdown format",
-                "7. Always cite your sources when making claims about what was said or discussed."
+                "7. Always cite your sources when making claims about what was said or discussed.",
             ],
             task_description=f"""Analyze this podcast and provide a detailed markdown report with these sections:
 
@@ -77,34 +77,41 @@ Break down the content into logical segments/topics, with a focus on technical a
 ## Additional Resources Mentioned
 - [Links, books, tools, or other resources referenced]
 
-Please provide detailed analysis with proper citations (ideally with timestamps) to support your insights.""")
+Please provide detailed analysis with proper citations (ideally with timestamps) to support your insights.""",
+        )
 
         return summary
 
+
 async def main():
     parser = argparse.ArgumentParser(
-        description='Analyze podcast episodes and blog posts into detailed markdown reports'
+        description="Analyze podcast episodes and blog posts into detailed markdown reports"
     )
-    parser.add_argument('url', help='URL of the podcast episode (YouTube) or blog post')
-    parser.add_argument('--output', '-o', help='Output file path (default: podcast_analysis_[timestamp].md)', default=f"podcast_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md")
+    parser.add_argument("url", help="URL of the podcast episode (YouTube) or blog post")
+    parser.add_argument(
+        "--output",
+        "-o",
+        help="Output file path (default: podcast_analysis_[timestamp].md)",
+        default=f"podcast_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
+    )
     args = parser.parse_args()
-    
+
     # Initialize analyzer
     analyzer = PodcastAnalyzer()
-    
+
     try:
         # Analyze content
         print(f"Starting analysis of: {args.url}")
         analysis_data = await analyzer.analyze_content(args.url)
-        
+
         # Save to file
-        with open(args.output, 'w', encoding='utf-8') as f:
+        with open(args.output, "w", encoding="utf-8") as f:
             f.write(analysis_data)
-        
+
         print(f"Analysis saved to: {args.output}")
-        
+
         print("\n✅ Analysis complete!")
-        
+
     except Exception as e:
         print(f"Error during analysis: {e}")
         sys.exit(1)
