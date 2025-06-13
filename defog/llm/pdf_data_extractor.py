@@ -47,6 +47,10 @@ class DataExtractionResult(BaseModel):
     success: bool
     extracted_data: Optional[Any] = None
     error: Optional[str] = None
+    cost_cents: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cached_tokens: int = 0
 
 
 class PDFDataExtractionResult(BaseModel):
@@ -107,7 +111,7 @@ class PDFDataExtractor:
         self,
         pdf_url: str,
         focus_areas: Optional[List[str]] = None
-    ) -> PDFAnalysisResponse:
+    ) -> tuple[PDFAnalysisResponse, Dict[str, Any]]:
         """
         Analyze PDF to identify extractable datapoints.
         
@@ -116,7 +120,7 @@ class PDFDataExtractor:
             focus_areas: Optional list of areas to focus on
             
         Returns:
-            PDFAnalysisResponse with identified datapoints
+            Tuple of (PDFAnalysisResponse with identified datapoints, cost metadata dict)
         """
         analysis_task = f"""Analyze this PDF to identify all structured data that can be extracted and converted to tabular format suitable for SQL databases.
 
@@ -152,7 +156,15 @@ Be thorough and identify ALL potential datapoints that could be valuable when co
         if not result.success:
             raise Exception(f"PDF analysis failed: {result.error}")
             
-        return result.result
+        # Extract cost metadata
+        cost_metadata = {
+            "cost_cents": result.metadata.get("total_cost_in_cents", 0.0),
+            "input_tokens": result.metadata.get("total_input_tokens", 0),
+            "output_tokens": result.metadata.get("total_output_tokens", 0),
+            "cached_tokens": result.metadata.get("cached_tokens", 0)
+        }
+            
+        return result.result, cost_metadata
     
     def _generate_pydantic_schema(
         self,
@@ -315,21 +327,34 @@ Be precise and include all available data that matches the schema."""
                 return DataExtractionResult(
                     datapoint_name=datapoint.name,
                     success=True,
-                    extracted_data=result.result
+                    extracted_data=result.result,
+                    cost_cents=result.metadata.get("total_cost_in_cents", 0.0),
+                    input_tokens=result.metadata.get("total_input_tokens", 0),
+                    output_tokens=result.metadata.get("total_output_tokens", 0),
+                    cached_tokens=result.metadata.get("cached_tokens", 0)
                 )
             else:
                 return DataExtractionResult(
                     datapoint_name=datapoint.name,
                     success=False,
-                    error=result.error
+                    error=result.error,
+                    cost_cents=result.metadata.get("total_cost_in_cents", 0.0),
+                    input_tokens=result.metadata.get("total_input_tokens", 0),
+                    output_tokens=result.metadata.get("total_output_tokens", 0),
+                    cached_tokens=result.metadata.get("cached_tokens", 0)
                 )
+                
                 
         except Exception as e:
             logger.error(f"Error extracting datapoint {datapoint.name}: {e}")
             return DataExtractionResult(
                 datapoint_name=datapoint.name,
                 success=False,
-                error=str(e)
+                error=str(e),
+                cost_cents=0.0,
+                input_tokens=0,
+                output_tokens=0,
+                cached_tokens=0
             )
     
     async def extract_all_data(
@@ -353,9 +378,14 @@ Be precise and include all available data that matches the schema."""
         
         # Step 1: Analyze PDF structure
         logger.info(f"Analyzing PDF structure: {pdf_url}")
-        analysis = await self.analyze_pdf_structure(pdf_url, focus_areas)
+        analysis, analysis_cost_metadata = await self.analyze_pdf_structure(pdf_url, focus_areas)
         
-        logger.info(f"Identified {len(analysis.identified_datapoints)} datapoints")
+        logger.info(f"Step 1 - PDF Analysis completed:")
+        logger.info(f"  • Identified {len(analysis.identified_datapoints)} datapoints")
+        logger.info(f"  • Cost: ${analysis_cost_metadata.get('cost_cents', 0.0) / 100:.4f}")
+        logger.info(f"  • Input tokens: {analysis_cost_metadata.get('input_tokens', 0):,}")
+        logger.info(f"  • Output tokens: {analysis_cost_metadata.get('output_tokens', 0):,}")
+        logger.info(f"  • Cached tokens: {analysis_cost_metadata.get('cached_tokens', 0):,}")
         
         # Filter datapoints if requested
         datapoints_to_extract = analysis.identified_datapoints
@@ -393,17 +423,24 @@ Be precise and include all available data that matches the schema."""
             async with semaphore:
                 return await task
         
-        logger.info(f"Starting parallel extraction of {len(extraction_tasks)} datapoints")
+        logger.info(f"Step 2 - Starting parallel extraction of {len(extraction_tasks)} datapoints")
         extraction_results = await asyncio.gather(
             *[extract_with_limit(task) for task in extraction_tasks],
             return_exceptions=True
         )
         
+        logger.info(f"Step 2 - Individual extraction costs:")
+        
         # Process results
         final_results = []
         successful = 0
         failed = 0
-        total_cost = 0.0
+        
+        # Start with analysis costs
+        total_cost = analysis_cost_metadata.get("cost_cents", 0.0)
+        total_input_tokens = analysis_cost_metadata.get("input_tokens", 0)
+        total_output_tokens = analysis_cost_metadata.get("output_tokens", 0)
+        total_cached_tokens = analysis_cost_metadata.get("cached_tokens", 0)
         
         for result in extraction_results:
             if isinstance(result, Exception):
@@ -412,17 +449,42 @@ Be precise and include all available data that matches the schema."""
                     DataExtractionResult(
                         datapoint_name="unknown",
                         success=False,
-                        error=str(result)
+                        error=str(result),
+                        cost_cents=0.0,
+                        input_tokens=0,
+                        output_tokens=0,
+                        cached_tokens=0
                     )
                 )
             else:
                 final_results.append(result)
+                # Aggregate costs from individual extractions
+                total_cost += result.cost_cents
+                total_input_tokens += result.input_tokens
+                total_output_tokens += result.output_tokens
+                total_cached_tokens += result.cached_tokens
+                
+                # Log individual extraction costs
+                if result.cost_cents > 0:
+                    logger.info(f"  • {result.datapoint_name}: ${result.cost_cents / 100:.4f} "
+                              f"(in:{result.input_tokens:,}, out:{result.output_tokens:,}, "
+                              f"cached:{result.cached_tokens:,}) - {'✅' if result.success else '❌'}")
+                
                 if result.success:
                     successful += 1
                 else:
                     failed += 1
         
         end_time = asyncio.get_event_loop().time()
+        
+        # Log final summary
+        logger.info(f"PDF Data Extraction completed:")
+        logger.info(f"  • Total time: {(end_time - start_time):.2f} seconds")
+        logger.info(f"  • Total cost: ${total_cost / 100:.4f}")
+        logger.info(f"  • Analysis cost: ${analysis_cost_metadata.get('cost_cents', 0.0) / 100:.4f}")
+        logger.info(f"  • Extraction cost: ${(total_cost - analysis_cost_metadata.get('cost_cents', 0.0)) / 100:.4f}")
+        logger.info(f"  • Total tokens: {total_input_tokens + total_output_tokens:,} (in:{total_input_tokens:,}, out:{total_output_tokens:,}, cached:{total_cached_tokens:,})")
+        logger.info(f"  • Success rate: {successful}/{successful + failed} ({100 * successful / (successful + failed) if (successful + failed) > 0 else 0:.1f}%)")
         
         return PDFDataExtractionResult(
             pdf_url=pdf_url,
@@ -435,7 +497,12 @@ Be precise and include all available data that matches the schema."""
             total_cost_cents=total_cost,
             metadata={
                 "filtered_datapoints": len(datapoints_to_extract),
-                "schemas_generated": len(schemas)
+                "schemas_generated": len(schemas),
+                "total_input_tokens": total_input_tokens,
+                "total_output_tokens": total_output_tokens,
+                "total_cached_tokens": total_cached_tokens,
+                "analysis_cost_cents": analysis_cost_metadata.get("cost_cents", 0.0),
+                "extraction_cost_cents": total_cost - analysis_cost_metadata.get("cost_cents", 0.0)
             }
         )
     
