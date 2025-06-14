@@ -15,6 +15,40 @@ from .shared_context import SharedContextStore, ArtifactType
 logger = logging.getLogger(__name__)
 
 
+class ExplorationError(Exception):
+    """Base exception for exploration-related errors."""
+    
+    def __init__(self, message: str, error_type: str = "EXPLORATION_ERROR", context: Optional[Dict[str, Any]] = None):
+        super().__init__(message)
+        self.error_type = error_type
+        self.context = context or {}
+
+
+class ExplorationTimeoutError(ExplorationError):
+    """Raised when exploration times out."""
+    
+    def __init__(self, message: str, timeout_duration: float, context: Optional[Dict[str, Any]] = None):
+        super().__init__(message, "EXPLORATION_TIMEOUT", context)
+        self.timeout_duration = timeout_duration
+
+
+class PathExecutionError(ExplorationError):
+    """Raised when a specific exploration path fails."""
+    
+    def __init__(self, message: str, path_id: str, original_error: Optional[Exception] = None, context: Optional[Dict[str, Any]] = None):
+        super().__init__(message, "PATH_EXECUTION_ERROR", context)
+        self.path_id = path_id
+        self.original_error = original_error
+
+
+class AllPathsFailedError(ExplorationError):
+    """Raised when all exploration paths fail."""
+    
+    def __init__(self, message: str, failed_paths: List[str], context: Optional[Dict[str, Any]] = None):
+        super().__init__(message, "ALL_PATHS_FAILED", context)
+        self.failed_paths = failed_paths
+
+
 class ExplorationStrategy(Enum):
     """Strategy for exploring alternative paths."""
 
@@ -177,6 +211,7 @@ class ExplorationExecutor:
         self, agent: ThinkingAgent, task: SubAgentTask
     ) -> SubAgentResult:
         """Execute the primary approach for a task."""
+        start_time = time.time()
         try:
             # Let agent think about the task first
             if isinstance(agent, ThinkingAgent):
@@ -193,7 +228,7 @@ class ExplorationExecutor:
                 task_id=task.task_id,
                 success=True,
                 result=response.content,
-                execution_time=time.time() - time.time(),
+                execution_time=time.time() - start_time,
                 metadata={
                     "approach": "primary",
                     "tokens": response.input_tokens + response.output_tokens,
@@ -209,6 +244,7 @@ class ExplorationExecutor:
                 result=None,
                 error=str(e),
                 error_type="PRIMARY_FAILURE",
+                execution_time=time.time() - start_time,
             )
 
     async def _explore_sequential(
@@ -221,13 +257,17 @@ class ExplorationExecutor:
         """Explore paths sequentially until one succeeds."""
         best_result = primary_result
         exploration_results = []
+        failed_paths = []
 
         for path in paths:
             logger.info(f"Exploring path {path.path_id}: {path.description}")
 
             try:
-                # Execute the alternative approach
-                result = await self._execute_exploration_path(agent, task, path)
+                # Execute the alternative approach with timeout
+                result = await asyncio.wait_for(
+                    self._execute_exploration_path(agent, task, path),
+                    timeout=self.exploration_timeout
+                )
                 exploration_results.append(result)
 
                 if result.success:
@@ -240,17 +280,65 @@ class ExplorationExecutor:
                     if self.enable_learning:
                         await self._record_success(task, path, result)
 
+                    logger.info(f"Successfully completed with path {path.path_id}")
                     break
+                else:
+                    failed_paths.append(path.path_id)
+                    logger.warning(f"Path {path.path_id} completed but was not successful: {result.error}")
 
             except asyncio.TimeoutError:
-                logger.warning(f"Path {path.path_id} timed out")
+                error_msg = f"Path {path.path_id} timed out after {self.exploration_timeout} seconds"
+                logger.warning(error_msg)
+                failed_paths.append(path.path_id)
+                
+                # Create error result for history
+                error_result = ExplorationResult(
+                    path_id=path.path_id,
+                    success=False,
+                    result=None,
+                    execution_time=self.exploration_timeout,
+                    error=error_msg
+                )
+                exploration_results.append(error_result)
                 continue
+                
+            except PathExecutionError as e:
+                logger.error(f"Path execution error for {path.path_id}: {e}")
+                failed_paths.append(path.path_id)
+                
+                # Create error result for history
+                error_result = ExplorationResult(
+                    path_id=path.path_id,
+                    success=False,
+                    result=None,
+                    execution_time=0.0,
+                    error=str(e)
+                )
+                exploration_results.append(error_result)
+                continue
+                
             except Exception as e:
-                logger.error(f"Path {path.path_id} failed: {e}")
+                error_msg = f"Unexpected error in path {path.path_id}: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                failed_paths.append(path.path_id)
+                
+                # Create error result for history
+                error_result = ExplorationResult(
+                    path_id=path.path_id,
+                    success=False,
+                    result=None,
+                    execution_time=0.0,
+                    error=error_msg
+                )
+                exploration_results.append(error_result)
                 continue
 
         # Save exploration history
         await self._save_exploration_history(task, exploration_results)
+
+        # If no paths succeeded and we have failed paths, log warning
+        if failed_paths and not any(r.success for r in exploration_results):
+            logger.warning(f"All exploration paths failed for task {task.task_id}: {failed_paths}")
 
         return best_result
 
@@ -264,46 +352,116 @@ class ExplorationExecutor:
         """Explore paths in parallel and return the best result."""
         # Limit parallel explorations
         paths_to_explore = paths[: self.max_parallel_explorations]
+        logger.info(f"Starting parallel exploration of {len(paths_to_explore)} paths")
 
         # Create exploration tasks
         exploration_tasks = []
+        path_task_map = {}
+        
         for path in paths_to_explore:
             task_coro = self._execute_exploration_path(agent, task, path)
-            exploration_tasks.append(asyncio.create_task(task_coro))
+            exploration_task = asyncio.create_task(task_coro)
+            exploration_tasks.append(exploration_task)
+            path_task_map[exploration_task] = path.path_id
 
         # Wait for all to complete or timeout
+        exploration_results = []
+        failed_paths = []
+        
         try:
-            exploration_results = await asyncio.wait_for(
+            results = await asyncio.wait_for(
                 asyncio.gather(*exploration_tasks, return_exceptions=True),
                 timeout=self.exploration_timeout,
             )
+            
+            # Process results and exceptions
+            for i, result in enumerate(results):
+                path_id = path_task_map.get(exploration_tasks[i], f"unknown_path_{i}")
+                
+                if isinstance(result, Exception):
+                    error_msg = f"Path {path_id} failed with exception: {str(result)}"
+                    logger.error(error_msg)
+                    failed_paths.append(path_id)
+                    
+                    # Create error result for history
+                    error_result = ExplorationResult(
+                        path_id=path_id,
+                        success=False,
+                        result=None,
+                        execution_time=0.0,
+                        error=error_msg
+                    )
+                    exploration_results.append(error_result)
+                    
+                elif isinstance(result, ExplorationResult):
+                    exploration_results.append(result)
+                    if not result.success:
+                        failed_paths.append(result.path_id)
+                        logger.warning(f"Path {result.path_id} completed but failed: {result.error}")
+                    else:
+                        logger.info(f"Path {result.path_id} completed successfully")
+                else:
+                    logger.warning(f"Unexpected result type for path {path_id}: {type(result)}")
+                    
         except asyncio.TimeoutError:
+            logger.warning(f"Parallel exploration timed out after {self.exploration_timeout} seconds")
+            
             # Cancel remaining tasks
-            for task in exploration_tasks:
-                if not task.done():
-                    task.cancel()
-            exploration_results = []
-
-        # Process results
-        valid_results = [
-            r
-            for r in exploration_results
-            if isinstance(r, ExplorationResult) and not isinstance(r, Exception)
-        ]
+            for exploration_task in exploration_tasks:
+                if not exploration_task.done():
+                    path_id = path_task_map.get(exploration_task, "unknown_path")
+                    logger.info(f"Cancelling timed out task for path {path_id}")
+                    exploration_task.cancel()
+                    failed_paths.append(path_id)
+                    
+                    # Create timeout result for history
+                    timeout_result = ExplorationResult(
+                        path_id=path_id,
+                        success=False,
+                        result=None,
+                        execution_time=self.exploration_timeout,
+                        error=f"Timed out after {self.exploration_timeout} seconds"
+                    )
+                    exploration_results.append(timeout_result)
+            
+            # Wait a bit for cancellation to complete
+            await asyncio.sleep(0.1)
+            
+        except Exception as e:
+            logger.error(f"Unexpected error during parallel exploration: {str(e)}", exc_info=True)
+            
+            # Cancel all tasks
+            for exploration_task in exploration_tasks:
+                if not exploration_task.done():
+                    exploration_task.cancel()
 
         # Find best result
         best_exploration = None
-        for result in valid_results:
-            if result.success:
-                best_exploration = result
-                break
+        successful_results = [r for r in exploration_results if r.success]
+        
+        if successful_results:
+            # Sort by execution time to get the fastest successful result
+            best_exploration = min(successful_results, key=lambda r: r.execution_time)
+            logger.info(f"Selected best result from path {best_exploration.path_id} (execution time: {best_exploration.execution_time:.2f}s)")
+            
+            # Learn from success
+            if self.enable_learning:
+                # Find the corresponding path for learning
+                best_path = next((p for p in paths_to_explore if p.path_id == best_exploration.path_id), None)
+                if best_path:
+                    await self._record_success(task, best_path, best_exploration)
 
         # Save exploration history
-        await self._save_exploration_history(task, valid_results)
+        await self._save_exploration_history(task, exploration_results)
 
+        # Log final results
+        if failed_paths:
+            logger.warning(f"Failed paths in parallel exploration: {failed_paths}")
+        
         if best_exploration:
-            return self._create_final_result(task, best_exploration, valid_results)
+            return self._create_final_result(task, best_exploration, exploration_results)
         else:
+            logger.info("No successful exploration paths found, returning primary result")
             return primary_result
 
     async def _execute_exploration_path(
