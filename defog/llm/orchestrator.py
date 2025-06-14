@@ -889,8 +889,7 @@ class AgentOrchestrator:
                 input_tokens=0,
                 output_tokens=0,
                 cost_in_cents=0,
-                latency_ms=int((time.time() - self._start_time) * 1000),
-                error="GLOBAL_TIMEOUT",
+                time=int((time.time() - self._start_time) * 1000),
             )
         finally:
             # Reset start time
