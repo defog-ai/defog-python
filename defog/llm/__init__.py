@@ -15,6 +15,26 @@ from .memory import (
 from .pdf_processor import analyze_pdf, PDFAnalysisInput, ClaudePDFProcessor
 from .pdf_data_extractor import PDFDataExtractor, extract_pdf_data
 
+# Enhanced orchestration components
+from .shared_context import SharedContextStore, Artifact, ArtifactType
+from .enhanced_memory import EnhancedMemoryManager, SharedMemoryEntry
+from .thinking_agent import ThinkingAgent
+from .exploration_executor import (
+    ExplorationExecutor,
+    ExplorationStrategy,
+    ExplorationPath,
+    ExplorationResult,
+)
+from .enhanced_orchestrator import EnhancedAgentOrchestrator
+from .config import (
+    EnhancedOrchestratorConfig,
+    SharedContextConfig,
+    ExplorationConfig,
+    MemoryConfig as EnhancedMemoryConfig,
+    ThinkingConfig,
+    SecurityConfig
+)
+
 __all__ = [
     # Core functions
     "chat_async",
@@ -33,4 +53,23 @@ __all__ = [
     "ClaudePDFProcessor",
     "PDFDataExtractor",
     "extract_pdf_data",
+    # Enhanced orchestration
+    "SharedContextStore",
+    "Artifact",
+    "ArtifactType",
+    "EnhancedMemoryManager",
+    "SharedMemoryEntry",
+    "ThinkingAgent",
+    "ExplorationExecutor",
+    "ExplorationStrategy",
+    "ExplorationPath",
+    "ExplorationResult",
+    "EnhancedAgentOrchestrator",
+    # Configuration classes
+    "EnhancedOrchestratorConfig",
+    "SharedContextConfig",
+    "ExplorationConfig",
+    "EnhancedMemoryConfig",
+    "ThinkingConfig",
+    "SecurityConfig",
 ]
