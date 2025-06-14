@@ -96,4 +96,54 @@ MODEL_COSTS = {
         "cached_input_cost_per1k": 0.00014,
         "output_cost_per1k": 0.00219,
     },
+    # Alibaba Cloud (Qwen) models
+    "qwen-turbo": {
+        "input_cost_per1k": 0.0003,
+        "output_cost_per1k": 0.0006,
+    },
+    "qwen-plus": {
+        "input_cost_per1k": 0.0008,
+        "output_cost_per1k": 0.002,
+    },
+    "qwen-max": {
+        "input_cost_per1k": 0.002,
+        "output_cost_per1k": 0.006,
+    },
+    "qwen2-72b-instruct": {
+        "input_cost_per1k": 0.0009,
+        "output_cost_per1k": 0.0009,
+    },
+    "qwen2-7b-instruct": {
+        "input_cost_per1k": 0.0003,
+        "output_cost_per1k": 0.0003,
+    },
+    # Mistral AI models
+    "mistral-tiny": {
+        "input_cost_per1k": 0.00025,
+        "output_cost_per1k": 0.00025,
+    },
+    "mistral-small": {
+        "input_cost_per1k": 0.002,
+        "output_cost_per1k": 0.006,
+    },
+    "mistral-medium": {
+        "input_cost_per1k": 0.0027,
+        "output_cost_per1k": 0.0081,
+    },
+    "mistral-large": {
+        "input_cost_per1k": 0.004,
+        "output_cost_per1k": 0.012,
+    },
+    "open-mistral-7b": {
+        "input_cost_per1k": 0.00025,
+        "output_cost_per1k": 0.00025,
+    },
+    "open-mixtral-8x7b": {
+        "input_cost_per1k": 0.0007,
+        "output_cost_per1k": 0.0007,
+    },
+    "open-mixtral-8x22b": {
+        "input_cost_per1k": 0.002,
+        "output_cost_per1k": 0.006,
+    },
 }

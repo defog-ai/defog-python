@@ -9,6 +9,8 @@ from .providers import (
     OpenAIProvider,
     GeminiProvider,
     TogetherProvider,
+    AlibabaProvider,
+    MistralProvider,
 )
 from .providers.base import LLMResponse
 from .exceptions import LLMError, ProviderError, ConfigurationError
@@ -62,6 +64,8 @@ def get_provider_instance(
         "gemini": GeminiProvider,
         "together": TogetherProvider,
         "deepseek": OpenAIProvider,  # DeepSeek uses OpenAI-compatible API
+        "alibaba": AlibabaProvider,
+        "mistral": MistralProvider,
     }
 
     if provider_name not in provider_classes:
@@ -80,6 +84,18 @@ def get_provider_instance(
         return provider_class(
             api_key=config.get_api_key("openai"),
             base_url=config.get_base_url("openai"),
+            config=config,
+        )
+    elif provider_name == "alibaba":
+        return provider_class(
+            api_key=config.get_api_key("alibaba"),
+            base_url=config.get_base_url("alibaba"),
+            config=config,
+        )
+    elif provider_name == "mistral":
+        return provider_class(
+            api_key=config.get_api_key("mistral"),
+            base_url=config.get_base_url("mistral"),
             config=config,
         )
     else:

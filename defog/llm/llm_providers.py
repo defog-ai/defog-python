@@ -8,3 +8,5 @@ class LLMProvider(Enum):
     GROK = "grok"
     DEEPSEEK = "deepseek"
     TOGETHER = "together"
+    ALIBABA = "alibaba"
+    MISTRAL = "mistral"
