@@ -33,10 +33,11 @@ async def code_interpreter_tool(
         )
 
         # create a csv file from the csv_string
-        tracker.update(10, "Preparing data file")
-        subtask_logger.log_subtask("Creating CSV file from string", "processing")
-        csv_file = BytesIO(csv_string.encode("utf-8"))
-        csv_file.name = "data.csv"
+        if csv_string:
+            tracker.update(10, "Preparing data file")
+            subtask_logger.log_subtask("Creating CSV file from string", "processing")
+            csv_file = BytesIO(csv_string.encode("utf-8"))
+            csv_file.name = "data.csv"
 
         if provider in [LLMProvider.OPENAI, LLMProvider.OPENAI.value]:
             from openai import AsyncOpenAI
@@ -47,12 +48,13 @@ async def code_interpreter_tool(
 
             client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-            tracker.update(20, "Uploading data file")
-            subtask_logger.log_subtask("Uploading CSV to OpenAI", "processing")
-            file = await client.files.create(
-                file=csv_file,
-                purpose="user_data",
-            )
+            if csv_string:
+                tracker.update(20, "Uploading data file")
+                subtask_logger.log_subtask("Uploading CSV to OpenAI", "processing")
+                file = await client.files.create(
+                    file=csv_file,
+                    purpose="user_data",
+                )
 
             tracker.update(40, "Running code interpreter")
             subtask_logger.log_code_execution("python")
@@ -61,7 +63,7 @@ async def code_interpreter_tool(
                 tools=[
                     {
                         "type": "code_interpreter",
-                        "container": {"type": "auto", "file_ids": [file.id]},
+                        "container": {"type": "auto", "file_ids": [file.id] if csv_string else []},
                     }
                 ],
                 tool_choice="required",
@@ -100,11 +102,12 @@ async def code_interpreter_tool(
                 default_headers={"anthropic-beta": "code-execution-2025-05-22"},
             )
 
-            tracker.update(20, "Uploading data file")
-            subtask_logger.log_subtask("Uploading CSV to Anthropic", "processing")
-            file_object = await client.beta.files.upload(
-                file=csv_file,
-            )
+            if csv_string:
+                tracker.update(20, "Uploading data file")
+                subtask_logger.log_subtask("Uploading CSV to Anthropic", "processing")
+                file_object = await client.beta.files.upload(
+                    file=csv_file,
+                )
 
             tracker.update(40, "Running code execution")
             subtask_logger.log_code_execution("python")
@@ -121,7 +124,7 @@ async def code_interpreter_tool(
                                 + "\n\nThe question you must answer is: "
                                 + question,
                             },
-                            {"type": "container_upload", "file_id": file_object.id},
+                            {"type": "container_upload", "file_id": file_object.id if csv_string else None},
                         ],
                     }
                 ],
