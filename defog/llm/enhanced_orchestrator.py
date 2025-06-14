@@ -11,6 +11,7 @@ from .shared_context import SharedContextStore, ArtifactType
 from .enhanced_memory import EnhancedMemoryManager
 from .exploration_executor import ExplorationExecutor, ExplorationStrategy
 from .providers.base import LLMResponse
+from .config import EnhancedOrchestratorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,8 @@ class EnhancedAgentOrchestrator(AgentOrchestrator):
     def __init__(
         self,
         main_agent: Agent,
+        config: Optional[EnhancedOrchestratorConfig] = None,
+        # Backward compatibility parameters
         max_parallel_tasks: int = 5,
         available_tools: Optional[List[Callable]] = None,
         subagent_provider: Optional[str] = None,
@@ -58,45 +61,63 @@ class EnhancedAgentOrchestrator(AgentOrchestrator):
 
         Args:
             main_agent: The main orchestrator agent
-            shared_context_path: Path for shared context storage
-            enable_thinking_agents: Whether to use ThinkingAgent for subagents
-            enable_exploration: Whether to enable alternative path exploration
-            exploration_strategy: Strategy for exploration
-            enable_cross_agent_memory: Whether to enable cross-agent memory sharing
-            ... (all other parent class args)
+            config: Configuration object (if provided, overrides individual parameters)
+            ... (backward compatibility parameters)
         """
+        # Use config if provided, otherwise create from individual parameters
+        if config is None:
+            config = EnhancedOrchestratorConfig()
+            # Override with provided parameters for backward compatibility
+            config.max_parallel_tasks = max_parallel_tasks
+            config.global_timeout = global_timeout
+            config.max_retries = max_retries
+            config.retry_delay = retry_delay
+            config.retry_backoff = retry_backoff
+            config.shared_context.base_path = shared_context_path
+            config.enable_thinking_agents = enable_thinking_agents
+            config.enable_exploration = enable_exploration
+            config.enable_cross_agent_memory = enable_cross_agent_memory
+            config.exploration.default_strategy = exploration_strategy
+
+        self.config = config
+        
         super().__init__(
             main_agent=main_agent,
-            max_parallel_tasks=max_parallel_tasks,
+            max_parallel_tasks=config.max_parallel_tasks,
             available_tools=available_tools,
             subagent_provider=subagent_provider,
             subagent_model=subagent_model,
             planning_provider=planning_provider,
             planning_model=planning_model,
             reasoning_effort=reasoning_effort,
-            max_retries=max_retries,
-            retry_delay=retry_delay,
-            retry_backoff=retry_backoff,
+            max_retries=config.max_retries,
+            retry_delay=config.retry_delay,
+            retry_backoff=config.retry_backoff,
             retry_timeout=retry_timeout,
             fallback_model=fallback_model,
             max_recursion_depth=max_recursion_depth,
             max_total_retries=max_total_retries,
             max_decomposition_depth=max_decomposition_depth,
-            global_timeout=global_timeout,
+            global_timeout=config.global_timeout,
         )
 
-        # Initialize shared context
-        self.shared_context = SharedContextStore(base_path=shared_context_path)
+        # Initialize shared context with security configuration
+        self.shared_context = SharedContextStore(
+            base_path=config.shared_context.base_path,
+            max_file_size_mb=config.security.max_file_size_bytes // (1024 * 1024),
+            allowed_extensions=config.security.allowed_file_extensions,
+            enable_security_validation=config.security.enable_path_validation
+        )
 
         # Initialize exploration executor
         self.exploration_executor = (
             ExplorationExecutor(
                 shared_context=self.shared_context,
-                max_parallel_explorations=max_parallel_tasks,
-                exploration_timeout=300.0,
-                enable_learning=True,
+                max_parallel_explorations=config.exploration.max_parallel_explorations,
+                exploration_timeout=config.exploration.exploration_timeout,
+                enable_learning=config.exploration.enable_learning,
             )
-            if enable_exploration
+            if config.enable_exploration
             else None
         )
 

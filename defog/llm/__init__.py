@@ -26,6 +26,14 @@ from .exploration_executor import (
     ExplorationResult,
 )
 from .enhanced_orchestrator import EnhancedAgentOrchestrator
+from .config import (
+    EnhancedOrchestratorConfig,
+    SharedContextConfig,
+    ExplorationConfig,
+    MemoryConfig as EnhancedMemoryConfig,
+    ThinkingConfig,
+    SecurityConfig
+)
 
 __all__ = [
     # Core functions
@@ -57,4 +65,11 @@ __all__ = [
     "ExplorationPath",
     "ExplorationResult",
     "EnhancedAgentOrchestrator",
+    # Configuration classes
+    "EnhancedOrchestratorConfig",
+    "SharedContextConfig",
+    "ExplorationConfig",
+    "EnhancedMemoryConfig",
+    "ThinkingConfig",
+    "SecurityConfig",
 ]
