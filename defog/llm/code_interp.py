@@ -63,7 +63,10 @@ async def code_interpreter_tool(
                 tools=[
                     {
                         "type": "code_interpreter",
-                        "container": {"type": "auto", "file_ids": [file.id] if csv_string else []},
+                        "container": {
+                            "type": "auto",
+                            "file_ids": [file.id] if csv_string else [],
+                        },
                     }
                 ],
                 tool_choice="required",
@@ -124,7 +127,10 @@ async def code_interpreter_tool(
                                 + "\n\nThe question you must answer is: "
                                 + question,
                             },
-                            {"type": "container_upload", "file_id": file_object.id if csv_string else None},
+                            {
+                                "type": "container_upload",
+                                "file_id": file_object.id if csv_string else None,
+                            },
                         ],
                     }
                 ],
