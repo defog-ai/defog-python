@@ -84,9 +84,9 @@ class DeepSeekProvider(BaseLLMProvider):
             if not self.supports_tools(model):
                 raise ProviderError(
                     self.get_provider_name(),
-                    f"Model {model} does not support tools/function calling"
+                    f"Model {model} does not support tools/function calling",
                 )
-            
+
             function_specs = get_function_specs(tools, model)
             request_params["tools"] = function_specs
             if tool_choice:
@@ -143,8 +143,7 @@ Respond with JSON only.
         # DeepSeek doesn't support MCP servers
         if mcp_servers:
             raise ProviderError(
-                self.get_provider_name(),
-                "DeepSeek does not support MCP servers"
+                self.get_provider_name(), "DeepSeek does not support MCP servers"
             )
 
         return request_params, messages
@@ -177,7 +176,7 @@ Respond with JSON only.
         total_input_tokens = 0
         total_cached_input_tokens = 0
         total_output_tokens = 0
-        
+
         if tools and len(tools) > 0:
             consecutive_exceptions = 0
             while True:
@@ -199,7 +198,7 @@ Respond with JSON only.
 
                 total_output_tokens += response.usage.completion_tokens
                 message = response.choices[0].message
-                
+
                 if message.tool_calls:
                     try:
                         # Prepare tool calls for batch execution
@@ -306,7 +305,7 @@ Respond with JSON only.
         else:
             # No tools provided
             content = response.choices[0].message.content
-            
+
             # Parse structured output if response_format is provided
             if response_format:
                 # Check if response_format is a Pydantic model
@@ -318,15 +317,17 @@ Respond with JSON only.
                         content = content.strip()
                         # Remove any markdown formatting
                         if "```json" in content:
-                            content = content[content.index("```json") + len("```json") :]
+                            content = content[
+                                content.index("```json") + len("```json") :
+                            ]
                         if "```" in content:
                             content = content[: content.index("```")]
                         # Strip the content again
                         content = content.strip()
-                        
+
                         # Parse as JSON first
                         json_content = json.loads(content)
-                        
+
                         # Parse the response into the specified Pydantic model
                         content = response_format.model_validate(json_content)
                     except Exception as e:
@@ -337,9 +338,9 @@ Respond with JSON only.
                                 raise ValueError("No parsed content available")
                         except Exception:
                             raise ProviderError(
-                                self.get_provider_name(), 
-                                f"Error parsing structured output: {e}. Raw content: {content}", 
-                                e
+                                self.get_provider_name(),
+                                f"Error parsing structured output: {e}. Raw content: {content}",
+                                e,
                             )
                 else:
                     # For non-Pydantic response formats, use standard OpenAI parsing
@@ -353,7 +354,9 @@ Respond with JSON only.
                             content = json.loads(content)
                         except Exception as e:
                             raise ProviderError(
-                                self.get_provider_name(), f"Error parsing content: {e}", e
+                                self.get_provider_name(),
+                                f"Error parsing content: {e}",
+                                e,
                             )
 
         usage = response.usage
