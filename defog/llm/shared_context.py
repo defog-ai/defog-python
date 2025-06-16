@@ -16,9 +16,7 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
-class SecurityError(Exception):
-    """Raised when security validation fails."""
-    pass
+# Removed SecurityError - using standard exceptions instead
 
 
 class ArtifactType(Enum):
@@ -62,25 +60,21 @@ class SharedContextStore:
     def __init__(
         self, 
         base_path: str = ".agent_workspace",
-        max_file_size_mb: int = 10,
-        allowed_extensions: List[str] = None,
-        enable_security_validation: bool = True
+        max_file_size_mb: int = 10
     ):
-        # Security configuration
+        # Basic configuration
         self.max_file_size_bytes = max_file_size_mb * 1024 * 1024
-        self.allowed_extensions = allowed_extensions or ['.json', '.txt', '.md'] 
-        self.enable_security_validation = enable_security_validation
         
-        # Validate and create base path
-        self.base_path = self._validate_base_path(base_path)
-        self.base_path.mkdir(exist_ok=True, mode=0o755)
+        # Create base path
+        self.base_path = Path(base_path).resolve()
+        self.base_path.mkdir(exist_ok=True)
 
         # Create subdirectories for organization
         self.artifacts_dir = self.base_path / "artifacts"
-        self.artifacts_dir.mkdir(exist_ok=True, mode=0o755)
+        self.artifacts_dir.mkdir(exist_ok=True)
 
         self.metadata_dir = self.base_path / "metadata"
-        self.metadata_dir.mkdir(exist_ok=True, mode=0o755)
+        self.metadata_dir.mkdir(exist_ok=True)
 
         # Lock for thread-safe operations
         self._lock = asyncio.Lock()
@@ -89,66 +83,12 @@ class SharedContextStore:
         self._cache: Dict[str, Artifact] = {}
         self._cache_size_limit = 100
 
-        # Security patterns
-        self._dangerous_patterns = [
-            r'\.\./',  # Path traversal
-            r'\.\.\\'   # Windows path traversal
-        ]
-        
-        # Forbidden paths (system directories that should never be accessed)
-        self._forbidden_paths = ['/etc', '/sys', '/proc', '/dev', '/var/log', '/root']
+        logger.info(f"SharedContextStore initialized at {self.base_path}")
 
-        logger.info(f"SharedContextStore initialized at {self.base_path} with security validation: {self.enable_security_validation}")
-
-    def _validate_base_path(self, base_path: str) -> Path:
-        """Validate and sanitize the base path."""
-        if not base_path or not isinstance(base_path, str):
-            raise SecurityError("Base path must be a non-empty string")
-        
-        # Convert to Path object
-        path = Path(base_path).resolve()
-        
-        # Check for forbidden paths
-        path_str = str(path)
-        for forbidden in self._forbidden_paths:
-            if path_str.startswith(forbidden):
-                raise SecurityError(f"Access to system directory '{forbidden}' is forbidden")
-        
-        # Check path length
-        if len(path_str) > 255:
-            raise SecurityError("Path length exceeds maximum allowed length")
-        
-        return path
-
-    def _validate_key(self, key: str) -> None:
-        """Validate artifact key for security."""
-        if not self.enable_security_validation:
-            return
-            
-        if not key or not isinstance(key, str):
-            raise SecurityError("Key must be a non-empty string")
-        
-        if len(key) > 255:
-            raise SecurityError("Key length exceeds maximum allowed length")
-        
-        # Check for dangerous patterns
-        for pattern in self._dangerous_patterns:
-            if re.search(pattern, key):
-                raise SecurityError(f"Key contains dangerous pattern: {pattern}")
-        
-        # Check for null bytes and other dangerous characters
-        if '\x00' in key:
-            raise SecurityError("Key contains null bytes")
-        
-        # Only allow alphanumeric, hyphens, underscores, slashes, and periods
-        if not re.match(r'^[a-zA-Z0-9\-_/\.]+$', key):
-            raise SecurityError("Key contains invalid characters")
+# Removed security validation methods - simplified implementation
 
     def _validate_content_size(self, content: Any) -> None:
         """Validate content size."""
-        if not self.enable_security_validation:
-            return
-            
         # Estimate content size (rough approximation)
         if isinstance(content, str):
             size = len(content.encode('utf-8'))
@@ -158,43 +98,7 @@ class SharedContextStore:
             size = len(str(content).encode('utf-8'))
         
         if size > self.max_file_size_bytes:
-            raise SecurityError(f"Content size ({size} bytes) exceeds maximum allowed size ({self.max_file_size_bytes} bytes)")
-
-    def _validate_content(self, content: Any) -> None:
-        """Validate content for security."""
-        if not self.enable_security_validation:
-            return
-            
-        # Check content size
-        self._validate_content_size(content)
-        
-        # If content is a string, check for dangerous patterns
-        if isinstance(content, str):
-            # Check for script tags and other potentially dangerous content
-            dangerous_patterns = [
-                r'<script[^>]*>.*?</script>',
-                r'javascript:',
-                r'data:.*base64',
-                r'<!--.*?-->',
-            ]
-            
-            for pattern in dangerous_patterns:
-                if re.search(pattern, content, re.IGNORECASE | re.DOTALL):
-                    logger.warning(f"Content contains potentially dangerous pattern: {pattern}")
-                    # Note: We log but don't raise to avoid being too restrictive
-
-    def _sanitize_agent_id(self, agent_id: str) -> str:
-        """Sanitize agent ID."""
-        if not agent_id or not isinstance(agent_id, str):
-            raise SecurityError("Agent ID must be a non-empty string")
-        
-        # Remove any dangerous characters and limit length
-        sanitized = re.sub(r'[^a-zA-Z0-9\-_]', '_', agent_id)[:50]
-        
-        if not sanitized:
-            raise SecurityError("Agent ID contains no valid characters")
-        
-        return sanitized
+            raise ValueError(f"Content size ({size} bytes) exceeds maximum allowed size ({self.max_file_size_bytes} bytes)")
 
     def _get_artifact_path(self, key: str) -> Path:
         """Get the file path for an artifact."""
@@ -235,13 +139,8 @@ class SharedContextStore:
         Returns:
             The created Artifact object
         """
-        # Security validation
-        sanitized_agent_id = self._sanitize_agent_id(agent_id)
-        self._validate_key(key)
-        self._validate_content(content)
-        
-        if parent_key:
-            self._validate_key(parent_key)
+        # Basic validation
+        self._validate_content_size(content)
 
         async with self._lock:
             # Check if artifact already exists (for versioning)
@@ -257,7 +156,7 @@ class SharedContextStore:
                 key=key,
                 content=content,
                 artifact_type=artifact_type,
-                agent_id=sanitized_agent_id,
+                agent_id=agent_id,
                 created_at=datetime.now(),
                 updated_at=datetime.now(),
                 metadata=metadata,
@@ -275,25 +174,22 @@ class SharedContextStore:
 
             try:
                 # Ensure parent directory exists
-                artifact_path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+                artifact_path.parent.mkdir(parents=True, exist_ok=True)
                 
-                # Write with secure file permissions
+                # Write file
                 async with aiofiles.open(artifact_path, "w", encoding='utf-8') as f:
                     await f.write(json.dumps(artifact_dict, indent=2, ensure_ascii=False))
                 
-                # Set file permissions (owner read/write only)
-                os.chmod(artifact_path, 0o600)
-                
             except Exception as e:
                 logger.error(f"Failed to write artifact '{key}': {e}")
-                raise SecurityError(f"Failed to write artifact: {e}")
+                raise ValueError(f"Failed to write artifact: {e}")
 
             # Update cache
             self._cache[key] = artifact
             self._manage_cache_size()
 
             # Log the write
-            logger.debug(f"Agent {sanitized_agent_id} wrote artifact '{key}' (v{version})")
+            logger.debug(f"Agent {agent_id} wrote artifact '{key}' (v{version})")
 
             return artifact
 

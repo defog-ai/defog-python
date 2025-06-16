@@ -15,38 +15,7 @@ from .shared_context import SharedContextStore, ArtifactType
 logger = logging.getLogger(__name__)
 
 
-class ExplorationError(Exception):
-    """Base exception for exploration-related errors."""
-    
-    def __init__(self, message: str, error_type: str = "EXPLORATION_ERROR", context: Optional[Dict[str, Any]] = None):
-        super().__init__(message)
-        self.error_type = error_type
-        self.context = context or {}
-
-
-class ExplorationTimeoutError(ExplorationError):
-    """Raised when exploration times out."""
-    
-    def __init__(self, message: str, timeout_duration: float, context: Optional[Dict[str, Any]] = None):
-        super().__init__(message, "EXPLORATION_TIMEOUT", context)
-        self.timeout_duration = timeout_duration
-
-
-class PathExecutionError(ExplorationError):
-    """Raised when a specific exploration path fails."""
-    
-    def __init__(self, message: str, path_id: str, original_error: Optional[Exception] = None, context: Optional[Dict[str, Any]] = None):
-        super().__init__(message, "PATH_EXECUTION_ERROR", context)
-        self.path_id = path_id
-        self.original_error = original_error
-
-
-class AllPathsFailedError(ExplorationError):
-    """Raised when all exploration paths fail."""
-    
-    def __init__(self, message: str, failed_paths: List[str], context: Optional[Dict[str, Any]] = None):
-        super().__init__(message, "ALL_PATHS_FAILED", context)
-        self.failed_paths = failed_paths
+# Use standard exceptions instead of custom hierarchy
 
 
 class ExplorationStrategy(Enum):
@@ -302,8 +271,8 @@ class ExplorationExecutor:
                 exploration_results.append(error_result)
                 continue
                 
-            except PathExecutionError as e:
-                logger.error(f"Path execution error for {path.path_id}: {e}")
+            except Exception as path_error:
+                logger.error(f"Path execution error for {path.path_id}: {path_error}")
                 failed_paths.append(path.path_id)
                 
                 # Create error result for history
@@ -312,7 +281,7 @@ class ExplorationExecutor:
                     success=False,
                     result=None,
                     execution_time=0.0,
-                    error=str(e)
+                    error=str(path_error)
                 )
                 exploration_results.append(error_result)
                 continue

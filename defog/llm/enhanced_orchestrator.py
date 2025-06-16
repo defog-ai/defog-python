@@ -30,54 +30,33 @@ class EnhancedAgentOrchestrator(AgentOrchestrator):
     def __init__(
         self,
         main_agent: Agent,
-        config: Optional[EnhancedOrchestratorConfig] = None,
-        # Backward compatibility parameters
-        max_parallel_tasks: int = 5,
         available_tools: Optional[List[Callable]] = None,
-        subagent_provider: Optional[str] = None,
-        subagent_model: Optional[str] = None,
-        planning_provider: str = "anthropic",
-        planning_model: str = "claude-opus-4-20250514",
-        reasoning_effort: Optional[str] = "medium",
-        # Enhanced features
+        config: Optional[EnhancedOrchestratorConfig] = None,
+        # Legacy parameters for backward compatibility
         shared_context_path: str = ".agent_workspace",
-        enable_thinking_agents: bool = True,
-        enable_exploration: bool = True,
-        exploration_strategy: ExplorationStrategy = ExplorationStrategy.ADAPTIVE,
-        enable_cross_agent_memory: bool = True,
-        # Original retry/safety parameters
-        max_retries: int = 3,
-        retry_delay: float = 1.0,
-        retry_backoff: float = 2.0,
-        retry_timeout: Optional[float] = None,
-        fallback_model: Optional[str] = None,
-        max_recursion_depth: int = 3,
-        max_total_retries: int = 10,
-        max_decomposition_depth: int = 2,
+        max_parallel_tasks: int = 5,
         global_timeout: float = 1200.0,
+        **kwargs  # Capture any other legacy parameters
     ):
         """
         Initialize enhanced orchestrator.
 
         Args:
             main_agent: The main orchestrator agent
-            config: Configuration object (if provided, overrides individual parameters)
-            ... (backward compatibility parameters)
+            available_tools: Available tools for the orchestrator
+            config: Configuration object (recommended)
+            shared_context_path: Path for shared context storage (legacy)
+            max_parallel_tasks: Maximum parallel tasks (legacy)
+            global_timeout: Global timeout (legacy)
+            **kwargs: Other legacy parameters (ignored for simplicity)
         """
-        # Use config if provided, otherwise create from individual parameters
+        # Use provided config or create default
         if config is None:
             config = EnhancedOrchestratorConfig()
-            # Override with provided parameters for backward compatibility
+            # Only override essential legacy parameters
+            config.shared_context.base_path = shared_context_path
             config.max_parallel_tasks = max_parallel_tasks
             config.global_timeout = global_timeout
-            config.max_retries = max_retries
-            config.retry_delay = retry_delay
-            config.retry_backoff = retry_backoff
-            config.shared_context.base_path = shared_context_path
-            config.enable_thinking_agents = enable_thinking_agents
-            config.enable_exploration = enable_exploration
-            config.enable_cross_agent_memory = enable_cross_agent_memory
-            config.exploration.default_strategy = exploration_strategy
 
         self.config = config
         
@@ -85,28 +64,17 @@ class EnhancedAgentOrchestrator(AgentOrchestrator):
             main_agent=main_agent,
             max_parallel_tasks=config.max_parallel_tasks,
             available_tools=available_tools,
-            subagent_provider=subagent_provider,
-            subagent_model=subagent_model,
-            planning_provider=planning_provider,
-            planning_model=planning_model,
-            reasoning_effort=reasoning_effort,
             max_retries=config.max_retries,
             retry_delay=config.retry_delay,
             retry_backoff=config.retry_backoff,
-            retry_timeout=retry_timeout,
-            fallback_model=fallback_model,
-            max_recursion_depth=max_recursion_depth,
-            max_total_retries=max_total_retries,
-            max_decomposition_depth=max_decomposition_depth,
             global_timeout=config.global_timeout,
+            **kwargs  # Pass through any other parameters
         )
 
-        # Initialize shared context with security configuration
+        # Initialize shared context
         self.shared_context = SharedContextStore(
             base_path=config.shared_context.base_path,
-            max_file_size_mb=config.security.max_file_size_bytes // (1024 * 1024),
-            allowed_extensions=config.security.allowed_file_extensions,
-            enable_security_validation=config.security.enable_path_validation
+            max_file_size_mb=config.shared_context.max_file_size_mb
         )
 
         # Initialize exploration executor
@@ -122,16 +90,16 @@ class EnhancedAgentOrchestrator(AgentOrchestrator):
         )
 
         # Configuration
-        self.enable_thinking_agents = enable_thinking_agents
-        self.enable_exploration = enable_exploration
-        self.exploration_strategy = exploration_strategy
-        self.enable_cross_agent_memory = enable_cross_agent_memory
+        self.enable_thinking_agents = config.enable_thinking_agents
+        self.enable_exploration = config.enable_exploration
+        self.exploration_strategy = config.exploration.default_strategy
+        self.enable_cross_agent_memory = config.enable_cross_agent_memory
 
         # Enhance main agent if it's not already enhanced
         self._enhance_main_agent()
 
         logger.info(
-            f"EnhancedAgentOrchestrator initialized with shared_context at {shared_context_path}"
+            f"EnhancedAgentOrchestrator initialized with shared_context at {config.shared_context.base_path}"
         )
 
     def _enhance_main_agent(self):
