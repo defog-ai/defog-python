@@ -451,7 +451,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 content = json.loads(content)
 
                 # Parse the response into the specified Pydantic model
-                content = response_format.parse_obj(content)
+                content = response_format.model_validate(content)
             except Exception as e:
                 # If parsing fails, return the raw content
                 print(f"Warning: Failed to parse structured output: {e}")
