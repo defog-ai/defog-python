@@ -299,7 +299,9 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
                 {
                     "role": "user",
                     # we have to add an explicit instruction to use the tools because mistral is bad at using tools on its own
-                    "content": self.weather_qn_specific + "\n" + "You must use the tools provided to answer the question.",
+                    "content": self.weather_qn_specific
+                    + "\n"
+                    + "You must use the tools provided to answer the question.",
                 },
             ],
             tools=self.tools,

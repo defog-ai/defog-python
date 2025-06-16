@@ -15,14 +15,11 @@ class GeminiProvider(BaseLLMProvider):
 
     def __init__(self, api_key: Optional[str] = None, config=None):
         super().__init__(api_key or os.getenv("GEMINI_API_KEY"), config=config)
-    
+
     @classmethod
     def from_config(cls, config: LLMConfig):
         """Create Gemini provider from config."""
-        return cls(
-            api_key=config.get_api_key("gemini"),
-            config=config
-        )
+        return cls(api_key=config.get_api_key("gemini"), config=config)
 
     def get_provider_name(self) -> str:
         return "gemini"
@@ -65,30 +62,36 @@ class GeminiProvider(BaseLLMProvider):
             system_msg = messages[0]["content"]
             if not isinstance(system_msg, str):
                 # System message should always be text
-                system_msg = " ".join([block.get("text", "") for block in system_msg if block.get("type") == "text"])
+                system_msg = " ".join(
+                    [
+                        block.get("text", "")
+                        for block in system_msg
+                        if block.get("type") == "text"
+                    ]
+                )
             messages = messages[1:]
 
         # Convert messages to Gemini Content objects
         gemini_contents = []
-        
+
         # For now, Gemini's conversational model expects a single user prompt
         # We'll combine all messages into a single user message with multimodal parts
         all_parts = []
-        
+
         for msg in messages:
             role = msg["role"]
             content = msg["content"]
-            
+
             # Add role prefix to help maintain conversation context
             if role == "assistant":
                 all_parts.append(types.Part.from_text(text="\nAssistant: "))
             elif role == "user" and len(all_parts) > 0:
                 all_parts.append(types.Part.from_text(text="\nUser: "))
-            
+
             # Convert content to parts
             parts = self.convert_content_to_gemini_parts(content, types)
             all_parts.extend(parts)
-        
+
         # Create a single user content with all parts
         user_prompt_content = types.Content(
             role="user",
@@ -180,12 +183,14 @@ class GeminiProvider(BaseLLMProvider):
                             )
 
                         # Use base class method for tool execution with retry
-                        results, consecutive_exceptions = await self.execute_tool_calls_with_retry(
-                            tool_calls_batch,
-                            tool_dict,
-                            messages,
-                            post_tool_function,
-                            consecutive_exceptions
+                        results, consecutive_exceptions = (
+                            await self.execute_tool_calls_with_retry(
+                                tool_calls_batch,
+                                tool_dict,
+                                messages,
+                                post_tool_function,
+                                consecutive_exceptions,
+                            )
                         )
 
                         # Try to get text if available
@@ -246,13 +251,18 @@ class GeminiProvider(BaseLLMProvider):
                     except Exception as e:
                         # For other exceptions, use the same retry logic
                         consecutive_exceptions += 1
-                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
+                        if (
+                            consecutive_exceptions
+                            >= self.tool_handler.max_consecutive_errors
+                        ):
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
+                        print(
+                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                        )
                         messages.append(
                             types.Content(
                                 role="model",

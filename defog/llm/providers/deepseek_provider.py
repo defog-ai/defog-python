@@ -22,14 +22,14 @@ class DeepSeekProvider(BaseLLMProvider):
             base_url or "https://api.deepseek.com",
             config=config,
         )
-    
+
     @classmethod
     def from_config(cls, config: LLMConfig):
         """Create DeepSeek provider from config."""
         return cls(
             api_key=config.get_api_key("deepseek"),
             base_url=config.get_base_url("deepseek") or "https://api.deepseek.com",
-            config=config
+            config=config,
         )
 
     def get_provider_name(self) -> str:
@@ -183,7 +183,9 @@ Respond with JSON only.
             consecutive_exceptions = 0
             while True:
                 # Use base class method for token calculation
-                input_tokens, output_tokens, cached_tokens, _ = self.calculate_token_usage(response)
+                input_tokens, output_tokens, cached_tokens, _ = (
+                    self.calculate_token_usage(response)
+                )
                 total_input_tokens += input_tokens
                 total_cached_input_tokens += cached_tokens
                 total_output_tokens += output_tokens
@@ -208,12 +210,14 @@ Respond with JSON only.
                             )
 
                         # Use base class method for tool execution with retry
-                        results, consecutive_exceptions = await self.execute_tool_calls_with_retry(
-                            tool_calls_batch,
-                            tool_dict,
-                            request_params["messages"],
-                            post_tool_function,
-                            consecutive_exceptions
+                        results, consecutive_exceptions = (
+                            await self.execute_tool_calls_with_retry(
+                                tool_calls_batch,
+                                tool_dict,
+                                request_params["messages"],
+                                post_tool_function,
+                                consecutive_exceptions,
+                            )
                         )
 
                         # Append the tool calls as an assistant response
@@ -264,14 +268,21 @@ Respond with JSON only.
                     except Exception as e:
                         # For other exceptions, use the same retry logic
                         consecutive_exceptions += 1
-                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
+                        if (
+                            consecutive_exceptions
+                            >= self.tool_handler.max_consecutive_errors
+                        ):
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
-                        request_params["messages"].append({"role": "assistant", "content": str(e)})
+                        print(
+                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                        )
+                        request_params["messages"].append(
+                            {"role": "assistant", "content": str(e)}
+                        )
 
                     # Make next call
                     response = await client.chat.completions.create(**request_params)
@@ -292,13 +303,17 @@ Respond with JSON only.
                         content = parsed_content
                     else:
                         # Use base class method for structured response parsing
-                        content = self.parse_structured_response(content, response_format)
+                        content = self.parse_structured_response(
+                            content, response_format
+                        )
                 except Exception:
                     # Use base class method for structured response parsing
                     content = self.parse_structured_response(content, response_format)
 
         # Final token calculation
-        input_tokens, output_tokens, cached_tokens, output_tokens_details = self.calculate_token_usage(response)
+        input_tokens, output_tokens, cached_tokens, output_tokens_details = (
+            self.calculate_token_usage(response)
+        )
         total_input_tokens += input_tokens
         total_cached_input_tokens += cached_tokens
         total_output_tokens += output_tokens
