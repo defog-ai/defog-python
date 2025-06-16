@@ -15,14 +15,11 @@ class MistralProvider(BaseLLMProvider):
 
     def __init__(self, api_key: Optional[str] = None, config=None):
         super().__init__(api_key or os.getenv("MISTRAL_API_KEY"), config=config)
-    
+
     @classmethod
     def from_config(cls, config: LLMConfig):
         """Create Mistral provider from config."""
-        return cls(
-            api_key=config.get_api_key("mistral"),
-            config=config
-        )
+        return cls(api_key=config.get_api_key("mistral"), config=config)
 
     def get_provider_name(self) -> str:
         return "mistral"
@@ -181,12 +178,14 @@ class MistralProvider(BaseLLMProvider):
                             )
 
                         # Use base class method for tool execution with retry
-                        results, consecutive_exceptions = await self.execute_tool_calls_with_retry(
-                            tool_calls,
-                            tool_dict,
-                            request_params["messages"],
-                            post_tool_function,
-                            consecutive_exceptions
+                        results, consecutive_exceptions = (
+                            await self.execute_tool_calls_with_retry(
+                                tool_calls,
+                                tool_dict,
+                                request_params["messages"],
+                                post_tool_function,
+                                consecutive_exceptions,
+                            )
                         )
 
                         # Store tool outputs
@@ -245,14 +244,21 @@ class MistralProvider(BaseLLMProvider):
                     except Exception as e:
                         # For other exceptions, use the same retry logic
                         consecutive_exceptions += 1
-                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
+                        if (
+                            consecutive_exceptions
+                            >= self.tool_handler.max_consecutive_errors
+                        ):
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
-                        request_params["messages"].append({"role": "assistant", "content": str(e)})
+                        print(
+                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                        )
+                        request_params["messages"].append(
+                            {"role": "assistant", "content": str(e)}
+                        )
                         response = await client.chat.complete_async(**request_params)
                 else:
                     # No more tool calls, extract final content

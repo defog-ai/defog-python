@@ -16,14 +16,11 @@ class AnthropicProvider(BaseLLMProvider):
 
     def __init__(self, api_key: Optional[str] = None, config=None):
         super().__init__(api_key or os.getenv("ANTHROPIC_API_KEY"), config=config)
-    
+
     @classmethod
     def from_config(cls, config: LLMConfig):
         """Create Anthropic provider from config."""
-        return cls(
-            api_key=config.get_api_key("anthropic"),
-            config=config
-        )
+        return cls(api_key=config.get_api_key("anthropic"), config=config)
 
     def get_provider_name(self) -> str:
         return "anthropic"
@@ -37,7 +34,7 @@ class AnthropicProvider(BaseLLMProvider):
     def convert_content_to_anthropic(self, content: Any) -> Any:
         """Convert message content to Anthropic format."""
         return convert_to_anthropic_format(content)
-    
+
     def build_params(
         self,
         messages: List[Dict[str, Any]],
@@ -60,18 +57,18 @@ class AnthropicProvider(BaseLLMProvider):
         # Convert messages to support multimodal content
         converted_messages = []
         sys_msg = ""
-        
+
         for i, msg in enumerate(messages):
             if i == 0 and msg.get("role") == "system":
                 # Extract system message content (always text)
                 sys_msg = msg["content"] if isinstance(msg["content"], str) else ""
                 continue
-            
+
             # Convert message content to Anthropic format
             converted_msg = msg.copy()
             converted_msg["content"] = self.convert_content_to_anthropic(msg["content"])
             converted_messages.append(converted_msg)
-        
+
         messages = converted_messages
 
         if reasoning_effort is not None and ("3-7" in model or "-4-" in model):
@@ -279,12 +276,14 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                         # Execute regular tool calls (not MCP tools, which are already executed by the API)
                         results = []
                         if regular_tool_calls:
-                            results, consecutive_exceptions = await self.execute_tool_calls_with_retry(
-                                regular_tool_calls,
-                                tool_dict,
-                                request_params["messages"],
-                                post_tool_function,
-                                consecutive_exceptions
+                            results, consecutive_exceptions = (
+                                await self.execute_tool_calls_with_retry(
+                                    regular_tool_calls,
+                                    tool_dict,
+                                    request_params["messages"],
+                                    post_tool_function,
+                                    consecutive_exceptions,
+                                )
                             )
 
                         # For MCP tools, extract results from mcp_tool_result blocks
@@ -422,14 +421,21 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                     except Exception as e:
                         # For other exceptions, use the same retry logic
                         consecutive_exceptions += 1
-                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
+                        if (
+                            consecutive_exceptions
+                            >= self.tool_handler.max_consecutive_errors
+                        ):
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
-                        request_params["messages"].append({"role": "assistant", "content": str(e)})
+                        print(
+                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                        )
+                        request_params["messages"].append(
+                            {"role": "assistant", "content": str(e)}
+                        )
 
                     # Make next call - use the same API endpoint (beta or regular) as the initial call
                     if mcp_servers and len(mcp_servers) > 0:

@@ -205,7 +205,6 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
                 )
                 # If we get here, the API call succeeded
                 self.assertIsInstance(response.content, ResponseFormat)
-                    
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_simple_chat_async(self):

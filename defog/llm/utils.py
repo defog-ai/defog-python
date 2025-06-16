@@ -70,7 +70,7 @@ def get_provider_instance(
         raise ConfigurationError(f"Unsupported provider: {provider_name}")
 
     provider_class = provider_classes[provider_name]
-    
+
     # Use the provider's from_config method for consistent initialization
     return provider_class.from_config(config)
 

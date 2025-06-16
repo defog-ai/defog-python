@@ -23,14 +23,14 @@ class OpenAIProvider(BaseLLMProvider):
             base_url or "https://api.openai.com/v1/",
             config=config,
         )
-    
+
     @classmethod
     def from_config(cls, config: LLMConfig):
         """Create OpenAI provider from config."""
         return cls(
             api_key=config.get_api_key("openai"),
             base_url=config.get_base_url("openai") or "https://api.openai.com/v1/",
-            config=config
+            config=config,
         )
 
     def get_provider_name(self) -> str:
@@ -39,22 +39,24 @@ class OpenAIProvider(BaseLLMProvider):
     def convert_content_to_openai(self, content: Any) -> Any:
         """Convert message content to OpenAI format."""
         return convert_to_openai_format(content)
-    
-    def preprocess_messages(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
+
+    def preprocess_messages(
+        self, messages: List[Dict[str, Any]], model: str
+    ) -> List[Dict[str, Any]]:
         """Preprocess messages for OpenAI-specific requirements."""
         messages = deepcopy(messages)
-        
+
         # Convert multimodal content
         for msg in messages:
             msg["content"] = self.convert_content_to_openai(msg["content"])
-            
+
             # Handle system/developer role conversion
             if model not in ["gpt-4o", "gpt-4o-mini"]:
                 if msg.get("role") == "system":
                     msg["role"] = "developer"
-        
+
         return messages
-    
+
     def supports_tools(self, model: str) -> bool:
         return True
 
@@ -208,7 +210,9 @@ class OpenAIProvider(BaseLLMProvider):
             consecutive_exceptions = 0
             while True:
                 # Use base class method for token calculation
-                input_tokens, output_tokens, cached_tokens, _ = self.calculate_token_usage(response)
+                input_tokens, output_tokens, cached_tokens, _ = (
+                    self.calculate_token_usage(response)
+                )
                 total_input_tokens += input_tokens
                 total_cached_input_tokens += cached_tokens
                 total_output_tokens += output_tokens
@@ -232,12 +236,14 @@ class OpenAIProvider(BaseLLMProvider):
                             )
 
                         # Use base class method for tool execution with retry
-                        results, consecutive_exceptions = await self.execute_tool_calls_with_retry(
-                            tool_calls_batch,
-                            tool_dict,
-                            request_params["messages"],
-                            post_tool_function,
-                            consecutive_exceptions
+                        results, consecutive_exceptions = (
+                            await self.execute_tool_calls_with_retry(
+                                tool_calls_batch,
+                                tool_dict,
+                                request_params["messages"],
+                                post_tool_function,
+                                consecutive_exceptions,
+                            )
                         )
 
                         # Append the tool calls as an assistant response
@@ -288,14 +294,21 @@ class OpenAIProvider(BaseLLMProvider):
                     except Exception as e:
                         # For other exceptions, use the same retry logic
                         consecutive_exceptions += 1
-                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
+                        if (
+                            consecutive_exceptions
+                            >= self.tool_handler.max_consecutive_errors
+                        ):
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
-                        request_params["messages"].append({"role": "assistant", "content": str(e)})
+                        print(
+                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                        )
+                        request_params["messages"].append(
+                            {"role": "assistant", "content": str(e)}
+                        )
 
                     # Make next call
                     response = await client.chat.completions.create(**request_params)
@@ -313,20 +326,20 @@ class OpenAIProvider(BaseLLMProvider):
                     else:
                         # Use base class method for structured response parsing
                         content = self.parse_structured_response(
-                            response.choices[0].message.content, 
-                            response_format
+                            response.choices[0].message.content, response_format
                         )
                 except Exception:
                     # Use base class method for structured response parsing
                     content = self.parse_structured_response(
-                        response.choices[0].message.content, 
-                        response_format
+                        response.choices[0].message.content, response_format
                     )
             else:
                 content = response.choices[0].message.content
 
         # Final token calculation
-        input_tokens, output_tokens, cached_tokens, output_tokens_details = self.calculate_token_usage(response)
+        input_tokens, output_tokens, cached_tokens, output_tokens_details = (
+            self.calculate_token_usage(response)
+        )
         total_input_tokens += input_tokens
         total_cached_input_tokens += cached_tokens
         total_output_tokens += output_tokens
