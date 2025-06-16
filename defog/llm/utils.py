@@ -1,6 +1,5 @@
 import asyncio
 import traceback
-import time
 from typing import Dict, List, Optional, Any, Union, Callable
 
 from .providers import (
@@ -71,22 +70,9 @@ def get_provider_instance(
         raise ConfigurationError(f"Unsupported provider: {provider_name}")
 
     provider_class = provider_classes[provider_name]
-
-    # Handle special cases for providers that need custom configuration
-    if provider_name == "deepseek":
-        return provider_class(
-            api_key=config.get_api_key("deepseek"),
-            base_url=config.get_base_url("deepseek"),
-            config=config,
-        )
-    elif provider_name == "openai":
-        return provider_class(
-            api_key=config.get_api_key("openai"),
-            base_url=config.get_base_url("openai"),
-            config=config,
-        )
-    else:
-        return provider_class(api_key=config.get_api_key(provider_name), config=config)
+    
+    # Use the provider's from_config method for consistent initialization
+    return provider_class.from_config(config)
 
 
 async def chat_async(

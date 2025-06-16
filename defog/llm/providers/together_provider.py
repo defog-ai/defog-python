@@ -4,6 +4,7 @@ from typing import Dict, List, Any, Optional, Callable, Tuple
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
+from ..config import LLMConfig
 from ..cost import CostCalculator
 
 
@@ -12,6 +13,14 @@ class TogetherProvider(BaseLLMProvider):
 
     def __init__(self, api_key: Optional[str] = None, config=None):
         super().__init__(api_key or os.getenv("TOGETHER_API_KEY"), config=config)
+    
+    @classmethod
+    def from_config(cls, config: LLMConfig):
+        """Create Together provider from config."""
+        return cls(
+            api_key=config.get_api_key("together"),
+            config=config
+        )
 
     def get_provider_name(self) -> str:
         return "together"

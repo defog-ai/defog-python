@@ -1,13 +1,13 @@
 import os
 import time
 import json
-import re
+from copy import deepcopy
 from typing import Dict, List, Any, Optional, Callable, Tuple
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
+from ..config import LLMConfig
 from ..cost import CostCalculator
-from ..tools import ToolHandler
 from ..utils_function_calling import get_function_specs, convert_tool_choice
 
 
@@ -22,7 +22,15 @@ class DeepSeekProvider(BaseLLMProvider):
             base_url or "https://api.deepseek.com",
             config=config,
         )
-        self.tool_handler = ToolHandler()
+    
+    @classmethod
+    def from_config(cls, config: LLMConfig):
+        """Create DeepSeek provider from config."""
+        return cls(
+            api_key=config.get_api_key("deepseek"),
+            base_url=config.get_base_url("deepseek") or "https://api.deepseek.com",
+            config=config
+        )
 
     def get_provider_name(self) -> str:
         return "deepseek"
@@ -56,14 +64,8 @@ class DeepSeekProvider(BaseLLMProvider):
         """
         Build the parameter dictionary for DeepSeek's chat.completions.create().
         """
-        import copy
-
-        messages = copy.deepcopy(messages)
-
-        # Convert system messages to developer messages for DeepSeek
-        for i in range(len(messages)):
-            if messages[i].get("role") == "system":
-                messages[i]["role"] = "developer"
+        # Preprocess messages using the base class method
+        messages = self.preprocess_messages(messages, model)
 
         request_params = {
             "messages": messages,
@@ -180,23 +182,11 @@ Respond with JSON only.
         if tools and len(tools) > 0:
             consecutive_exceptions = 0
             while True:
-                # Check if prompt_tokens_details exists in the response
-                if (
-                    hasattr(response.usage, "prompt_tokens_details")
-                    and response.usage.prompt_tokens_details is not None
-                ):
-                    cached_tokens = (
-                        response.usage.prompt_tokens_details.cached_tokens or 0
-                    )
-                    total_input_tokens += (
-                        response.usage.prompt_tokens or 0 - cached_tokens
-                    )
-                    total_cached_input_tokens += cached_tokens
-                else:
-                    # If prompt_tokens_details doesn't exist, assume all tokens are uncached
-                    total_input_tokens += response.usage.prompt_tokens or 0
-
-                total_output_tokens += response.usage.completion_tokens
+                # Use base class method for token calculation
+                input_tokens, output_tokens, cached_tokens, _ = self.calculate_token_usage(response)
+                total_input_tokens += input_tokens
+                total_cached_input_tokens += cached_tokens
+                total_output_tokens += output_tokens
                 message = response.choices[0].message
 
                 if message.tool_calls:
@@ -217,16 +207,14 @@ Respond with JSON only.
                                 }
                             )
 
-                        # Execute all tool calls (parallel or sequential based on config)
-                        results = await self.tool_handler.execute_tool_calls_batch(
+                        # Use base class method for tool execution with retry
+                        results, consecutive_exceptions = await self.execute_tool_calls_with_retry(
                             tool_calls_batch,
                             tool_dict,
-                            enable_parallel=self.config.enable_parallel_tool_calls,
-                            post_tool_function=post_tool_function,
+                            request_params["messages"],
+                            post_tool_function,
+                            consecutive_exceptions
                         )
-
-                        # Reset consecutive_exceptions when tool calls are successful
-                        consecutive_exceptions = 0
 
                         # Append the tool calls as an assistant response
                         request_params["messages"].append(
@@ -270,31 +258,20 @@ Respond with JSON only.
                         request_params["tool_choice"] = (
                             "auto" if request_params["tool_choice"] != "auto" else None
                         )
+                    except ProviderError:
+                        # Re-raise provider errors from base class
+                        raise
                     except Exception as e:
+                        # For other exceptions, use the same retry logic
                         consecutive_exceptions += 1
-
-                        # Break the loop if consecutive exceptions exceed the threshold
-                        if (
-                            consecutive_exceptions
-                            >= self.tool_handler.max_consecutive_errors
-                        ):
+                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-
-                        print(
-                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
-                        )
-
-                        # Append error message to request_params and retry
-                        request_params["messages"].append(
-                            {
-                                "role": "assistant",
-                                "content": str(e),
-                            }
-                        )
+                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
+                        request_params["messages"].append({"role": "assistant", "content": str(e)})
 
                     # Make next call
                     response = await client.chat.completions.create(**request_params)
@@ -308,78 +285,30 @@ Respond with JSON only.
 
             # Parse structured output if response_format is provided
             if response_format:
-                # Check if response_format is a Pydantic model
-                if isinstance(response_format, type) and hasattr(
-                    response_format, "model_json_schema"
-                ):
-                    try:
-                        # Extract the raw text response and clean it
-                        content = content.strip()
-                        # Remove any markdown formatting
-                        if "```json" in content:
-                            content = content[
-                                content.index("```json") + len("```json") :
-                            ]
-                        if "```" in content:
-                            content = content[: content.index("```")]
-                        # Strip the content again
-                        content = content.strip()
+                try:
+                    # Try to get parsed content from OpenAI SDK first
+                    parsed_content = response.choices[0].message.parsed
+                    if parsed_content is not None:
+                        content = parsed_content
+                    else:
+                        # Use base class method for structured response parsing
+                        content = self.parse_structured_response(content, response_format)
+                except Exception:
+                    # Use base class method for structured response parsing
+                    content = self.parse_structured_response(content, response_format)
 
-                        # Parse as JSON first
-                        json_content = json.loads(content)
-
-                        # Parse the response into the specified Pydantic model
-                        content = response_format.model_validate(json_content)
-                    except Exception as e:
-                        # If parsing fails, try to get parsed content from OpenAI SDK
-                        try:
-                            content = response.choices[0].message.parsed
-                            if content is None:
-                                raise ValueError("No parsed content available")
-                        except Exception:
-                            raise ProviderError(
-                                self.get_provider_name(),
-                                f"Error parsing structured output: {e}. Raw content: {content}",
-                                e,
-                            )
-                else:
-                    # For non-Pydantic response formats, use standard OpenAI parsing
-                    try:
-                        content = response.choices[0].message.parsed
-                    except Exception:
-                        # Fallback to manual JSON parsing
-                        try:
-                            # Clean up any markdown formatting
-                            content = re.sub(r"```(.*)```", r"\1", content)
-                            content = json.loads(content)
-                        except Exception as e:
-                            raise ProviderError(
-                                self.get_provider_name(),
-                                f"Error parsing content: {e}",
-                                e,
-                            )
-
-        usage = response.usage
-        # Check if prompt_tokens_details exists in the response
-        if (
-            hasattr(usage, "prompt_tokens_details")
-            and usage.prompt_tokens_details is not None
-        ):
-            cached_tokens = usage.prompt_tokens_details.cached_tokens or 0
-            total_cached_input_tokens += cached_tokens
-            total_input_tokens += usage.prompt_tokens or 0 - cached_tokens
-        else:
-            # If prompt_tokens_details doesn't exist, assume all tokens are uncached
-            total_input_tokens += usage.prompt_tokens or 0
-
-        total_output_tokens += usage.completion_tokens
+        # Final token calculation
+        input_tokens, output_tokens, cached_tokens, output_tokens_details = self.calculate_token_usage(response)
+        total_input_tokens += input_tokens
+        total_cached_input_tokens += cached_tokens
+        total_output_tokens += output_tokens
         return (
             content,
             tool_outputs,
             total_input_tokens,
             total_cached_input_tokens,
             total_output_tokens,
-            usage.completion_tokens_details,
+            output_tokens_details,
         )
 
     async def execute_chat(

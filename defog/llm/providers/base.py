@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Callable, Tuple
 from dataclasses import dataclass
+import json
+import re
 from ..config.settings import LLMConfig
+from ..exceptions import ProviderError
+from ..tools import ToolHandler
 
 
 @dataclass
@@ -29,6 +33,7 @@ class BaseLLMProvider(ABC):
         self.api_key = api_key
         self.base_url = base_url
         self.config = config or LLMConfig()
+        self.tool_handler = ToolHandler()
 
     @abstractmethod
     def get_provider_name(self) -> str:
@@ -106,3 +111,101 @@ class BaseLLMProvider(ABC):
     def supports_response_format(self, model: str) -> bool:
         """Check if the model supports structured response formats."""
         pass
+    
+    @classmethod
+    def from_config(cls, config: LLMConfig):
+        """Create provider instance from config. Override in subclasses for custom initialization."""
+        provider_name = cls.__name__.lower().replace('provider', '')
+        return cls(
+            api_key=config.get_api_key(provider_name),
+            base_url=config.get_base_url(provider_name),
+            config=config
+        )
+    
+    def preprocess_messages(self, messages: List[Dict[str, str]], model: str) -> List[Dict[str, str]]:
+        """Preprocess messages for provider-specific requirements. Override in subclasses as needed."""
+        return messages
+    
+    def parse_structured_response(self, content: str, response_format: Any) -> Any:
+        """Parse and validate structured outputs."""
+        if not response_format or not content:
+            return content
+            
+        # Remove markdown formatting if present
+        original_content = content
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+        
+        try:
+            # Parse JSON
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            # Try to extract JSON from the content
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                try:
+                    parsed = json.loads(match.group())
+                except json.JSONDecodeError:
+                    # If all parsing fails, return original content
+                    return original_content
+            else:
+                return original_content
+        
+        # Validate with Pydantic if applicable
+        if hasattr(response_format, '__pydantic_model__') or hasattr(response_format, 'model_validate'):
+            return response_format.model_validate(parsed)
+        
+        return parsed
+    
+    def calculate_token_usage(self, response) -> Tuple[int, int, Optional[int], Optional[Dict[str, int]]]:
+        """Calculate token usage including cached tokens."""
+        input_tokens = 0
+        cached_tokens = 0
+        output_tokens = getattr(response.usage, 'completion_tokens', 0) or 0
+        output_tokens_details = None
+        
+        if hasattr(response.usage, 'prompt_tokens_details') and response.usage.prompt_tokens_details:
+            cached_tokens = getattr(response.usage.prompt_tokens_details, 'cached_tokens', 0) or 0
+            input_tokens = (getattr(response.usage, 'prompt_tokens', 0) or 0) - cached_tokens
+        else:
+            input_tokens = getattr(response.usage, 'prompt_tokens', 0) or 0
+        
+        if hasattr(response.usage, 'completion_tokens_details'):
+            output_tokens_details = response.usage.completion_tokens_details
+        
+        return input_tokens, output_tokens, cached_tokens, output_tokens_details
+    
+    async def execute_tool_calls_with_retry(
+        self, 
+        tool_calls: List[Any], 
+        tool_dict: Dict[str, Callable], 
+        messages: List[Dict[str, str]], 
+        post_tool_function: Optional[Callable] = None,
+        consecutive_exceptions: int = 0
+    ) -> Tuple[List[Any], int]:
+        """Common tool handling logic shared by all providers."""
+        tool_outputs = []
+        
+        try:
+            tool_outputs = await self.tool_handler.execute_tool_calls_batch(
+                tool_calls, 
+                tool_dict, 
+                enable_parallel=self.config.enable_parallel_tool_calls,
+                post_tool_function=post_tool_function
+            )
+            consecutive_exceptions = 0
+        except Exception as e:
+            consecutive_exceptions += 1
+            if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
+                raise ProviderError(
+                    f"Tool execution failed after {consecutive_exceptions} consecutive errors: {str(e)}"
+                )
+            
+            # Add error to messages for retry
+            error_msg = f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+            print(error_msg)
+            messages.append({"role": "assistant", "content": str(e)})
+        
+        return tool_outputs, consecutive_exceptions
