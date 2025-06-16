@@ -1,14 +1,13 @@
 import os
 import time
 from typing import Dict, List, Any, Optional, Callable, Tuple
-import httpx
-import base64
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
 from ..config import LLMConfig
 from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs, convert_tool_choice
+from ..image_utils import convert_to_gemini_parts
 
 
 class GeminiProvider(BaseLLMProvider):
@@ -34,98 +33,9 @@ class GeminiProvider(BaseLLMProvider):
     def supports_response_format(self, model: str) -> bool:
         return True  # All current Gemini models support structured output
 
-    def download_image_from_url(self, url: str) -> Tuple[bytes, str]:
-        """Download image from URL and return data and mime type."""
-        try:
-            with httpx.Client() as client:
-                response = client.get(url, follow_redirects=True, timeout=30.0)
-                response.raise_for_status()
-                
-                # Get mime type from content-type header
-                content_type = response.headers.get('content-type', 'image/jpeg')
-                mime_type = content_type.split(';')[0].strip()
-                
-                # Validate it's an image
-                if not mime_type.startswith('image/'):
-                    raise ProviderError(self.get_provider_name(), f"URL returned non-image content type: {mime_type}")
-                
-                return response.content, mime_type
-        except Exception as e:
-            raise ProviderError(self.get_provider_name(), f"Failed to download image from URL: {str(e)}")
-    
     def convert_content_to_gemini_parts(self, content: Any, genai_types) -> List[Any]:
         """Convert message content to Gemini Part objects."""
-        parts = []
-        
-        if isinstance(content, str):
-            parts.append(genai_types.Part.from_text(text=content))
-            return parts
-        
-        # Convert list of content blocks to Gemini Parts
-        for block in content:
-            if block.get("type") == "text":
-                parts.append(genai_types.Part.from_text(text=block.get("text", "")))
-            elif block.get("type") in ["image", "image_url"]:
-                # Validate image content
-                self.validate_image_content(block)
-                
-                # Convert to Gemini Part
-                if block.get("type") == "image":
-                    source = block.get("source", {})
-                    if source.get("type") == "base64":
-                        # Decode base64 and create image part using inline_data
-                        image_data = base64.b64decode(source.get("data", ""))
-                        parts.append(genai_types.Part(
-                            inline_data=genai_types.Blob(
-                                data=image_data,
-                                mime_type=source.get("media_type", "image/jpeg")
-                            )
-                        ))
-                    elif source.get("type") == "url":
-                        # Download image from URL and convert to inline data
-                        url = source.get("url", "")
-                        image_data, mime_type = self.download_image_from_url(url)
-                        parts.append(genai_types.Part(
-                            inline_data=genai_types.Blob(
-                                data=image_data,
-                                mime_type=mime_type
-                            )
-                        ))
-                elif block.get("type") == "image_url":
-                    # Convert from OpenAI format
-                    url = block.get("image_url", {}).get("url", "")
-                    if url.startswith("data:"):
-                        # Extract base64 data from data URL
-                        parts_split = url.split(",", 1)
-                        if len(parts_split) == 2:
-                            header = parts_split[0]
-                            data = parts_split[1]
-                            image_data = base64.b64decode(data)
-                            mime_type = "image/jpeg"
-                            if "image/png" in header:
-                                mime_type = "image/png"
-                            elif "image/gif" in header:
-                                mime_type = "image/gif"
-                            elif "image/webp" in header:
-                                mime_type = "image/webp"
-                            
-                            parts.append(genai_types.Part(
-                                inline_data=genai_types.Blob(
-                                    data=image_data,
-                                    mime_type=mime_type
-                                )
-                            ))
-                    else:
-                        # Download image from URL and convert to inline data
-                        image_data, mime_type = self.download_image_from_url(url)
-                        parts.append(genai_types.Part(
-                            inline_data=genai_types.Blob(
-                                data=image_data,
-                                mime_type=mime_type
-                            )
-                        ))
-        
-        return parts
+        return convert_to_gemini_parts(content, genai_types)
 
     def build_params(
         self,

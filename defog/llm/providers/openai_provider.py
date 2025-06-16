@@ -9,6 +9,7 @@ from ..exceptions import ProviderError, MaxTokensError
 from ..config import LLMConfig
 from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs, convert_tool_choice
+from ..image_utils import convert_to_openai_format
 
 
 class OpenAIProvider(BaseLLMProvider):
@@ -37,43 +38,7 @@ class OpenAIProvider(BaseLLMProvider):
 
     def convert_content_to_openai(self, content: Any) -> Any:
         """Convert message content to OpenAI format."""
-        if isinstance(content, str):
-            return content
-        
-        # Convert list of content blocks to OpenAI format
-        openai_content = []
-        for block in content:
-            if block.get("type") == "text":
-                openai_content.append({
-                    "type": "text",
-                    "text": block.get("text", "")
-                })
-            elif block.get("type") in ["image", "image_url"]:
-                # Validate image content
-                self.validate_image_content(block)
-                
-                # Convert to OpenAI image format
-                if block.get("type") == "image_url":
-                    # Already in OpenAI format
-                    openai_content.append(block)
-                elif block.get("type") == "image":
-                    # Convert from Anthropic format
-                    source = block.get("source", {})
-                    if source.get("type") == "base64":
-                        media_type = source.get("media_type", "image/jpeg")
-                        data = source.get("data", "")
-                        url = f"data:{media_type};base64,{data}"
-                        openai_content.append({
-                            "type": "image_url",
-                            "image_url": {"url": url}
-                        })
-                    elif source.get("type") == "url":
-                        openai_content.append({
-                            "type": "image_url",
-                            "image_url": {"url": source.get("url", "")}
-                        })
-        
-        return openai_content
+        return convert_to_openai_format(content)
     
     def preprocess_messages(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
         """Preprocess messages for OpenAI-specific requirements."""
