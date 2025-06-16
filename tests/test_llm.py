@@ -196,20 +196,16 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         for model in deepseek_models:
             with self.subTest(model=model):
                 # Test that we can call chat_async with DeepSeek and structured output
-                # (This will fail without API key, but shows the integration works)
-                try:
-                    response = await chat_async(
-                        provider=LLMProvider.DEEPSEEK,
-                        model=model,
-                        messages=messages,
-                        response_format=ResponseFormat,
-                        max_retries=1,
-                    )
-                    # If we get here, the API call succeeded
-                    self.assertIsInstance(response.content, ResponseFormat)
-                except Exception as e:
-                    # Expected to fail without API key - just ensure it's a provider error, not a code error
-                    self.assertIn("API key", str(e).lower())
+                response = await chat_async(
+                    provider=LLMProvider.DEEPSEEK,
+                    model=model,
+                    messages=messages,
+                    response_format=ResponseFormat,
+                    max_retries=1,
+                )
+                # If we get here, the API call succeeded
+                self.assertIsInstance(response.content, ResponseFormat)
+                    
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_simple_chat_async(self):
