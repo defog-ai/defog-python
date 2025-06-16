@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import fnmatch
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -19,16 +20,22 @@ logger = logging.getLogger(__name__)
 # Removed SecurityError - using standard exceptions instead
 
 
-class ArtifactType(Enum):
-    """Types of artifacts that can be stored."""
+from .config.enums import ArtifactType
 
-    TEXT = "text"
-    JSON = "json"
-    SUMMARY = "summary"
-    PLAN = "plan"
-    RESULT = "result"
-    CHECKPOINT = "checkpoint"
-    EXPLORATION = "exploration"
+
+def _serialize_for_json(obj: Any) -> Any:
+    """Recursively serialize objects for JSON, handling datetime objects."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {key: _serialize_for_json(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_serialize_for_json(item) for item in obj]
+    elif hasattr(obj, '__dict__'):
+        # Handle objects with __dict__ (like dataclass instances)
+        return _serialize_for_json(obj.__dict__)
+    else:
+        return obj
 
 
 @dataclass
@@ -171,6 +178,8 @@ class SharedContextStore:
             artifact_dict["created_at"] = artifact.created_at.isoformat()
             artifact_dict["updated_at"] = artifact.updated_at.isoformat()
             artifact_dict["artifact_type"] = artifact.artifact_type.value
+            # Serialize content to handle datetime objects recursively
+            artifact_dict["content"] = _serialize_for_json(artifact_dict["content"])
 
             try:
                 # Ensure parent directory exists
@@ -280,8 +289,8 @@ class SharedContextStore:
 
                     key = data.get("key", "")
 
-                    # Apply pattern filter
-                    if pattern and not Path(key).match(pattern):
+                    # Apply pattern filter using fnmatch for glob-style patterns
+                    if pattern and not fnmatch.fnmatch(key, pattern):
                         continue
 
                     # Convert back to Artifact object
