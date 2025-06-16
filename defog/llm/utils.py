@@ -9,6 +9,7 @@ from .providers import (
     OpenAIProvider,
     GeminiProvider,
     TogetherProvider,
+    DeepSeekProvider,
 )
 from .providers.base import LLMResponse
 from .exceptions import LLMError, ProviderError, ConfigurationError
@@ -61,7 +62,7 @@ def get_provider_instance(
         "openai": OpenAIProvider,
         "gemini": GeminiProvider,
         "together": TogetherProvider,
-        "deepseek": OpenAIProvider,  # DeepSeek uses OpenAI-compatible API
+        "deepseek": DeepSeekProvider,
     }
 
     if provider_name not in provider_classes:
