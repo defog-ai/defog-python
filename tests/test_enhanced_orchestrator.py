@@ -1,18 +1,14 @@
 """Tests for enhanced orchestrator features."""
 
-import asyncio
 import pytest
 import pytest_asyncio
 import tempfile
-import shutil
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Dict, Any, List
 
 from defog.llm import (
     SharedContextStore,
     ArtifactType,
-    Artifact,
     EnhancedMemoryManager,
     SharedMemoryEntry,
     ThinkingAgent,
@@ -252,7 +248,6 @@ class TestEnhancedMemoryManager:
         entries = await memory_manager.get_cross_agent_context(
             other_agent_ids=["other_agent"], max_entries=10
         )
-
         assert len(entries) == 1
         assert entries[0].agent_id == "other_agent"
         assert entries[0].messages[0]["content"] == "Other agent message"
@@ -361,8 +356,9 @@ class TestExplorationExecutor:
 
         # Test with simple paths - should choose sequential
         simple_task = SubAgentTask(
-            agent_id="test", task_id="task1", task_description="Simple task"
+            agent_id="test", task_description="Simple task"
         )
+        simple_task.task_id = "task1"  # Set task_id separately
         simple_paths = [
             ExplorationPath(
                 path_id="p1",
@@ -433,15 +429,21 @@ class TestEnhancedAgentOrchestrator:
             async def mock_tool(input: str) -> str:
                 return f"Mock result: {input}"
 
-            orchestrator = EnhancedAgentOrchestrator(
-                main_agent=main_agent,
-                available_tools=[mock_tool],
-                shared_context_path=tmpdir,
+            from defog.llm.config import EnhancedOrchestratorConfig
+            
+            config = EnhancedOrchestratorConfig(
                 enable_thinking_agents=True,
                 enable_exploration=True,
                 enable_cross_agent_memory=True,
                 max_parallel_tasks=2,
                 global_timeout=60.0,
+            )
+            config.shared_context.base_path = tmpdir
+            
+            orchestrator = EnhancedAgentOrchestrator(
+                main_agent=main_agent,
+                available_tools=[mock_tool],
+                config=config,
             )
             yield orchestrator
 
