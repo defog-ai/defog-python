@@ -20,6 +20,11 @@ from defog.llm import (
     SharedContextStore,
     ExplorationStrategy,
     ArtifactType,
+    EnhancedOrchestratorConfig,
+    SharedContextConfig,
+    ExplorationConfig,
+    ThinkingConfig,
+    EnhancedMemoryConfig
 )
 from defog.llm.web_search import web_search_tool
 from defog.llm.code_interp import code_interpreter_tool
@@ -216,48 +221,75 @@ You must use plan_and_create_subagents for complex multi-part requests.""",
     # Available tools for subagents
     available_tools = [web_search, execute_python, analyze_data, sql_query]
     
-    # Create enhanced orchestrator with all new features enabled
+    # Create configuration for enhanced orchestrator
+    config = EnhancedOrchestratorConfig(
+        shared_context=SharedContextConfig(
+            base_path=".enhanced_agent_workspace",
+            cleanup_older_than_days=7
+        ),
+        exploration=ExplorationConfig(
+            max_parallel_explorations=3,
+            exploration_timeout=300.0,
+            enable_learning=True,
+            default_strategy=ExplorationStrategy.ADAPTIVE
+        ),
+        memory=EnhancedMemoryConfig(
+            max_context_length=128000,
+            summarization_threshold=100000,
+            summary_model="claude-sonnet-4-20250514",
+            reasoning_effort="medium"
+        ),
+        thinking=ThinkingConfig(
+            enable_thinking_mode=True,
+            thinking_timeout=120.0,
+            thinking_model="claude-sonnet-4-20250514",
+            reasoning_effort="medium"
+        ),
+        enable_thinking_agents=True,
+        enable_exploration=True,
+        enable_cross_agent_memory=True,
+        max_parallel_tasks=3,
+        global_timeout=600.0,  # 10 minutes
+        max_retries=3,
+        retry_delay=1.0,
+        retry_backoff=2.0
+    )
+    
+    # Create enhanced orchestrator with configuration
     orchestrator = EnhancedAgentOrchestrator(
         main_agent=main_agent,
         available_tools=available_tools,
+        config=config,
+        # Legacy parameters that are still needed for base class
         subagent_provider="anthropic",
         subagent_model="claude-sonnet-4-20250514",
         planning_provider="anthropic",
-        planning_model="claude-sonnet-4-20250514",  # Using sonnet for planning
+        planning_model="claude-sonnet-4-20250514",
         reasoning_effort="medium",
-        # Enhanced features
-        shared_context_path=".enhanced_agent_workspace",
-        enable_thinking_agents=True,
-        enable_exploration=True,
-        exploration_strategy=ExplorationStrategy.ADAPTIVE,
-        enable_cross_agent_memory=True,
-        max_parallel_tasks=3,
-        # Safety limits
         max_recursion_depth=2,
         max_total_retries=15,
         max_decomposition_depth=1,
-        global_timeout=600.0,  # 10 minutes
     )
     
     # Example 1: Complex research with exploration
-    print("\n=== Example 1: Research with Alternative Approaches ===")
-    research_messages = [
-        {
-            "role": "user",
-            "content": """I need a comprehensive analysis of renewable energy trends:
+#     print("\n=== Example 1: Research with Alternative Approaches ===")
+#     research_messages = [
+#         {
+#             "role": "user",
+#             "content": """I need a comprehensive analysis of renewable energy trends:
 
-1. Research the current state of solar and wind energy adoption globally
-2. Analyze the cost trends over the past 5 years using statistical methods
-3. Create Python code to visualize the growth projections
-4. Compare different forecasting approaches (linear vs exponential growth)
+# 1. Research the current state of solar and wind energy adoption globally
+# 2. Analyze the cost trends over the past 5 years using statistical methods
+# 3. Create Python code to visualize the growth projections
+# 4. Compare different forecasting approaches (linear vs exponential growth)
 
-Explore multiple analytical approaches and share insights between agents."""
-        }
-    ]
+# Explore multiple analytical approaches and share insights between agents."""
+#         }
+#     ]
     
-    logger.info("Processing complex research request...")
-    response1 = await orchestrator.process(research_messages)
-    print(f"\nResearch Result:\n{response1.content}")
+#     logger.info("Processing complex research request...")
+#     response1 = await orchestrator.process(research_messages)
+#     print(f"\nResearch Result:\n{response1.content}")
     
     # Example 2: Data analysis with SQL and Python
     print("\n\n=== Example 2: Multi-Tool Data Analysis ===")
@@ -304,84 +336,84 @@ Explore at least 2 different analytical methods."""
     print(f"\nAnalysis Result:\n{response2.content}")
     
     # Example 3: Cross-agent collaboration and learning
-    print("\n\n=== Example 3: Cross-Agent Collaboration ===")
-    collaboration_messages = [
-        {
-            "role": "user",
-            "content": """Based on all previous analyses:
+#     print("\n\n=== Example 3: Cross-Agent Collaboration ===")
+#     collaboration_messages = [
+#         {
+#             "role": "user",
+#             "content": """Based on all previous analyses:
 
-1. Combine insights from the renewable energy research and data analysis
-2. Have agents retrieve and build upon each other's work from shared context
-3. Create a unified summary that shows how different agents contributed
-4. Identify patterns that could be reused for similar future tasks
+# 1. Combine insights from the renewable energy research and data analysis
+# 2. Have agents retrieve and build upon each other's work from shared context
+# 3. Create a unified summary that shows how different agents contributed
+# 4. Identify patterns that could be reused for similar future tasks
 
-Show how the shared context enables better collaboration."""
-        }
-    ]
+# Show how the shared context enables better collaboration."""
+#         }
+#     ]
     
-    logger.info("Processing collaboration request...")
-    response3 = await orchestrator.process(collaboration_messages)
-    print(f"\nCollaborative Result:\n{response3.content}")
+#     logger.info("Processing collaboration request...")
+#     response3 = await orchestrator.process(collaboration_messages)
+#     print(f"\nCollaborative Result:\n{response3.content}")
     
-    # Get orchestration insights
-    print("\n\n=== Orchestration Insights ===")
-    insights = await orchestrator.get_orchestration_insights()
+#     # Get orchestration insights
+#     print("\n\n=== Orchestration Insights ===")
+#     insights = await orchestrator.get_orchestration_insights()
     
-    print(f"\nShared Context Statistics:")
-    if insights['shared_context_stats']:
-        print(f"  Total artifacts: {insights['shared_context_stats'].get('total_artifacts', 0)}")
-        print(f"  Artifact types: {insights['shared_context_stats'].get('artifact_types', {})}")
+#     print(f"\nShared Context Statistics:")
+#     if insights['shared_context_stats']:
+#         print(f"  Total artifacts: {insights['shared_context_stats'].get('total_artifacts', 0)}")
+#         print(f"  Artifact types: {insights['shared_context_stats'].get('artifact_types', {})}")
     
-    print(f"\nExploration Patterns:")
-    print(f"  Successful patterns learned: {insights['exploration_patterns'].get('successful_patterns', 0)}")
+#     print(f"\nExploration Patterns:")
+#     print(f"  Successful patterns learned: {insights['exploration_patterns'].get('successful_patterns', 0)}")
     
-    print(f"\nCross-Agent Collaborations:")
-    for collab in insights['cross_agent_collaborations']:
-        print(f"  Agent {collab['agent_id']}: {collab['collaborations']} collaborations")
+#     print(f"\nCross-Agent Collaborations:")
+#     for collab in insights['cross_agent_collaborations']:
+#         print(f"  Agent {collab['agent_id']}: {collab['collaborations']} collaborations")
     
-    # Demonstrate shared context details
-    print("\n\n=== Shared Context Details ===")
-    shared_context = orchestrator.shared_context
+#     # Demonstrate shared context details
+#     print("\n\n=== Shared Context Details ===")
+#     shared_context = orchestrator.shared_context
     
-    # List thinking artifacts
-    thinking_artifacts = await shared_context.list_artifacts(
-        pattern="thinking/*",
-        artifact_type=ArtifactType.PLAN
-    )
-    print(f"\nThinking/Planning Artifacts ({len(thinking_artifacts)} total):")
-    for artifact in thinking_artifacts[:5]:  # Show up to 5
-        print(f"  - {artifact.key}")
-        print(f"    Agent: {artifact.agent_id}")
-        print(f"    Created: {artifact.created_at.strftime('%H:%M:%S')}")
+#     # List thinking artifacts
+#     thinking_artifacts = await shared_context.list_artifacts(
+#         pattern="thinking/*",
+#         artifact_type=ArtifactType.PLAN
+#     )
+#     print(f"\nThinking/Planning Artifacts ({len(thinking_artifacts)} total):")
+#     for artifact in thinking_artifacts[:5]:  # Show up to 5
+#         print(f"  - {artifact.key}")
+#         print(f"    Agent: {artifact.agent_id}")
+#         print(f"    Created: {artifact.created_at.strftime('%H:%M:%S')}")
     
-    # List exploration results
-    exploration_artifacts = await shared_context.list_artifacts(
-        pattern="exploration_result/*",
-        artifact_type=ArtifactType.RESULT
-    )
-    print(f"\nExploration Results ({len(exploration_artifacts)} total):")
-    for artifact in exploration_artifacts[:3]:
-        print(f"  - {artifact.key} (v{artifact.version})")
+#     # List exploration results
+#     exploration_artifacts = await shared_context.list_artifacts(
+#         pattern="exploration_result/*",
+#         artifact_type=ArtifactType.RESULT
+#     )
+#     print(f"\nExploration Results ({len(exploration_artifacts)} total):")
+#     for artifact in exploration_artifacts[:3]:
+#         print(f"  - {artifact.key} (v{artifact.version})")
     
-    # List shared memories
-    memory_artifacts = await shared_context.list_artifacts(
-        pattern="memory/*"
-    )
-    print(f"\nShared Memories ({len(memory_artifacts)} total)")
+#     # List shared memories
+#     memory_artifacts = await shared_context.list_artifacts(
+#         pattern="memory/*"
+#     )
+#     print(f"\nShared Memories ({len(memory_artifacts)} total)")
     
-    # Show successful patterns if any
-    pattern_artifacts = await shared_context.list_artifacts(
-        pattern="successful_pattern/*"
-    )
-    if pattern_artifacts:
-        print(f"\nSuccessful Patterns Found ({len(pattern_artifacts)}):")
-        for artifact in pattern_artifacts[:3]:
-            print(f"  - {artifact.key}")
+#     # Show successful patterns if any
+#     pattern_artifacts = await shared_context.list_artifacts(
+#         pattern="successful_pattern/*"
+#     )
+#     if pattern_artifacts:
+#         print(f"\nSuccessful Patterns Found ({len(pattern_artifacts)}):")
+#         for artifact in pattern_artifacts[:3]:
+#             print(f"  - {artifact.key}")
     
-    print("\n" + "="*50)
-    print("Enhanced orchestration example completed!")
-    print(f"Workspace location: {orchestrator.shared_context.base_path}")
-    print("You can explore the artifacts in this directory to see how agents collaborated.")
+#     print("\n" + "="*50)
+#     print("Enhanced orchestration example completed!")
+#     print(f"Workspace location: {orchestrator.shared_context.base_path}")
+#     print("You can explore the artifacts in this directory to see how agents collaborated.")
 
 
 async def simple_enhanced_example():
@@ -401,19 +433,28 @@ async def simple_enhanced_example():
         reasoning_effort="medium"
     )
     
+    # Create simple configuration
+    simple_config = EnhancedOrchestratorConfig(
+        shared_context=SharedContextConfig(
+            base_path=".simple_enhanced_workspace"
+        ),
+        enable_thinking_agents=True,
+        enable_exploration=True,
+        max_parallel_tasks=2,
+        global_timeout=180.0,  # 3 minutes
+    )
+    
     # Create enhanced orchestrator
     orchestrator = EnhancedAgentOrchestrator(
         main_agent=main_agent,
         available_tools=[web_search, execute_python],
+        config=simple_config,
+        # Legacy parameters for base class
         planning_provider="openai",
         planning_model="gpt-4.1",
         subagent_provider="openai",
         subagent_model="gpt-4.1",
-        shared_context_path=".simple_enhanced_workspace",
-        enable_thinking_agents=True,
-        enable_exploration=True,
         max_recursion_depth=1,
-        global_timeout=180.0,  # 3 minutes
     )
     
     # Simple request that benefits from thinking and exploration
