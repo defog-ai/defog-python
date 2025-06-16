@@ -104,17 +104,24 @@ class MistralProvider(BaseLLMProvider):
                 })
             params["tools"] = mistral_tools
             
+            # Disable parallel tool calls to ensure sequential execution
+            # This is important for dependent tool calls
+            params["parallel_tool_calls"] = False
+            
             if tool_choice:
                 tool_names_list = [func.__name__ for func in tools]
                 # Mistral uses "any", "none", or specific function name
                 if tool_choice == "auto":
-                    params["tool_choice"] = "any"
+                    params["tool_choice"] = "auto"
                 elif tool_choice == "none":
                     params["tool_choice"] = "none"
                 elif tool_choice in tool_names_list:
                     params["tool_choice"] = tool_choice
                 else:
-                    params["tool_choice"] = "any"
+                    params["tool_choice"] = "auto"
+            else:
+                # Set default tool choice to encourage tool usage
+                params["tool_choice"] = "auto"
         
         return params, messages
 
@@ -198,15 +205,17 @@ class MistralProvider(BaseLLMProvider):
                             ]
                         })
                         
-                        # Add tool results as user message
-                        request_params["messages"].append({
-                            "role": "tool",
-                            "content": json.dumps(results),
-                            "tool_call_id": message.tool_calls[0].id  # Mistral requires this
-                        })
+                        # Add tool results as tool messages
+                        for tool_call, result in zip(message.tool_calls, results):
+                            request_params["messages"].append({
+                                "role": "tool",
+                                "name": tool_call.function.name,
+                                "content": json.dumps(result) if not isinstance(result, str) else result,
+                                "tool_call_id": tool_call.id
+                            })
                         
                         # Make next call
-                        response = await client.chat.complete(**request_params)
+                        response = await client.chat.complete_async(**request_params)
                         total_input_tokens += response.usage.prompt_tokens
                         total_output_tokens += response.usage.completion_tokens
                         
@@ -228,7 +237,7 @@ class MistralProvider(BaseLLMProvider):
                             "content": str(e),
                         })
                         
-                        response = await client.chat.complete(**request_params)
+                        response = await client.chat.complete_async(**request_params)
                 else:
                     # No more tool calls, extract final content
                     content = message.content
