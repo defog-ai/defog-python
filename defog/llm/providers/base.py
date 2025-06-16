@@ -3,11 +3,9 @@ from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 from dataclasses import dataclass
 import json
 import re
-import base64
 from ..config.settings import LLMConfig
 from ..exceptions import ProviderError
 from ..tools import ToolHandler
-from ..types import Content, normalize_content, is_multimodal_content
 
 
 @dataclass
@@ -213,54 +211,3 @@ class BaseLLMProvider(ABC):
         
         return tool_outputs, consecutive_exceptions
     
-    def validate_image_content(self, image_data: Dict[str, Any]) -> None:
-        """
-        Validate image content format and size.
-        
-        Args:
-            image_data: Image content dictionary
-            
-        Raises:
-            ProviderError: If image format is invalid
-        """
-        if image_data.get("type") not in ["image", "image_url"]:
-            raise ProviderError(f"Invalid image type: {image_data.get('type')}")
-        
-        # Validate based on type
-        if image_data.get("type") == "image":
-            source = image_data.get("source", {})
-            if source.get("type") == "base64":
-                if not source.get("data"):
-                    raise ProviderError("Base64 image data is required")
-                if not source.get("media_type"):
-                    raise ProviderError("Media type is required for base64 images")
-            elif source.get("type") == "url":
-                if not source.get("url"):
-                    raise ProviderError("URL is required for URL images")
-        elif image_data.get("type") == "image_url":
-            image_url = image_data.get("image_url", {})
-            if not image_url.get("url"):
-                raise ProviderError("URL is required for image_url type")
-    
-    def convert_image_to_base64_url(self, image_data: Dict[str, Any]) -> str:
-        """
-        Convert image data to base64 data URL format.
-        
-        Args:
-            image_data: Image content dictionary
-            
-        Returns:
-            Base64 data URL string
-        """
-        if image_data.get("type") == "image":
-            source = image_data.get("source", {})
-            if source.get("type") == "base64":
-                media_type = source.get("media_type", "image/jpeg")
-                data = source.get("data", "")
-                return f"data:{media_type};base64,{data}"
-            elif source.get("type") == "url":
-                return source.get("url", "")
-        elif image_data.get("type") == "image_url":
-            return image_data.get("image_url", {}).get("url", "")
-        
-        raise ProviderError(f"Cannot convert image data: {image_data}")
