@@ -8,6 +8,7 @@ from ..exceptions import ProviderError, MaxTokensError
 from ..config import LLMConfig
 from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs, convert_tool_choice
+from ..types import normalize_content, is_multimodal_content
 
 
 class AnthropicProvider(BaseLLMProvider):
@@ -33,9 +34,84 @@ class AnthropicProvider(BaseLLMProvider):
     def supports_response_format(self, model: str) -> bool:
         return True  # All current Claude models support structured output via system prompts
 
+    def convert_content_to_anthropic(self, content: Any) -> Any:
+        """Convert message content to Anthropic format."""
+        if isinstance(content, str):
+            return content
+        
+        # Convert list of content blocks to Anthropic format
+        anthropic_content = []
+        for block in content:
+            if block.get("type") == "text":
+                anthropic_content.append({
+                    "type": "text",
+                    "text": block.get("text", "")
+                })
+            elif block.get("type") in ["image", "image_url"]:
+                # Validate image content
+                self.validate_image_content(block)
+                
+                # Convert to Anthropic image format
+                if block.get("type") == "image":
+                    source = block.get("source", {})
+                    if source.get("type") == "base64":
+                        anthropic_content.append({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": source.get("media_type", "image/jpeg"),
+                                "data": source.get("data", "")
+                            }
+                        })
+                    elif source.get("type") == "url":
+                        # Anthropic supports URLs directly
+                        anthropic_content.append({
+                            "type": "image",
+                            "source": {
+                                "type": "url",
+                                "url": source.get("url", "")
+                            }
+                        })
+                elif block.get("type") == "image_url":
+                    # Convert from OpenAI format
+                    url = block.get("image_url", {}).get("url", "")
+                    if url.startswith("data:"):
+                        # Extract base64 data from data URL
+                        parts = url.split(",", 1)
+                        if len(parts) == 2:
+                            header = parts[0]
+                            data = parts[1]
+                            media_type = "image/jpeg"
+                            if "image/png" in header:
+                                media_type = "image/png"
+                            elif "image/gif" in header:
+                                media_type = "image/gif"
+                            elif "image/webp" in header:
+                                media_type = "image/webp"
+                            
+                            anthropic_content.append({
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": data
+                                }
+                            })
+                    else:
+                        # Handle regular URLs from OpenAI format
+                        anthropic_content.append({
+                            "type": "image",
+                            "source": {
+                                "type": "url",
+                                "url": url
+                            }
+                        })
+        
+        return anthropic_content
+    
     def build_params(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         model: str,
         max_completion_tokens: Optional[int] = None,
         temperature: float = 0.0,
@@ -50,13 +126,24 @@ class AnthropicProvider(BaseLLMProvider):
         reasoning_effort: Optional[str] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
         **kwargs,
-    ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Create the parameter dict for Anthropic's .messages.create()."""
-        if len(messages) >= 1 and messages[0].get("role") == "system":
-            sys_msg = messages[0]["content"]
-            messages = messages[1:]
-        else:
-            sys_msg = ""
+        # Convert messages to support multimodal content
+        converted_messages = []
+        sys_msg = ""
+        
+        for i, msg in enumerate(messages):
+            if i == 0 and msg.get("role") == "system":
+                # Extract system message content (always text)
+                sys_msg = msg["content"] if isinstance(msg["content"], str) else ""
+                continue
+            
+            # Convert message content to Anthropic format
+            converted_msg = msg.copy()
+            converted_msg["content"] = self.convert_content_to_anthropic(msg["content"])
+            converted_messages.append(converted_msg)
+        
+        messages = converted_messages
 
         if reasoning_effort is not None and ("3-7" in model or "-4-" in model):
             temperature = 1.0
@@ -453,7 +540,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
 
     async def execute_chat(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         model: str,
         max_completion_tokens: Optional[int] = None,
         temperature: float = 0.0,

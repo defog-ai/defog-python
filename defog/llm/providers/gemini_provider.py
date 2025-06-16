@@ -1,6 +1,8 @@
 import os
 import time
 from typing import Dict, List, Any, Optional, Callable, Tuple
+import httpx
+import base64
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
@@ -32,9 +34,102 @@ class GeminiProvider(BaseLLMProvider):
     def supports_response_format(self, model: str) -> bool:
         return True  # All current Gemini models support structured output
 
+    def download_image_from_url(self, url: str) -> Tuple[bytes, str]:
+        """Download image from URL and return data and mime type."""
+        try:
+            with httpx.Client() as client:
+                response = client.get(url, follow_redirects=True, timeout=30.0)
+                response.raise_for_status()
+                
+                # Get mime type from content-type header
+                content_type = response.headers.get('content-type', 'image/jpeg')
+                mime_type = content_type.split(';')[0].strip()
+                
+                # Validate it's an image
+                if not mime_type.startswith('image/'):
+                    raise ProviderError(self.get_provider_name(), f"URL returned non-image content type: {mime_type}")
+                
+                return response.content, mime_type
+        except Exception as e:
+            raise ProviderError(self.get_provider_name(), f"Failed to download image from URL: {str(e)}")
+    
+    def convert_content_to_gemini_parts(self, content: Any, genai_types) -> List[Any]:
+        """Convert message content to Gemini Part objects."""
+        parts = []
+        
+        if isinstance(content, str):
+            parts.append(genai_types.Part.from_text(text=content))
+            return parts
+        
+        # Convert list of content blocks to Gemini Parts
+        for block in content:
+            if block.get("type") == "text":
+                parts.append(genai_types.Part.from_text(text=block.get("text", "")))
+            elif block.get("type") in ["image", "image_url"]:
+                # Validate image content
+                self.validate_image_content(block)
+                
+                # Convert to Gemini Part
+                if block.get("type") == "image":
+                    source = block.get("source", {})
+                    if source.get("type") == "base64":
+                        # Decode base64 and create image part using inline_data
+                        image_data = base64.b64decode(source.get("data", ""))
+                        parts.append(genai_types.Part(
+                            inline_data=genai_types.Blob(
+                                data=image_data,
+                                mime_type=source.get("media_type", "image/jpeg")
+                            )
+                        ))
+                    elif source.get("type") == "url":
+                        # Download image from URL and convert to inline data
+                        url = source.get("url", "")
+                        image_data, mime_type = self.download_image_from_url(url)
+                        parts.append(genai_types.Part(
+                            inline_data=genai_types.Blob(
+                                data=image_data,
+                                mime_type=mime_type
+                            )
+                        ))
+                elif block.get("type") == "image_url":
+                    # Convert from OpenAI format
+                    url = block.get("image_url", {}).get("url", "")
+                    if url.startswith("data:"):
+                        # Extract base64 data from data URL
+                        parts_split = url.split(",", 1)
+                        if len(parts_split) == 2:
+                            header = parts_split[0]
+                            data = parts_split[1]
+                            image_data = base64.b64decode(data)
+                            mime_type = "image/jpeg"
+                            if "image/png" in header:
+                                mime_type = "image/png"
+                            elif "image/gif" in header:
+                                mime_type = "image/gif"
+                            elif "image/webp" in header:
+                                mime_type = "image/webp"
+                            
+                            parts.append(genai_types.Part(
+                                inline_data=genai_types.Blob(
+                                    data=image_data,
+                                    mime_type=mime_type
+                                )
+                            ))
+                    else:
+                        # Download image from URL and convert to inline data
+                        image_data, mime_type = self.download_image_from_url(url)
+                        parts.append(genai_types.Part(
+                            inline_data=genai_types.Blob(
+                                data=image_data,
+                                mime_type=mime_type
+                            )
+                        ))
+        
+        return parts
+
     def build_params(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         model: str,
         max_completion_tokens: Optional[int] = None,
         temperature: float = 0.0,
@@ -49,22 +144,45 @@ class GeminiProvider(BaseLLMProvider):
         reasoning_effort: Optional[str] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
         **kwargs,
-    ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Construct parameters for Gemini's generate_content call."""
 
         from google.genai import types
 
-        if messages[0]["role"] == "system":
+        # Extract system message if present
+        system_msg = None
+        if messages and messages[0]["role"] == "system":
             system_msg = messages[0]["content"]
+            if not isinstance(system_msg, str):
+                # System message should always be text
+                system_msg = " ".join([block.get("text", "") for block in system_msg if block.get("type") == "text"])
             messages = messages[1:]
-        else:
-            system_msg = None
 
-        # Combine all user/assistant messages into one string and create a types.Content object
-        messages_str = "\n".join([m["content"] for m in messages])
+        # Convert messages to Gemini Content objects
+        gemini_contents = []
+        
+        # For now, Gemini's conversational model expects a single user prompt
+        # We'll combine all messages into a single user message with multimodal parts
+        all_parts = []
+        
+        for msg in messages:
+            role = msg["role"]
+            content = msg["content"]
+            
+            # Add role prefix to help maintain conversation context
+            if role == "assistant":
+                all_parts.append(types.Part.from_text(text="\nAssistant: "))
+            elif role == "user" and len(all_parts) > 0:
+                all_parts.append(types.Part.from_text(text="\nUser: "))
+            
+            # Convert content to parts
+            parts = self.convert_content_to_gemini_parts(content, types)
+            all_parts.extend(parts)
+        
+        # Create a single user content with all parts
         user_prompt_content = types.Content(
             role="user",
-            parts=[types.Part.from_text(text=messages_str)],
+            parts=all_parts,
         )
         messages = [user_prompt_content]
         request_params = {
@@ -104,7 +222,7 @@ class GeminiProvider(BaseLLMProvider):
         client,
         response,
         request_params: Dict[str, Any],
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         tools: Optional[List[Callable]],
         tool_dict: Dict[str, Callable],
         response_format=None,
@@ -264,7 +382,7 @@ class GeminiProvider(BaseLLMProvider):
 
     async def execute_chat(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         model: str,
         max_completion_tokens: Optional[int] = None,
         temperature: float = 0.0,

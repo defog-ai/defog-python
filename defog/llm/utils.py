@@ -78,7 +78,7 @@ def get_provider_instance(
 async def chat_async(
     provider: Union[LLMProvider, str],
     model: str,
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, Any]],
     max_completion_tokens: Optional[int] = None,
     temperature: float = 0.0,
     response_format=None,
@@ -103,7 +103,7 @@ async def chat_async(
     Args:
         provider: LLMProvider enum or string specifying which provider to use
         model: Model name to use
-        messages: List of message dictionaries
+        messages: List of message dictionaries with text or multimodal content
         max_completion_tokens: Maximum tokens to generate
         temperature: Sampling temperature (0.0 to 1.0)
         response_format: Structured output format (Pydantic model)
@@ -243,7 +243,7 @@ def map_model_to_provider(model: str) -> LLMProvider:
 
 async def chat_async_legacy(
     model: str,
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, Any]],
     max_completion_tokens: Optional[int] = None,
     temperature: float = 0.0,
     response_format=None,
