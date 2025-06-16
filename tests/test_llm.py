@@ -94,6 +94,13 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             LLMProvider.TOGETHER,
         )
 
+        self.assertEqual(
+            map_model_to_provider("mistral-small-latest"), LLMProvider.MISTRAL
+        )
+        self.assertEqual(
+            map_model_to_provider("mistral-medium-latest"), LLMProvider.MISTRAL
+        )
+
         with self.assertRaises(Exception):
             map_model_to_provider("unknown-model")
 
@@ -117,6 +124,24 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         # Both models support response_format
         self.assertTrue(provider.supports_response_format("deepseek-chat"))
         self.assertTrue(provider.supports_response_format("deepseek-reasoner"))
+
+    def test_mistral_provider_capabilities(self):
+        """Test Mistral provider instantiation and capabilities"""
+        from defog.llm.utils import get_provider_instance
+        from defog.llm.providers.mistral_provider import MistralProvider
+        from defog.llm.config import LLMConfig
+
+        # Test provider instantiation
+        config = LLMConfig()
+        provider = get_provider_instance("mistral", config)
+        self.assertIsInstance(provider, MistralProvider)
+        self.assertEqual(provider.get_provider_name(), "mistral")
+
+        # Test model capabilities - all Mistral models support tools and structured output
+        mistral_models = ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"]
+        for model in mistral_models:
+            self.assertTrue(provider.supports_tools(model))
+            self.assertTrue(provider.supports_response_format(model))
 
     def test_deepseek_structured_output_build_params(self):
         """Test DeepSeek provider's structured output parameter building for both models"""
@@ -191,6 +216,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             "o3",
             "gemini-2.0-flash",
             "gemini-2.5-pro-preview-03-25",
+            "mistral-small-latest",
         ]
         messages = [
             {"role": "user", "content": "Return a greeting in not more than 2 words\n"}
@@ -220,6 +246,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             "o4-mini",
             "gpt-4.1-mini",
             "gpt-4.1-nano",
+            "mistral-small-latest",
         ]
         for model in models:
             provider = map_model_to_provider(model)
@@ -267,6 +294,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             "o4-mini",
             "gpt-4.1-mini",
             "gpt-4.1-nano",
+            "mistral-small-latest",
         ]
         for model in models:
             provider = map_model_to_provider(model)

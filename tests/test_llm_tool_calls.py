@@ -76,6 +76,7 @@ class TestGetFunctionSpecs(unittest.TestCase):
     def setUp(self):
         self.openai_model = "gpt-4.1"
         self.anthropic_model = "claude-3-7-sonnet-latest"
+        self.mistral_model = "mistral-small-latest"
         self.tools = [get_weather, numsum, numprod]
         self.maxDiff = None
         self.openai_specs = [
@@ -173,9 +174,12 @@ class TestGetFunctionSpecs(unittest.TestCase):
     def test_get_function_specs(self):
         openai_specs = get_function_specs(self.tools, self.openai_model)
         anthropic_specs = get_function_specs(self.tools, self.anthropic_model)
+        mistral_specs = get_function_specs(self.tools, self.mistral_model)
 
         self.assertEqual(openai_specs, self.openai_specs)
         self.assertEqual(anthropic_specs, self.anthropic_specs)
+        # Mistral uses OpenAI-compatible format
+        self.assertEqual(mistral_specs, self.openai_specs)
 
 
 class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
@@ -248,6 +252,24 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.content, self.arithmetic_answer)
 
     @pytest.mark.asyncio
+    async def test_tool_use_arithmetic_async_mistral(self):
+        result = await chat_async(
+            provider="mistral",
+            model="mistral-medium-latest",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ],
+            tools=self.tools,
+        )
+        print(result)
+        self.assertEqual(result.content, self.arithmetic_answer)
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
+
+    @pytest.mark.asyncio
     async def test_tool_use_weather_async_anthropic(self):
         result = await chat_async(
             provider="anthropic",
@@ -265,6 +287,30 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"get_weather"})
         self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertGreaterEqual(float(result.content), 21)
+        self.assertLessEqual(float(result.content), 38)
+
+    @pytest.mark.asyncio
+    async def test_tool_use_weather_async_mistral(self):
+        result = await chat_async(
+            provider="mistral",
+            model="mistral-medium-latest",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.weather_qn_specific,
+                },
+            ],
+            tools=self.tools,
+            max_retries=1,
+        )
+        print(result)
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"get_weather"})
+        self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertEqual(
+            result.tool_outputs[0]["args"], {"latitude": 1.3521, "longitude": 103.8198}
+        )
         self.assertGreaterEqual(float(result.content), 21)
         self.assertLessEqual(float(result.content), 38)
 
@@ -432,6 +478,25 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         result = await chat_async(
             provider="deepseek",
             model="deepseek-chat",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ],
+            tools=self.tools,
+            post_tool_function=log_to_file,
+        )
+        print(result)
+        self.assertEqual(result.content, self.arithmetic_answer)
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
+
+    @pytest.mark.asyncio
+    async def test_post_tool_calls_mistral(self):
+        result = await chat_async(
+            provider="mistral",
+            model="mistral-medium-latest",
             messages=[
                 {
                     "role": "user",
@@ -739,6 +804,64 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         # Parallel should generally be faster or at least not significantly slower
         # We don't assert exact timing as it depends on API response times
 
+    @pytest.mark.asyncio
+    async def test_mistral_parallel_vs_sequential_speed(self):
+        """Test Mistral parallel vs sequential execution speed."""
+        import time
+
+        # Test parallel execution
+        config_parallel = LLMConfig(enable_parallel_tool_calls=True)
+        start_time = time.time()
+        result_parallel = await chat_async(
+            provider="mistral",
+            model="mistral-medium-latest",
+            messages=self.messages,
+            tools=self.tools,
+            config=config_parallel,
+            temperature=0,
+            max_retries=1,
+        )
+        parallel_time = time.time() - start_time
+
+        # Test sequential execution
+        config_sequential = LLMConfig(enable_parallel_tool_calls=False)
+        start_time = time.time()
+        result_sequential = await chat_async(
+            provider="mistral",
+            model="mistral-medium-latest",
+            messages=self.messages,
+            tools=self.tools,
+            config=config_sequential,
+            temperature=0,
+            max_retries=1,
+        )
+        sequential_time = time.time() - start_time
+
+        # Verify both produce correct results
+        self.assertEqual(len(result_parallel.tool_outputs), 2)
+        self.assertEqual(len(result_sequential.tool_outputs), 2)
+
+        # Check that sum and product were calculated
+        outputs_parallel = {
+            o["name"]: o["result"] for o in result_parallel.tool_outputs
+        }
+        outputs_sequential = {
+            o["name"]: o["result"] for o in result_sequential.tool_outputs
+        }
+
+        self.assertEqual(outputs_parallel["numsum"], 2735586954)
+        self.assertEqual(outputs_parallel["numprod"], 287680120)
+        self.assertEqual(outputs_parallel, outputs_sequential)
+
+        # Log timing results
+        print(f"\nMistral Timing Results:")
+        print(f"  Parallel execution: {parallel_time:.2f}s")
+        print(f"  Sequential execution: {sequential_time:.2f}s")
+        print(f"  Speedup: {sequential_time/parallel_time:.2f}x")
+
+        # Parallel should generally be faster or at least not significantly slower
+        # We don't assert exact timing as it depends on API response times
+
     # we can't really test Gemini, as it always has parallel tool calls enabled
 
     def test_provider_config_propagation(self):
@@ -753,6 +876,7 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
             ("anthropic", "claude-sonnet-4-20250514"),
             ("gemini", "gemini-2.5-pro-preview-05-06"),
             ("deepseek", "deepseek-chat"),
+            ("mistral", "mistral-medium-latest"),
         ]
 
         for provider_name, model in providers_to_test:
