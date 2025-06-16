@@ -1,7 +1,9 @@
 import unittest
 import pytest
-from defog.llm.utils import chat_async_legacy as chat_async
+from defog.llm.utils import chat_async
 from defog.llm.utils_function_calling import get_function_specs
+from defog.llm.config.settings import LLMConfig
+
 from pydantic import BaseModel, Field
 import aiohttp
 from io import StringIO
@@ -191,6 +193,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_openai(self):
         result = await chat_async(
+            provider="openai",
             model="gpt-4o",
             messages=[
                 {
@@ -208,6 +211,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_tool_use_weather_async_openai(self):
         result = await chat_async(
+            provider="openai",
             model="gpt-4o",
             messages=[
                 {
@@ -228,6 +232,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_anthropic(self):
         result = await chat_async(
+            provider="anthropic",
             model="claude-3-7-sonnet-latest",
             messages=[
                 {
@@ -245,6 +250,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_tool_use_weather_async_anthropic(self):
         result = await chat_async(
+            provider="anthropic",
             model="claude-3-7-sonnet-latest",
             messages=[
                 {
@@ -265,6 +271,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_anthropic_reasoning_effort(self):
         result = await chat_async(
+            provider="anthropic",
             model="claude-3-7-sonnet-latest",
             messages=[
                 {
@@ -283,6 +290,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_tool_use_arithmetic_async_gemini(self):
         result = await chat_async(
+            provider="gemini",
             model="gemini-2.0-flash",
             messages=[
                 {
@@ -300,6 +308,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_tool_use_weather_async_gemini(self):
         result = await chat_async(
+            provider="gemini",
             model="gemini-2.0-flash",
             messages=[
                 {
@@ -323,6 +332,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_post_tool_calls_openai(self):
         result = await chat_async(
+            provider="openai",
             model="gpt-4o",
             messages=[
                 {
@@ -340,6 +350,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
 
     async def test_post_tool_calls_anthropic(self):
         result = await chat_async(
+            provider="anthropic",
             model="claude-3-7-sonnet-latest",
             messages=[
                 {
@@ -358,6 +369,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     async def test_post_tool_calls_gemini(self):
         result = await chat_async(
+            provider="gemini",
             model="gemini-2.0-flash",
             messages=[
                 {
@@ -373,6 +385,66 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
 
+    @pytest.mark.asyncio
+    async def test_tool_use_arithmetic_async_deepseek_chat(self):
+        result = await chat_async(
+            provider="deepseek",
+            model="deepseek-chat",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ],
+            tools=self.tools,
+        )
+        print(result)
+        self.assertEqual(result.content, self.arithmetic_answer)
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
+
+    @pytest.mark.asyncio
+    async def test_tool_use_weather_async_deepseek_chat(self):
+        result = await chat_async(
+            provider="deepseek",
+            model="deepseek-chat",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.weather_qn_specific,
+                },
+            ],
+            tools=self.tools,
+            max_retries=1,
+        )
+        print(result)
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"get_weather"})
+        self.assertEqual(result.tool_outputs[0]["name"], "get_weather")
+        self.assertEqual(
+            result.tool_outputs[0]["args"], {"latitude": 1.3521, "longitude": 103.8198}
+        )
+        self.assertGreaterEqual(float(result.content), 21)
+        self.assertLessEqual(float(result.content), 38)
+
+    @pytest.mark.asyncio
+    async def test_post_tool_calls_deepseek_chat(self):
+        result = await chat_async(
+            provider="deepseek",
+            model="deepseek-chat",
+            messages=[
+                {
+                    "role": "user",
+                    "content": self.arithmetic_qn,
+                },
+            ],
+            tools=self.tools,
+            post_tool_function=log_to_file,
+        )
+        print(result)
+        self.assertEqual(result.content, self.arithmetic_answer)
+        tools_used = [output["name"] for output in result.tool_outputs]
+        self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
 
 class TestParallelToolCalls(unittest.IsolatedAsyncioTestCase):
     """Test parallel tool calls functionality."""
@@ -472,7 +544,7 @@ class TestParallelToolCalls(unittest.IsolatedAsyncioTestCase):
 
     def test_configuration_integration(self):
         """Test that the configuration setting is properly integrated."""
-        from defog.llm.config.settings import LLMConfig
+        
 
         # Test default configuration (parallel disabled)
         config_default = LLMConfig()
@@ -487,7 +559,6 @@ class TestParallelToolCallsEndToEnd(unittest.IsolatedAsyncioTestCase):
     """End-to-end tests for parallel tool calls with real API calls."""
 
     def setUp(self):
-        from defog.llm.config.settings import LLMConfig
         import time
 
         self.tools = [numsum, numprod]
@@ -506,8 +577,6 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
     @pytest.mark.asyncio
     async def test_openai_parallel_vs_sequential_speed(self):
         """Test OpenAI parallel vs sequential execution speed."""
-        from defog.llm.config.settings import LLMConfig
-        from defog.llm.utils import chat_async
         import time
 
         # Test parallel execution
@@ -566,8 +635,6 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
     @pytest.mark.asyncio
     async def test_anthropic_parallel_tool_behavior(self):
         """Test Anthropic's parallel tool call behavior."""
-        from defog.llm.config.settings import LLMConfig
-        from defog.llm.utils import chat_async
         import time
 
         # Test with parallel enabled (should make one API call with multiple tools)
@@ -614,11 +681,68 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         print(f"  Sequential execution: {sequential_time:.2f}s")
         print(f"  Speedup: {sequential_time/parallel_time:.2f}x")
 
+    @pytest.mark.asyncio
+    async def test_deepseek_parallel_vs_sequential_speed(self):
+        """Test DeepSeek parallel vs sequential execution speed."""
+        import time
+
+        # Test parallel execution
+        config_parallel = LLMConfig(enable_parallel_tool_calls=True)
+        start_time = time.time()
+        result_parallel = await chat_async(
+            provider="deepseek",
+            model="deepseek-chat",
+            messages=self.messages,
+            tools=self.tools,
+            config=config_parallel,
+            temperature=0,
+            max_retries=1,
+        )
+        parallel_time = time.time() - start_time
+
+        # Test sequential execution
+        config_sequential = LLMConfig(enable_parallel_tool_calls=False)
+        start_time = time.time()
+        result_sequential = await chat_async(
+            provider="deepseek",
+            model="deepseek-chat",
+            messages=self.messages,
+            tools=self.tools,
+            config=config_sequential,
+            temperature=0,
+            max_retries=1,
+        )
+        sequential_time = time.time() - start_time
+
+        # Verify both produce correct results
+        self.assertEqual(len(result_parallel.tool_outputs), 2)
+        self.assertEqual(len(result_sequential.tool_outputs), 2)
+
+        # Check that sum and product were calculated
+        outputs_parallel = {
+            o["name"]: o["result"] for o in result_parallel.tool_outputs
+        }
+        outputs_sequential = {
+            o["name"]: o["result"] for o in result_sequential.tool_outputs
+        }
+
+        self.assertEqual(outputs_parallel["numsum"], 2735586954)
+        self.assertEqual(outputs_parallel["numprod"], 287680120)
+        self.assertEqual(outputs_parallel, outputs_sequential)
+
+        # Log timing results
+        print(f"\nDeepSeek Timing Results:")
+        print(f"  Parallel execution: {parallel_time:.2f}s")
+        print(f"  Sequential execution: {sequential_time:.2f}s")
+        print(f"  Speedup: {sequential_time/parallel_time:.2f}x")
+
+        # Parallel should generally be faster or at least not significantly slower
+        # We don't assert exact timing as it depends on API response times
+
     # we can't really test Gemini, as it always has parallel tool calls enabled
 
     def test_provider_config_propagation(self):
         """Test that config properly propagates to all providers."""
-        from defog.llm.config.settings import LLMConfig
         from defog.llm.utils import get_provider_instance
 
         config = LLMConfig(enable_parallel_tool_calls=True)
@@ -628,6 +752,7 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
             ("openai", "gpt-4.1"),
             ("anthropic", "claude-sonnet-4-20250514"),
             ("gemini", "gemini-2.5-pro-preview-05-06"),
+            ("deepseek", "deepseek-chat"),
         ]
 
         for provider_name, model in providers_to_test:
