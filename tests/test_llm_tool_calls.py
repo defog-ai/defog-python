@@ -446,6 +446,7 @@ class TestToolUseFeatures(unittest.IsolatedAsyncioTestCase):
         tools_used = [output["name"] for output in result.tool_outputs]
         self.assertSetEqual(set(tools_used), {"numsum", "numprod"})
 
+
 class TestParallelToolCalls(unittest.IsolatedAsyncioTestCase):
     """Test parallel tool calls functionality."""
 
@@ -544,7 +545,6 @@ class TestParallelToolCalls(unittest.IsolatedAsyncioTestCase):
 
     def test_configuration_integration(self):
         """Test that the configuration setting is properly integrated."""
-        
 
         # Test default configuration (parallel disabled)
         config_default = LLMConfig()

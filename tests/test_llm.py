@@ -85,7 +85,9 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(map_model_to_provider("gpt-4o-mini"), LLMProvider.OPENAI)
 
         self.assertEqual(map_model_to_provider("deepseek-chat"), LLMProvider.DEEPSEEK)
-        self.assertEqual(map_model_to_provider("deepseek-reasoner"), LLMProvider.DEEPSEEK)
+        self.assertEqual(
+            map_model_to_provider("deepseek-reasoner"), LLMProvider.DEEPSEEK
+        )
 
         self.assertEqual(
             map_model_to_provider("meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"),
@@ -100,18 +102,18 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         from defog.llm.utils import get_provider_instance
         from defog.llm.providers.deepseek_provider import DeepSeekProvider
         from defog.llm.config import LLMConfig
-        
+
         # Test provider instantiation
         config = LLMConfig()
         provider = get_provider_instance("deepseek", config)
         self.assertIsInstance(provider, DeepSeekProvider)
         self.assertEqual(provider.get_provider_name(), "deepseek")
-        
+
         # Test model capabilities
         # deepseek-chat supports tools, deepseek-reasoner does not
         self.assertTrue(provider.supports_tools("deepseek-chat"))
         self.assertFalse(provider.supports_tools("deepseek-reasoner"))
-        
+
         # Both models support response_format
         self.assertTrue(provider.supports_response_format("deepseek-chat"))
         self.assertTrue(provider.supports_response_format("deepseek-reasoner"))
@@ -120,46 +122,48 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         """Test DeepSeek provider's structured output parameter building for both models"""
         from defog.llm.providers.deepseek_provider import DeepSeekProvider
         from defog.llm.config import LLMConfig
-        
+
         config = LLMConfig()
         provider = DeepSeekProvider(config=config)
-        
+
         # Test with Pydantic model for both DeepSeek models
         messages = [{"role": "user", "content": "Generate SQL for counting orders"}]
         deepseek_models = ["deepseek-chat", "deepseek-reasoner"]
-        
+
         for model in deepseek_models:
             with self.subTest(model=model):
                 # Test that Pydantic models get converted to JSON mode
                 params, modified_messages = provider.build_params(
-                    messages=messages,
-                    model=model,
-                    response_format=ResponseFormat
+                    messages=messages, model=model, response_format=ResponseFormat
                 )
-                
+
                 # Should set response_format to JSON mode
                 self.assertEqual(params["response_format"], {"type": "json_object"})
-                
+
                 # Should modify the user message to include schema instructions
                 self.assertIn("JSON schema", modified_messages[0]["content"])
-                self.assertIn("reasoning", modified_messages[0]["content"])  # From ResponseFormat schema
-                self.assertIn("sql", modified_messages[0]["content"])  # From ResponseFormat schema
-                
+                self.assertIn(
+                    "reasoning", modified_messages[0]["content"]
+                )  # From ResponseFormat schema
+                self.assertIn(
+                    "sql", modified_messages[0]["content"]
+                )  # From ResponseFormat schema
+
                 # Test temperature handling - deepseek-reasoner shouldn't have temperature
                 if model == "deepseek-reasoner":
                     self.assertNotIn("temperature", params)
                 else:
                     self.assertIn("temperature", params)
 
-    @pytest.mark.asyncio(loop_scope="session") 
+    @pytest.mark.asyncio(loop_scope="session")
     async def test_deepseek_structured_output_integration(self):
         """Test DeepSeek provider's structured output integration end-to-end for both models"""
         # This test would require an actual API key, so we'll just test the parameter building
         # In a real environment with DEEPSEEK_API_KEY, this would make an actual API call
-        
+
         messages = [{"role": "user", "content": "Generate SQL to count orders"}]
         deepseek_models = ["deepseek-chat", "deepseek-reasoner"]
-        
+
         for model in deepseek_models:
             with self.subTest(model=model):
                 # Test that we can call chat_async with DeepSeek and structured output
@@ -167,10 +171,10 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
                 try:
                     response = await chat_async(
                         provider=LLMProvider.DEEPSEEK,
-                        model=model, 
+                        model=model,
                         messages=messages,
                         response_format=ResponseFormat,
-                        max_retries=1
+                        max_retries=1,
                     )
                     # If we get here, the API call succeeded
                     self.assertIsInstance(response.content, ResponseFormat)
