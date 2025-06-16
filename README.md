@@ -26,6 +26,56 @@ The `defog.llm` module provides cross-provider LLM functionality with support fo
 
 **Note:** As of the latest version, all LLM functions are async-only. Synchronous methods have been removed to improve performance and consistency.
 
+### Multimodal Support (Images)
+
+The library now supports image inputs across all major providers (OpenAI, Anthropic, Gemini). You can include images in your messages using a standardized format:
+
+```python
+from defog.llm.utils import chat_async
+from defog.llm.llm_providers import LLMProvider
+
+# Using base64-encoded images
+messages = [
+    {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What's in this image?"},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{base64_image_data}"
+                }
+            }
+        ]
+    }
+]
+
+# Using image URLs
+messages = [
+    {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "Describe this image from the URL."},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": "https://example.com/image.jpg"
+                }
+            }
+        ]
+    }
+]
+
+# Works with all providers
+response = await chat_async(
+    provider=LLMProvider.ANTHROPIC,  # or OPENAI, GEMINI
+    model="claude-sonnet-4-20250514",
+    messages=messages
+)
+```
+
+The library automatically handles format conversion between providers, so you can use the same message format regardless of which LLM you're using.
+
 ### Core Chat Functions
 
 ```python
