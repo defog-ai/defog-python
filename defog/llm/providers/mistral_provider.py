@@ -269,7 +269,7 @@ class MistralProvider(BaseLLMProvider):
                 # Parse JSON response
                 content = json.loads(content)
                 # Convert to Pydantic model if needed
-                content = response_format.parse_obj(content)
+                content = response_format.model_validate(content)
             except Exception as e:
                 print(f"Warning: Failed to parse structured output: {e}")
                 # Keep raw content
