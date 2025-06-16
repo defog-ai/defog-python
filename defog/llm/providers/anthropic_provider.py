@@ -5,8 +5,8 @@ from typing import Dict, List, Any, Optional, Callable, Tuple
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
+from ..config import LLMConfig
 from ..cost import CostCalculator
-from ..tools import ToolHandler
 from ..utils_function_calling import get_function_specs, convert_tool_choice
 
 
@@ -15,7 +15,14 @@ class AnthropicProvider(BaseLLMProvider):
 
     def __init__(self, api_key: Optional[str] = None, config=None):
         super().__init__(api_key or os.getenv("ANTHROPIC_API_KEY"), config=config)
-        self.tool_handler = ToolHandler()
+    
+    @classmethod
+    def from_config(cls, config: LLMConfig):
+        """Create Anthropic provider from config."""
+        return cls(
+            api_key=config.get_api_key("anthropic"),
+            config=config
+        )
 
     def get_provider_name(self) -> str:
         return "anthropic"
@@ -256,11 +263,12 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                         # Execute regular tool calls (not MCP tools, which are already executed by the API)
                         results = []
                         if regular_tool_calls:
-                            results = await self.tool_handler.execute_tool_calls_batch(
+                            results, consecutive_exceptions = await self.execute_tool_calls_with_retry(
                                 regular_tool_calls,
                                 tool_dict,
-                                enable_parallel=self.config.enable_parallel_tool_calls,
-                                post_tool_function=post_tool_function,
+                                request_params["messages"],
+                                post_tool_function,
+                                consecutive_exceptions
                             )
 
                         # For MCP tools, extract results from mcp_tool_result blocks
@@ -392,31 +400,20 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                             # For other stop reasons, extract content and break
                             content = "\n".join([block.text for block in text_blocks])
                             break
+                    except ProviderError:
+                        # Re-raise provider errors from base class
+                        raise
                     except Exception as e:
+                        # For other exceptions, use the same retry logic
                         consecutive_exceptions += 1
-
-                        # Break the loop if consecutive exceptions exceed the threshold
-                        if (
-                            consecutive_exceptions
-                            >= self.tool_handler.max_consecutive_errors
-                        ):
+                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-
-                        print(
-                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
-                        )
-
-                        # Append error message to request_params and retry
-                        request_params["messages"].append(
-                            {
-                                "role": "assistant",
-                                "content": str(e),
-                            }
-                        )
+                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
+                        request_params["messages"].append({"role": "assistant", "content": str(e)})
 
                     # Make next call - use the same API endpoint (beta or regular) as the initial call
                     if mcp_servers and len(mcp_servers) > 0:
@@ -437,27 +434,8 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
 
         # Parse structured output if response_format is provided
         if response_format and not tools:
-            # Check if response_format is a Pydantic model
-            try:
-                # Extract the raw text response and clean it
-                content = content.strip()
-                # remove the ```json and ``` from the content
-                if "```json" in content:
-                    content = content[content.index("```json") + len("```json") :]
-                if "```" in content:
-                    content = content[: content.index("```")]
-                # strip the content again
-                content = content.strip()
-                content = json.loads(content)
-
-                # Parse the response into the specified Pydantic model
-                content = response_format.model_validate(content)
-            except Exception as e:
-                # If parsing fails, return the raw content
-                print(f"Warning: Failed to parse structured output: {e}")
-                print(content)
-                # We keep the raw content in this case
-                content = content
+            # Use base class method for structured response parsing
+            content = self.parse_structured_response(content, response_format)
 
         usage = response.usage
         total_input_tokens += usage.input_tokens + usage.cache_creation_input_tokens

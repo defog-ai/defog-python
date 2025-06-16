@@ -4,8 +4,8 @@ from typing import Dict, List, Any, Optional, Callable, Tuple
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
+from ..config import LLMConfig
 from ..cost import CostCalculator
-from ..tools import ToolHandler
 from ..utils_function_calling import get_function_specs, convert_tool_choice
 
 
@@ -14,7 +14,14 @@ class GeminiProvider(BaseLLMProvider):
 
     def __init__(self, api_key: Optional[str] = None, config=None):
         super().__init__(api_key or os.getenv("GEMINI_API_KEY"), config=config)
-        self.tool_handler = ToolHandler()
+    
+    @classmethod
+    def from_config(cls, config: LLMConfig):
+        """Create Gemini provider from config."""
+        return cls(
+            api_key=config.get_api_key("gemini"),
+            config=config
+        )
 
     def get_provider_name(self) -> str:
         return "gemini"
@@ -144,21 +151,19 @@ class GeminiProvider(BaseLLMProvider):
                                 }
                             )
 
-                        # Execute all tool calls (parallel or sequential based on config)
-                        results = await self.tool_handler.execute_tool_calls_batch(
+                        # Use base class method for tool execution with retry
+                        results, consecutive_exceptions = await self.execute_tool_calls_with_retry(
                             tool_calls_batch,
                             tool_dict,
-                            enable_parallel=self.config.enable_parallel_tool_calls,
-                            post_tool_function=post_tool_function,
+                            messages,
+                            post_tool_function,
+                            consecutive_exceptions
                         )
-
-                        # Reset consecutive_exceptions when tool calls are successful
-                        consecutive_exceptions = 0
 
                         # Try to get text if available
                         try:
                             text = response.text
-                        except Exception as e:
+                        except Exception:
                             text = None
 
                         # Append the tool call content to messages
@@ -207,25 +212,19 @@ class GeminiProvider(BaseLLMProvider):
                                 mode="AUTO"
                             )
                         )
+                    except ProviderError:
+                        # Re-raise provider errors from base class
+                        raise
                     except Exception as e:
+                        # For other exceptions, use the same retry logic
                         consecutive_exceptions += 1
-
-                        # Break the loop if consecutive exceptions exceed the threshold
-                        if (
-                            consecutive_exceptions
-                            >= self.tool_handler.max_consecutive_errors
-                        ):
+                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-
-                        print(
-                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
-                        )
-
-                        # Append error message to messages and retry
+                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
                         messages.append(
                             types.Content(
                                 role="model",
@@ -246,8 +245,8 @@ class GeminiProvider(BaseLLMProvider):
         else:
             # No tools provided
             if response_format:
-                # Attempt to parse with pydantic model
-                content = response_format.model_validate_json(response.text)
+                # Use base class method for structured response parsing
+                content = self.parse_structured_response(response.text, response_format)
             else:
                 content = response.text.strip() if response.text else None
 

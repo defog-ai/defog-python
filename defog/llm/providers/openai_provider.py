@@ -1,13 +1,13 @@
 import os
 import time
 import json
-import re
+from copy import deepcopy
 from typing import Dict, List, Any, Optional, Callable, Tuple
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
+from ..config import LLMConfig
 from ..cost import CostCalculator
-from ..tools import ToolHandler
 from ..utils_function_calling import get_function_specs, convert_tool_choice
 
 
@@ -22,13 +22,30 @@ class OpenAIProvider(BaseLLMProvider):
             base_url or "https://api.openai.com/v1/",
             config=config,
         )
-        self.tool_handler = ToolHandler()
+    
+    @classmethod
+    def from_config(cls, config: LLMConfig):
+        """Create OpenAI provider from config."""
+        return cls(
+            api_key=config.get_api_key("openai"),
+            base_url=config.get_base_url("openai") or "https://api.openai.com/v1/",
+            config=config
+        )
 
     def get_provider_name(self) -> str:
         return "openai"
 
+    def preprocess_messages(self, messages: List[Dict[str, str]], model: str) -> List[Dict[str, str]]:
+        """Preprocess messages for OpenAI-specific requirements."""
+        messages = deepcopy(messages)
+        if model not in ["gpt-4o", "gpt-4o-mini"]:
+            for msg in messages:
+                if msg.get("role") == "system":
+                    msg["role"] = "developer"
+        return messages
+    
     def supports_tools(self, model: str) -> bool:
-        True
+        return True
 
     def supports_response_format(self, model: str) -> bool:
         True
@@ -55,17 +72,8 @@ class OpenAIProvider(BaseLLMProvider):
         Build the parameter dictionary for OpenAI's chat.completions.create().
         Also handles special logic for o1-mini, o1-preview, deepseek-chat, etc.
         """
-        # Potentially move system message to user message for certain model families:
-        # if a message is called "system", rename it to "developer"
-        # create a new list of messages
-        import copy
-
-        messages = copy.deepcopy(messages)
-
-        for i in range(len(messages)):
-            if model not in ["gpt-4o", "gpt-4o-mini"]:
-                if messages[i].get("role") == "system":
-                    messages[i]["role"] = "developer"
+        # Preprocess messages using the base class method
+        messages = self.preprocess_messages(messages, model)
 
         request_params = {
             "messages": messages,
@@ -188,23 +196,11 @@ class OpenAIProvider(BaseLLMProvider):
         if tools and len(tools) > 0:
             consecutive_exceptions = 0
             while True:
-                # Check if prompt_tokens_details exists in the response
-                if (
-                    hasattr(response.usage, "prompt_tokens_details")
-                    and response.usage.prompt_tokens_details is not None
-                ):
-                    cached_tokens = (
-                        response.usage.prompt_tokens_details.cached_tokens or 0
-                    )
-                    total_input_tokens += (
-                        response.usage.prompt_tokens or 0 - cached_tokens
-                    )
-                    total_cached_input_tokens += cached_tokens
-                else:
-                    # If prompt_tokens_details doesn't exist, assume all tokens are uncached
-                    total_input_tokens += response.usage.prompt_tokens or 0
-
-                total_output_tokens += response.usage.completion_tokens
+                # Use base class method for token calculation
+                input_tokens, output_tokens, cached_tokens, _ = self.calculate_token_usage(response)
+                total_input_tokens += input_tokens
+                total_cached_input_tokens += cached_tokens
+                total_output_tokens += output_tokens
                 message = response.choices[0].message
                 if message.tool_calls:
                     try:
@@ -224,16 +220,14 @@ class OpenAIProvider(BaseLLMProvider):
                                 }
                             )
 
-                        # Execute all tool calls (parallel or sequential based on config)
-                        results = await self.tool_handler.execute_tool_calls_batch(
+                        # Use base class method for tool execution with retry
+                        results, consecutive_exceptions = await self.execute_tool_calls_with_retry(
                             tool_calls_batch,
                             tool_dict,
-                            enable_parallel=self.config.enable_parallel_tool_calls,
-                            post_tool_function=post_tool_function,
+                            request_params["messages"],
+                            post_tool_function,
+                            consecutive_exceptions
                         )
-
-                        # Reset consecutive_exceptions when tool calls are successful
-                        consecutive_exceptions = 0
 
                         # Append the tool calls as an assistant response
                         request_params["messages"].append(
@@ -277,31 +271,20 @@ class OpenAIProvider(BaseLLMProvider):
                         request_params["tool_choice"] = (
                             "auto" if request_params["tool_choice"] != "auto" else None
                         )
+                    except ProviderError:
+                        # Re-raise provider errors from base class
+                        raise
                     except Exception as e:
+                        # For other exceptions, use the same retry logic
                         consecutive_exceptions += 1
-
-                        # Break the loop if consecutive exceptions exceed the threshold
-                        if (
-                            consecutive_exceptions
-                            >= self.tool_handler.max_consecutive_errors
-                        ):
+                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-
-                        print(
-                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
-                        )
-
-                        # Append error message to request_params and retry
-                        request_params["messages"].append(
-                            {
-                                "role": "assistant",
-                                "content": str(e),
-                            }
-                        )
+                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
+                        request_params["messages"].append({"role": "assistant", "content": str(e)})
 
                     # Make next call
                     response = await client.chat.completions.create(**request_params)
@@ -313,42 +296,36 @@ class OpenAIProvider(BaseLLMProvider):
             # No tools provided
             if response_format:
                 try:
-                    content = response.choices[0].message.parsed
-                except Exception as e:
-                    content = response.choices[0].message.content
-                    # parse the content as json
-                    try:
-                        # clean up any markdown formatting
-                        content = re.sub(r"```(.*)```", r"\1", content)
-                        content = json.loads(content)
-                    except Exception as e:
-                        raise ProviderError(
-                            self.get_provider_name(), f"Error parsing content: {e}", e
+                    parsed_content = response.choices[0].message.parsed
+                    if parsed_content is not None:
+                        content = parsed_content
+                    else:
+                        # Use base class method for structured response parsing
+                        content = self.parse_structured_response(
+                            response.choices[0].message.content, 
+                            response_format
                         )
+                except Exception:
+                    # Use base class method for structured response parsing
+                    content = self.parse_structured_response(
+                        response.choices[0].message.content, 
+                        response_format
+                    )
             else:
                 content = response.choices[0].message.content
 
-        usage = response.usage
-        # Check if prompt_tokens_details exists in the response
-        if (
-            hasattr(usage, "prompt_tokens_details")
-            and usage.prompt_tokens_details is not None
-        ):
-            cached_tokens = usage.prompt_tokens_details.cached_tokens or 0
-            total_cached_input_tokens += cached_tokens
-            total_input_tokens += usage.prompt_tokens or 0 - cached_tokens
-        else:
-            # If prompt_tokens_details doesn't exist, assume all tokens are uncached
-            total_input_tokens += usage.prompt_tokens or 0
-
-        total_output_tokens += usage.completion_tokens
+        # Final token calculation
+        input_tokens, output_tokens, cached_tokens, output_tokens_details = self.calculate_token_usage(response)
+        total_input_tokens += input_tokens
+        total_cached_input_tokens += cached_tokens
+        total_output_tokens += output_tokens
         return (
             content,
             tool_outputs,
             total_input_tokens,
             total_cached_input_tokens,
             total_output_tokens,
-            usage.completion_tokens_details,
+            output_tokens_details,
         )
 
     async def execute_chat(

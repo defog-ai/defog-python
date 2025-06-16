@@ -5,9 +5,9 @@ from typing import Dict, List, Any, Optional, Callable, Tuple
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
+from ..config import LLMConfig
 from ..cost import CostCalculator
-from ..tools import ToolHandler
-from ..utils_function_calling import get_function_specs, convert_tool_choice
+from ..utils_function_calling import get_function_specs
 
 
 class MistralProvider(BaseLLMProvider):
@@ -15,7 +15,14 @@ class MistralProvider(BaseLLMProvider):
 
     def __init__(self, api_key: Optional[str] = None, config=None):
         super().__init__(api_key or os.getenv("MISTRAL_API_KEY"), config=config)
-        self.tool_handler = ToolHandler()
+    
+    @classmethod
+    def from_config(cls, config: LLMConfig):
+        """Create Mistral provider from config."""
+        return cls(
+            api_key=config.get_api_key("mistral"),
+            config=config
+        )
 
     def get_provider_name(self) -> str:
         return "mistral"
@@ -173,12 +180,13 @@ class MistralProvider(BaseLLMProvider):
                                 }
                             )
 
-                        # Execute tool calls
-                        results = await self.tool_handler.execute_tool_calls_batch(
+                        # Use base class method for tool execution with retry
+                        results, consecutive_exceptions = await self.execute_tool_calls_with_retry(
                             tool_calls,
                             tool_dict,
-                            enable_parallel=self.config.enable_parallel_tool_calls,
-                            post_tool_function=post_tool_function,
+                            request_params["messages"],
+                            post_tool_function,
+                            consecutive_exceptions
                         )
 
                         # Store tool outputs
@@ -231,29 +239,20 @@ class MistralProvider(BaseLLMProvider):
                         total_input_tokens += response.usage.prompt_tokens
                         total_output_tokens += response.usage.completion_tokens
 
-                        # Reset consecutive exceptions
-                        consecutive_exceptions = 0
-
+                    except ProviderError:
+                        # Re-raise provider errors from base class
+                        raise
                     except Exception as e:
+                        # For other exceptions, use the same retry logic
                         consecutive_exceptions += 1
-                        if (
-                            consecutive_exceptions
-                            >= self.tool_handler.max_consecutive_errors
-                        ):
+                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-
-                        # Add error message and retry
-                        request_params["messages"].append(
-                            {
-                                "role": "assistant",
-                                "content": str(e),
-                            }
-                        )
-
+                        print(f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}")
+                        request_params["messages"].append({"role": "assistant", "content": str(e)})
                         response = await client.chat.complete_async(**request_params)
                 else:
                     # No more tool calls, extract final content
@@ -265,14 +264,8 @@ class MistralProvider(BaseLLMProvider):
 
         # Parse structured output if response_format is provided
         if response_format and not tools:
-            try:
-                # Parse JSON response
-                content = json.loads(content)
-                # Convert to Pydantic model if needed
-                content = response_format.model_validate(content)
-            except Exception as e:
-                print(f"Warning: Failed to parse structured output: {e}")
-                # Keep raw content
+            # Use base class method for structured response parsing
+            content = self.parse_structured_response(content, response_format)
 
         return (
             content,
