@@ -16,11 +16,9 @@ MODELS_WITHOUT_TEMPERATURE = ["deepseek-reasoner"] + [model for model in O_MODEL
 MODELS_WITHOUT_RESPONSE_FORMAT = [
     "o1-mini",
     "o1-preview",
-    "deepseek-chat",
-    "deepseek-reasoner",
 ]
 
-MODELS_WITHOUT_TOOLS = ["o1-mini", "o1-preview", "deepseek-chat", "deepseek-reasoner"]
+MODELS_WITHOUT_TOOLS = ["o1-mini", "o1-preview", "deepseek-reasoner"]
 
 MODELS_WITH_PARALLEL_TOOL_CALLS = ["gpt-4o", "gpt-4o-mini"]
 
