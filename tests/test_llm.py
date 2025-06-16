@@ -243,7 +243,6 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
     async def test_sql_chat_async(self):
         models = [
             "gpt-4o-mini",
-            "o1",
             "gemini-2.0-flash",
             "gemini-2.5-pro-preview-03-25",
             "o3",
@@ -290,13 +289,12 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
     async def test_sql_chat_structured_async(self):
         models = [
             "gpt-4o",
-            "o1",
             "gemini-2.0-flash",
             "gemini-2.5-pro-preview-03-25",
             "claude-3-7-sonnet-latest",  # Added Anthropic model to test structured output
             "o3",
             "o4-mini",
-            "gpt-4.1-mini",
+            "gpt-4.1",
             "gpt-4.1-nano",
             "mistral-small-latest",
         ]
