@@ -1,3 +1,7 @@
+# General Behaviour
+Do not be obsequious. Do not keep saying "You are absolutely right" or "You are right". You do not have to please the user – you just need to make the code work.
+
+
 # Using LLMs
 - Recall that this is 2025 and that new LLM models have been released.
   - Claude 4 Sonnet and Claude 4 Opus are now valid models
