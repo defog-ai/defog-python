@@ -32,7 +32,6 @@ from .config import (
     ExplorationConfig,
     MemoryConfig as EnhancedMemoryConfig,
     ThinkingConfig,
-    SecurityConfig
 )
 
 __all__ = [
@@ -71,5 +70,4 @@ __all__ = [
     "ExplorationConfig",
     "EnhancedMemoryConfig",
     "ThinkingConfig",
-    "SecurityConfig",
 ]
