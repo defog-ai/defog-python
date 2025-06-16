@@ -19,11 +19,7 @@ from .utils_logging import orch_logger
 logger = logging.getLogger(__name__)
 
 
-class ExecutionMode(Enum):
-    """Execution mode for subagent tasks."""
-
-    SEQUENTIAL = "sequential"
-    PARALLEL = "parallel"
+from .config.enums import ExecutionMode
 
 
 @dataclass

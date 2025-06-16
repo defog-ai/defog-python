@@ -18,12 +18,8 @@ logger = logging.getLogger(__name__)
 # Use standard exceptions instead of custom hierarchy
 
 
-class ExplorationStrategy(Enum):
-    """Strategy for exploring alternative paths."""
-
-    SEQUENTIAL = "sequential"  # Try alternatives one by one
-    PARALLEL = "parallel"  # Try alternatives in parallel
-    ADAPTIVE = "adaptive"  # Decide based on task complexity
+# Import from config to avoid duplication
+from .config.enums import ExplorationStrategy
 
 
 @dataclass
