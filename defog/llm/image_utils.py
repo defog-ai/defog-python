@@ -59,6 +59,22 @@ def download_image_from_url(url: str) -> Tuple[bytes, str]:
     Raises:
         ProviderError: If download fails
     """
+    # Validate URL scheme and host
+    if not url.startswith(('http://', 'https://')):
+        raise ProviderError("download", "Only HTTP/HTTPS URLs are allowed")
+
+    # Block private/local addresses
+    import ipaddress
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+
+    try:
+        ip = ipaddress.ip_address(parsed.hostname)
+        if ip.is_private or ip.is_loopback:
+            raise ProviderError("download", "Private/local URLs not allowed")
+    except ValueError:
+        pass  # Hostname, not IP
+    
     try:
         with httpx.Client() as client:
             response = client.get(url, follow_redirects=True, timeout=30.0)
@@ -73,6 +89,11 @@ def download_image_from_url(url: str) -> Tuple[bytes, str]:
                 raise ProviderError(
                     "download", f"URL returned non-image content type: {mime_type}"
                 )
+            
+            MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB limit
+
+            if len(response.content) > MAX_IMAGE_SIZE:
+                raise ProviderError("download", f"Image too large: {len(response.content)} bytes")
 
             return response.content, mime_type
     except Exception as e:
