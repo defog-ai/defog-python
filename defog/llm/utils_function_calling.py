@@ -88,6 +88,17 @@ def get_function_specs(
             tool = types.Tool(function_declarations=[function_declaration])
 
             function_specs.append(tool)
+        elif model.startswith("mistral"):
+            function_specs.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": func.__name__,
+                        "description": docstring,
+                        "parameters": input_schema,
+                    },
+                }
+            )
         else:
             raise ValueError(f"Model does not support function calling: {model}")
 
@@ -119,6 +130,16 @@ def convert_tool_choice(tool_choice: str, tool_name_list: List[str], model: str)
             "custom": {"type": "tool", "name": tool_choice},
         },
         "gemini": {"prefixes": ["gemini"]},
+        "mistral": {
+            "prefixes": ["mistral"],
+            "choices": {
+                "auto": "auto",
+                "required": "any",
+                "any": "any",
+                "none": "none",
+            },
+            "custom": tool_choice,
+        },
     }
 
     for model_type, config in model_map.items():
