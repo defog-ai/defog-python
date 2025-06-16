@@ -10,6 +10,7 @@ from .providers import (
     GeminiProvider,
     TogetherProvider,
     DeepSeekProvider,
+    MistralProvider,
 )
 from .providers.base import LLMResponse
 from .exceptions import LLMError, ProviderError, ConfigurationError
@@ -63,6 +64,7 @@ def get_provider_instance(
         "gemini": GeminiProvider,
         "together": TogetherProvider,
         "deepseek": DeepSeekProvider,
+        "mistral": MistralProvider,
     }
 
     if provider_name not in provider_classes:
@@ -241,6 +243,8 @@ def map_model_to_provider(model: str) -> LLMProvider:
         return LLMProvider.OPENAI
     elif model.startswith("deepseek"):
         return LLMProvider.DEEPSEEK
+    elif model.startswith("mistral"):
+        return LLMProvider.MISTRAL
     elif (
         model.startswith("meta-llama")
         or model.startswith("mistralai")

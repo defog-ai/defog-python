@@ -42,6 +42,7 @@ class LLMConfig:
             "gemini": "GEMINI_API_KEY",
             "deepseek": "DEEPSEEK_API_KEY",
             "together": "TOGETHER_API_KEY",
+            "mistral": "MISTRAL_API_KEY",
         }
 
         for provider, env_var in key_mappings.items():

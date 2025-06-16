@@ -96,4 +96,33 @@ MODEL_COSTS = {
         "cached_input_cost_per1k": 0.00014,
         "output_cost_per1k": 0.00219,
     },
+    # Mistral models ($/M tokens converted to $/k tokens)
+    "mistral-medium": {
+        "input_cost_per1k": 0.0004,   # $0.4/M tokens
+        "output_cost_per1k": 0.002,    # $2/M tokens
+    },
+    "mistral-small": {
+        "input_cost_per1k": 0.0001,   # $0.1/M tokens
+        "output_cost_per1k": 0.0003,   # $0.3/M tokens
+    },
+    "magistral-medium": {
+        "input_cost_per1k": 0.002,    # $2/M tokens
+        "output_cost_per1k": 0.005,    # $5/M tokens
+    },
+    "codestral": {
+        "input_cost_per1k": 0.0003,   # $0.3/M tokens
+        "output_cost_per1k": 0.0009,   # $0.9/M tokens
+    },
+    "mistral-7b": {
+        "input_cost_per1k": 0.00025,  # $0.25/M tokens
+        "output_cost_per1k": 0.00025,  # $0.25/M tokens
+    },
+    "mixtral-8x7b": {
+        "input_cost_per1k": 0.0007,   # $0.7/M tokens
+        "output_cost_per1k": 0.0007,   # $0.7/M tokens
+    },
+    "mixtral-8x22b": {
+        "input_cost_per1k": 0.002,    # $2/M tokens
+        "output_cost_per1k": 0.006,    # $6/M tokens
+    },
 }
