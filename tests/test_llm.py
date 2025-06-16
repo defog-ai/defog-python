@@ -138,7 +138,11 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(provider.get_provider_name(), "mistral")
 
         # Test model capabilities - all Mistral models support tools and structured output
-        mistral_models = ["mistral-small-latest", "mistral-medium-latest", "mistral-large-latest"]
+        mistral_models = [
+            "mistral-small-latest",
+            "mistral-medium-latest",
+            "mistral-large-latest",
+        ]
         for model in mistral_models:
             self.assertTrue(provider.supports_tools(model))
             self.assertTrue(provider.supports_response_format(model))
