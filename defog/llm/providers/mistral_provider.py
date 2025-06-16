@@ -47,28 +47,29 @@ class MistralProvider(BaseLLMProvider):
         **kwargs,
     ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
         """Create the parameter dict for Mistral's chat.complete()."""
-        
+
         # Build base params
         params = {
             "model": model,
             "messages": messages,
             "temperature": temperature,
         }
-        
+
         # Add max_tokens if specified
         if max_completion_tokens is not None:
             params["max_tokens"] = max_completion_tokens
-            
+
         # Handle random seed
         if seed != 0:
             params["random_seed"] = seed
-        
+
         # Handle structured output
         if response_format:
             if isinstance(response_format, type) and hasattr(
                 response_format, "model_json_schema"
             ):
                 schema = response_format.model_json_schema()
+
                 # Mistral requires additionalProperties: False in all object schemas
                 def add_additional_properties_false(obj):
                     if isinstance(obj, dict):
@@ -79,35 +80,32 @@ class MistralProvider(BaseLLMProvider):
                     elif isinstance(obj, list):
                         for item in obj:
                             add_additional_properties_false(item)
-                
+
                 add_additional_properties_false(schema)
-                
+
                 # Mistral expects response_format with type and json_schema
                 params["response_format"] = {
                     "type": "json_schema",
                     "json_schema": {
                         "name": schema.get("title", "Response"),
                         "strict": True,
-                        "schema": schema
-                    }
+                        "schema": schema,
+                    },
                 }
-        
+
         # Handle tools
         if tools:
             function_specs = get_function_specs(tools, model)
             # Convert to Mistral format
             mistral_tools = []
             for spec in function_specs:
-                mistral_tools.append({
-                    "type": "function",
-                    "function": spec["function"]
-                })
+                mistral_tools.append({"type": "function", "function": spec["function"]})
             params["tools"] = mistral_tools
-            
+
             # Disable parallel tool calls to ensure sequential execution
             # This is important for dependent tool calls
             params["parallel_tool_calls"] = False
-            
+
             if tool_choice:
                 tool_names_list = [func.__name__ for func in tools]
                 # Mistral uses "any", "none", or specific function name
@@ -122,7 +120,7 @@ class MistralProvider(BaseLLMProvider):
             else:
                 # Set default tool choice to encourage tool usage
                 params["tool_choice"] = "auto"
-        
+
         return params, messages
 
     async def process_response(
@@ -142,35 +140,39 @@ class MistralProvider(BaseLLMProvider):
         Extract content (including any tool calls) and usage info from Mistral response.
         Handles chaining of tool calls and structured output parsing.
         """
-        
+
         # Check for max tokens
         if response.choices[0].finish_reason == "length":
             raise MaxTokensError("Max tokens reached")
-            
+
         tool_outputs = []
         total_input_tokens = response.usage.prompt_tokens
         total_output_tokens = response.usage.completion_tokens
-        
+
         # Handle tool calls if present
         if tools and response.choices[0].message.tool_calls:
             consecutive_exceptions = 0
-            
+
             while True:
                 message = response.choices[0].message
-                
+
                 if message.tool_calls:
                     try:
                         # Process tool calls
                         tool_calls = []
                         for tool_call in message.tool_calls:
-                            tool_calls.append({
-                                "id": tool_call.id,
-                                "function": {
-                                    "name": tool_call.function.name,
-                                    "arguments": json.loads(tool_call.function.arguments)
+                            tool_calls.append(
+                                {
+                                    "id": tool_call.id,
+                                    "function": {
+                                        "name": tool_call.function.name,
+                                        "arguments": json.loads(
+                                            tool_call.function.arguments
+                                        ),
+                                    },
                                 }
-                            })
-                        
+                            )
+
                         # Execute tool calls
                         results = await self.tool_handler.execute_tool_calls_batch(
                             tool_calls,
@@ -178,65 +180,80 @@ class MistralProvider(BaseLLMProvider):
                             enable_parallel=self.config.enable_parallel_tool_calls,
                             post_tool_function=post_tool_function,
                         )
-                        
+
                         # Store tool outputs
                         for tool_call, result in zip(message.tool_calls, results):
-                            tool_outputs.append({
-                                "tool_call_id": tool_call.id,
-                                "name": tool_call.function.name,
-                                "args": json.loads(tool_call.function.arguments),
-                                "result": result,
-                            })
-                        
-                        # Add assistant message with tool calls
-                        request_params["messages"].append({
-                            "role": "assistant",
-                            "content": message.content or "",
-                            "tool_calls": [
+                            tool_outputs.append(
                                 {
-                                    "id": tc.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": tc.function.name,
-                                        "arguments": tc.function.arguments
-                                    }
+                                    "tool_call_id": tool_call.id,
+                                    "name": tool_call.function.name,
+                                    "args": json.loads(tool_call.function.arguments),
+                                    "result": result,
                                 }
-                                for tc in message.tool_calls
-                            ]
-                        })
-                        
+                            )
+
+                        # Add assistant message with tool calls
+                        request_params["messages"].append(
+                            {
+                                "role": "assistant",
+                                "content": message.content or "",
+                                "tool_calls": [
+                                    {
+                                        "id": tc.id,
+                                        "type": "function",
+                                        "function": {
+                                            "name": tc.function.name,
+                                            "arguments": tc.function.arguments,
+                                        },
+                                    }
+                                    for tc in message.tool_calls
+                                ],
+                            }
+                        )
+
                         # Add tool results as tool messages
                         for tool_call, result in zip(message.tool_calls, results):
-                            request_params["messages"].append({
-                                "role": "tool",
-                                "name": tool_call.function.name,
-                                "content": json.dumps(result) if not isinstance(result, str) else result,
-                                "tool_call_id": tool_call.id
-                            })
-                        
+                            request_params["messages"].append(
+                                {
+                                    "role": "tool",
+                                    "name": tool_call.function.name,
+                                    "content": (
+                                        json.dumps(result)
+                                        if not isinstance(result, str)
+                                        else result
+                                    ),
+                                    "tool_call_id": tool_call.id,
+                                }
+                            )
+
                         # Make next call
                         response = await client.chat.complete_async(**request_params)
                         total_input_tokens += response.usage.prompt_tokens
                         total_output_tokens += response.usage.completion_tokens
-                        
+
                         # Reset consecutive exceptions
                         consecutive_exceptions = 0
-                        
+
                     except Exception as e:
                         consecutive_exceptions += 1
-                        if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
+                        if (
+                            consecutive_exceptions
+                            >= self.tool_handler.max_consecutive_errors
+                        ):
                             raise ProviderError(
                                 self.get_provider_name(),
                                 f"Consecutive errors during tool chaining: {e}",
                                 e,
                             )
-                        
+
                         # Add error message and retry
-                        request_params["messages"].append({
-                            "role": "assistant",
-                            "content": str(e),
-                        })
-                        
+                        request_params["messages"].append(
+                            {
+                                "role": "assistant",
+                                "content": str(e),
+                            }
+                        )
+
                         response = await client.chat.complete_async(**request_params)
                 else:
                     # No more tool calls, extract final content
@@ -245,7 +262,7 @@ class MistralProvider(BaseLLMProvider):
         else:
             # No tools, just extract content
             content = response.choices[0].message.content
-        
+
         # Parse structured output if response_format is provided
         if response_format and not tools:
             try:
@@ -256,7 +273,7 @@ class MistralProvider(BaseLLMProvider):
             except Exception as e:
                 print(f"Warning: Failed to parse structured output: {e}")
                 # Keep raw content
-        
+
         return (
             content,
             tool_outputs,
@@ -287,12 +304,12 @@ class MistralProvider(BaseLLMProvider):
     ) -> LLMResponse:
         """Execute a chat completion with Mistral."""
         from mistralai import Mistral
-        
+
         if post_tool_function:
             self.tool_handler.validate_post_tool_function(post_tool_function)
-        
+
         t = time.time()
-        
+
         client = Mistral(api_key=self.api_key)
         params, _ = self.build_params(
             messages=messages,
@@ -305,12 +322,12 @@ class MistralProvider(BaseLLMProvider):
             seed=seed,
             timeout=timeout,
         )
-        
+
         # Construct tool dict if needed
         tool_dict = {}
         if tools and len(tools) > 0 and "tools" in params:
             tool_dict = self.tool_handler.build_tool_dict(tools)
-        
+
         try:
             response = await client.chat.complete_async(**params)
             (
@@ -331,12 +348,12 @@ class MistralProvider(BaseLLMProvider):
             )
         except Exception as e:
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
-        
+
         # Calculate cost
         cost = CostCalculator.calculate_cost(
             model, input_toks, output_toks, cached_toks
         )
-        
+
         return LLMResponse(
             model=model,
             content=content,
