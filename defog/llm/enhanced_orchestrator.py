@@ -36,7 +36,7 @@ class EnhancedAgentOrchestrator(AgentOrchestrator):
         shared_context_path: str = ".agent_workspace",
         max_parallel_tasks: int = 5,
         global_timeout: float = 1200.0,
-        **kwargs  # Capture any other legacy parameters
+        **kwargs,  # Capture any other legacy parameters
     ):
         """
         Initialize enhanced orchestrator.
@@ -59,7 +59,7 @@ class EnhancedAgentOrchestrator(AgentOrchestrator):
             config.global_timeout = global_timeout
 
         self.config = config
-        
+
         super().__init__(
             main_agent=main_agent,
             max_parallel_tasks=config.max_parallel_tasks,
@@ -68,13 +68,13 @@ class EnhancedAgentOrchestrator(AgentOrchestrator):
             retry_delay=config.retry_delay,
             retry_backoff=config.retry_backoff,
             global_timeout=config.global_timeout,
-            **kwargs  # Pass through any other parameters
+            **kwargs,  # Pass through any other parameters
         )
 
         # Initialize shared context
         self.shared_context = SharedContextStore(
             base_path=config.shared_context.base_path,
-            max_file_size_mb=config.shared_context.max_file_size_mb
+            max_file_size_mb=config.shared_context.max_file_size_mb,
         )
 
         # Initialize exploration executor

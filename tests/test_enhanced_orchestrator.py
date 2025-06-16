@@ -355,9 +355,7 @@ class TestExplorationExecutor:
         """Test exploration strategy decision logic."""
 
         # Test with simple paths - should choose sequential
-        simple_task = SubAgentTask(
-            agent_id="test", task_description="Simple task"
-        )
+        simple_task = SubAgentTask(agent_id="test", task_description="Simple task")
         simple_task.task_id = "task1"  # Set task_id separately
         simple_paths = [
             ExplorationPath(
@@ -430,7 +428,7 @@ class TestEnhancedAgentOrchestrator:
                 return f"Mock result: {input}"
 
             from defog.llm.config import EnhancedOrchestratorConfig
-            
+
             config = EnhancedOrchestratorConfig(
                 enable_thinking_agents=True,
                 enable_exploration=True,
@@ -439,7 +437,7 @@ class TestEnhancedAgentOrchestrator:
                 global_timeout=60.0,
             )
             config.shared_context.base_path = tmpdir
-            
+
             orchestrator = EnhancedAgentOrchestrator(
                 main_agent=main_agent,
                 available_tools=[mock_tool],

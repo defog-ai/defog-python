@@ -31,7 +31,7 @@ def _serialize_for_json(obj: Any) -> Any:
         return {key: _serialize_for_json(value) for key, value in obj.items()}
     elif isinstance(obj, (list, tuple)):
         return [_serialize_for_json(item) for item in obj]
-    elif hasattr(obj, '__dict__'):
+    elif hasattr(obj, "__dict__"):
         # Handle objects with __dict__ (like dataclass instances)
         return _serialize_for_json(obj.__dict__)
     else:
@@ -64,14 +64,10 @@ class SharedContextStore:
     - Maintain agent namespacing while allowing cross-agent access
     """
 
-    def __init__(
-        self, 
-        base_path: str = ".agent_workspace",
-        max_file_size_mb: int = 10
-    ):
+    def __init__(self, base_path: str = ".agent_workspace", max_file_size_mb: int = 10):
         # Basic configuration
         self.max_file_size_bytes = max_file_size_mb * 1024 * 1024
-        
+
         # Create base path
         self.base_path = Path(base_path).resolve()
         self.base_path.mkdir(exist_ok=True)
@@ -92,20 +88,22 @@ class SharedContextStore:
 
         logger.info(f"SharedContextStore initialized at {self.base_path}")
 
-# Removed security validation methods - simplified implementation
+    # Removed security validation methods - simplified implementation
 
     def _validate_content_size(self, content: Any) -> None:
         """Validate content size."""
         # Estimate content size (rough approximation)
         if isinstance(content, str):
-            size = len(content.encode('utf-8'))
+            size = len(content.encode("utf-8"))
         elif isinstance(content, (dict, list)):
-            size = len(json.dumps(content, default=str).encode('utf-8'))
+            size = len(json.dumps(content, default=str).encode("utf-8"))
         else:
-            size = len(str(content).encode('utf-8'))
-        
+            size = len(str(content).encode("utf-8"))
+
         if size > self.max_file_size_bytes:
-            raise ValueError(f"Content size ({size} bytes) exceeds maximum allowed size ({self.max_file_size_bytes} bytes)")
+            raise ValueError(
+                f"Content size ({size} bytes) exceeds maximum allowed size ({self.max_file_size_bytes} bytes)"
+            )
 
     def _get_artifact_path(self, key: str) -> Path:
         """Get the file path for an artifact."""
@@ -184,11 +182,13 @@ class SharedContextStore:
             try:
                 # Ensure parent directory exists
                 artifact_path.parent.mkdir(parents=True, exist_ok=True)
-                
+
                 # Write file
-                async with aiofiles.open(artifact_path, "w", encoding='utf-8') as f:
-                    await f.write(json.dumps(artifact_dict, indent=2, ensure_ascii=False))
-                
+                async with aiofiles.open(artifact_path, "w", encoding="utf-8") as f:
+                    await f.write(
+                        json.dumps(artifact_dict, indent=2, ensure_ascii=False)
+                    )
+
             except Exception as e:
                 logger.error(f"Failed to write artifact '{key}': {e}")
                 raise ValueError(f"Failed to write artifact: {e}")
