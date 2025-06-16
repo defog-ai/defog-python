@@ -35,13 +35,59 @@ class OpenAIProvider(BaseLLMProvider):
     def get_provider_name(self) -> str:
         return "openai"
 
-    def preprocess_messages(self, messages: List[Dict[str, str]], model: str) -> List[Dict[str, str]]:
+    def convert_content_to_openai(self, content: Any) -> Any:
+        """Convert message content to OpenAI format."""
+        if isinstance(content, str):
+            return content
+        
+        # Convert list of content blocks to OpenAI format
+        openai_content = []
+        for block in content:
+            if block.get("type") == "text":
+                openai_content.append({
+                    "type": "text",
+                    "text": block.get("text", "")
+                })
+            elif block.get("type") in ["image", "image_url"]:
+                # Validate image content
+                self.validate_image_content(block)
+                
+                # Convert to OpenAI image format
+                if block.get("type") == "image_url":
+                    # Already in OpenAI format
+                    openai_content.append(block)
+                elif block.get("type") == "image":
+                    # Convert from Anthropic format
+                    source = block.get("source", {})
+                    if source.get("type") == "base64":
+                        media_type = source.get("media_type", "image/jpeg")
+                        data = source.get("data", "")
+                        url = f"data:{media_type};base64,{data}"
+                        openai_content.append({
+                            "type": "image_url",
+                            "image_url": {"url": url}
+                        })
+                    elif source.get("type") == "url":
+                        openai_content.append({
+                            "type": "image_url",
+                            "image_url": {"url": source.get("url", "")}
+                        })
+        
+        return openai_content
+    
+    def preprocess_messages(self, messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
         """Preprocess messages for OpenAI-specific requirements."""
         messages = deepcopy(messages)
-        if model not in ["gpt-4o", "gpt-4o-mini"]:
-            for msg in messages:
+        
+        # Convert multimodal content
+        for msg in messages:
+            msg["content"] = self.convert_content_to_openai(msg["content"])
+            
+            # Handle system/developer role conversion
+            if model not in ["gpt-4o", "gpt-4o-mini"]:
                 if msg.get("role") == "system":
                     msg["role"] = "developer"
+        
         return messages
     
     def supports_tools(self, model: str) -> bool:
@@ -52,7 +98,7 @@ class OpenAIProvider(BaseLLMProvider):
 
     def build_params(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         model: str,
         max_completion_tokens: Optional[int] = None,
         temperature: float = 0.0,
@@ -67,7 +113,7 @@ class OpenAIProvider(BaseLLMProvider):
         reasoning_effort: Optional[str] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
         **kwargs,
-    ) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Build the parameter dictionary for OpenAI's chat.completions.create().
         Also handles special logic for o1-mini, o1-preview, deepseek-chat, etc.
@@ -330,7 +376,7 @@ class OpenAIProvider(BaseLLMProvider):
 
     async def execute_chat(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         model: str,
         max_completion_tokens: Optional[int] = None,
         temperature: float = 0.0,
