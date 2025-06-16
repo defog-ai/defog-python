@@ -48,7 +48,7 @@ class OpenAIProvider(BaseLLMProvider):
         return True
 
     def supports_response_format(self, model: str) -> bool:
-        True
+        return True
 
     def build_params(
         self,
