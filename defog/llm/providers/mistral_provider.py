@@ -1,7 +1,8 @@
 import os
 import time
 import json
-from typing import Dict, List, Any, Optional, Callable, Tuple
+import base64
+from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
@@ -31,6 +32,52 @@ class MistralProvider(BaseLLMProvider):
     def supports_response_format(self, model: str) -> bool:
         # Mistral supports structured outputs via response_format
         return True
+    
+    def _get_media_type(self, img_data: str) -> str:
+        """Detect media type from base64 image data."""
+        try:
+            decoded = base64.b64decode(img_data[:100])
+            if decoded.startswith(b"\xff\xd8\xff"):
+                return "image/jpeg"
+            elif decoded.startswith(b"GIF8"):
+                return "image/gif"
+            elif decoded.startswith(b"RIFF"):
+                return "image/webp"
+            else:
+                return "image/png"  # Default
+        except Exception:
+            return "image/png"
+
+    def create_image_message(
+        self,
+        image_base64: Union[str, List[str]],
+        description: str = "Tool generated image",
+    ) -> Dict[str, Any]:
+        """
+        Create a message with image content in Mistral's format.
+
+        Args:
+            image_base64: Base64-encoded image data - can be single string or list of strings
+            description: Description of the image(s)
+
+        Returns:
+            Message dict in Mistral's format
+        """
+        content = [{"type": "text", "text": description}]
+
+        # Handle both single image and list of images
+        images = image_base64 if isinstance(image_base64, list) else [image_base64]
+
+        for img_data in images:
+            media_type = self._get_media_type(img_data)
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": f"data:{media_type};base64,{img_data}",
+                }
+            )
+
+        return {"role": "user", "content": content}
 
     def build_params(
         self,

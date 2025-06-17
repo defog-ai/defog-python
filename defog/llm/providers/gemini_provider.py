@@ -311,7 +311,6 @@ class GeminiProvider(BaseLLMProvider):
 
                             # Add images to the same message if present
                             if tool_data.image_data:
-                                print("HAS IMAGE DATAAAAA")
                                 # Use the create_image_message method to get properly formatted parts
                                 image_message = self.create_image_message(
                                     image_base64=tool_data.image_data,

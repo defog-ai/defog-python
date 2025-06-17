@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict, List, Any, Optional, Callable, Tuple
+from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
@@ -29,6 +29,26 @@ class TogetherProvider(BaseLLMProvider):
 
     def supports_response_format(self, model: str) -> bool:
         return False  # Currently Together models don't support structured output in our implementation
+    
+    def create_image_message(
+        self,
+        image_base64: Union[str, List[str]],
+        description: str = "Tool generated image",
+    ) -> Dict[str, Any]:
+        """
+        Create a message with image content.
+        Note: Together AI's image support depends on the specific model being used.
+        This is a basic implementation that returns text only.
+
+        Args:
+            image_base64: Base64-encoded image data - can be single string or list of strings
+            description: Description of the image(s)
+
+        Returns:
+            Message dict with text description only
+        """
+        # Together AI's image support varies by model - for now return text only
+        return {"role": "user", "content": description}
 
     def build_params(
         self,

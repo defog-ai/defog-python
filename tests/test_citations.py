@@ -127,11 +127,18 @@ class TestCitations(unittest.IsolatedAsyncioTestCase):
         response_text = " ".join(
             [block.get("text", "") for block in response if block.get("type") == "text"]
         ).lower()
+        
+        # The model is now better at following instructions to look only at provided documents
+        # It should indicate that the information is not available in the documents
         self.assertTrue(
             "don't know" in response_text
-            or "not" in response_text
-            or "no information" in response_text,
-            "Response should indicate lack of information about Mars capital",
+            or "not available" in response_text
+            or "no information" in response_text
+            or "cannot" in response_text
+            or "unable" in response_text
+            or "doesn't" in response_text
+            or "does not" in response_text,
+            f"Response should indicate lack of information about Mars capital. Got: {response_text}",
         )
 
     def test_unsupported_provider(self):

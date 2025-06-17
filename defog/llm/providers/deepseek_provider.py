@@ -1,8 +1,9 @@
 import os
 import time
 import json
+import base64
 from copy import deepcopy
-from typing import Dict, List, Any, Optional, Callable, Tuple
+from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
@@ -42,6 +43,41 @@ class DeepSeekProvider(BaseLLMProvider):
     def supports_response_format(self, model: str) -> bool:
         # Both models support JSON response format
         return True
+    
+    def _get_media_type(self, img_data: str) -> str:
+        """Detect media type from base64 image data."""
+        try:
+            decoded = base64.b64decode(img_data[:100])
+            if decoded.startswith(b"\xff\xd8\xff"):
+                return "image/jpeg"
+            elif decoded.startswith(b"GIF8"):
+                return "image/gif"
+            elif decoded.startswith(b"RIFF"):
+                return "image/webp"
+            else:
+                return "image/png"  # Default
+        except Exception:
+            return "image/png"
+
+    def create_image_message(
+        self,
+        image_base64: Union[str, List[str]],
+        description: str = "Tool generated image",
+    ) -> Dict[str, Any]:
+        """
+        Create a message with image content. 
+        Note: DeepSeek's vision models (VL2) are not yet fully integrated into their API.
+        This is a placeholder implementation for future support.
+
+        Args:
+            image_base64: Base64-encoded image data - can be single string or list of strings
+            description: Description of the image(s)
+
+        Returns:
+            Message dict with text description only (images not yet supported)
+        """
+        # For now, just return a text message since DeepSeek API doesn't fully support images yet
+        return {"role": "user", "content": description + " [Image input not yet supported by DeepSeek API]"}
 
     def build_params(
         self,
