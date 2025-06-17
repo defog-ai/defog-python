@@ -82,6 +82,7 @@ examples/cricket_wc2015.duckdb
 # agent workspace
 .simple_enhanced_workspace
 .enhanced_agent_workspace
+.agent_workspace
 
 # ruff
 .ruff_cache/
