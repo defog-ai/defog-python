@@ -1,9 +1,11 @@
 import requests
 from defog.util import identify_categorical_columns
+from defog.local_storage import LocalStorage
 from io import StringIO
 import pandas as pd
 import json
 import asyncio
+import warnings
 from typing import List, Dict, Union, Optional
 from defog.schema_documenter import DocumentationConfig, document_schema_for_defog
 
@@ -24,11 +26,20 @@ def generate_postgres_schema(
     If tables is non-empty, we only generate the schema for the mentioned tables in the list.
     If schemas is non-empty, we only generate the schema for the mentioned schemas in the list.
     If return_tables_only is True, we return only the table names as a list.
-    If upload is True, we send the schema to the defog servers and generate a CSV.
+    If upload is True, we save the schema to local storage and return the file path.
     If upload is False, we return the schema as a dict.
     If scan is True, we also scan the tables for categorical columns to enhance the column description.
     If self_document is True, we use LLMs to generate table and column descriptions and store them as database comments.
     """
+    # Issue deprecation warning for upload parameter
+    if upload:
+        warnings.warn(
+            "The 'upload' parameter is deprecated and will be removed in a future version. "
+            "Schema data is now saved locally by default.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    
     try:
         import psycopg2
     except ImportError:
@@ -219,31 +230,36 @@ def generate_postgres_schema(
 
     if upload:
         print(
-            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
+            "Saving the schema to local storage and generating column descriptions..."
         )
-        # send the schemas dict to the defog servers
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
-                "api_key": self.api_key,
-                "schemas": table_columns,
-            },
-        )
-        resp = r.json()
-        if "csv" in resp:
-            csv = resp["csv"]
-            if return_format == "csv":
-                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                return "defog_metadata.csv"
-            else:
-                return csv
+        # Convert to DataFrame format for CSV generation
+        flattened_data = []
+        for table_name, table_info in table_columns.items():
+            table_description = table_info.get("table_description", "")
+            for col in table_info.get("columns", []):
+                flattened_data.append({
+                    "table_name": table_name,
+                    "column_name": col.get("column_name", ""),
+                    "data_type": col.get("data_type", ""),
+                    "column_description": col.get("column_description", ""),
+                    "table_description": table_description
+                })
+        
+        df = pd.DataFrame(flattened_data)
+        
+        # Save using LocalStorage
+        storage = LocalStorage()
+        
+        if return_format == "csv":
+            # Save as CSV
+            csv_data = df.to_csv(index=False)
+            result = storage.save_schema(csv_data, "defog_metadata.csv", 
+                                       api_key=getattr(self, 'api_key', None),
+                                       db_type=getattr(self, 'db_type', 'postgres'))
+            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'postgres')) / "defog_metadata.csv")
         else:
-            print(f"We got an error!")
-            if "message" in resp:
-                print(f"Error message: {resp['message']}")
-            print(
-                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
-            )
+            # Return CSV string
+            return df.to_csv(index=False)
     else:
         return table_columns
 
@@ -341,8 +357,15 @@ def generate_redshift_schema(
     scan: bool = True,
     return_tables_only: bool = False,
 ) -> str:
-    # when upload is True, we send the schema to the defog servers and generate a CSV
-    # when its false, we return the schema as a dict
+    # Issue deprecation warning for upload parameter
+    if upload:
+        warnings.warn(
+            "The 'upload' parameter is deprecated and will be removed in a future version. "
+            "Schema data is now saved locally by default.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    
     try:
         import psycopg2
     except ImportError:
@@ -395,33 +418,35 @@ def generate_redshift_schema(
 
     if upload:
         print(
-            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
+            "Saving the schema to local storage and generating column descriptions..."
         )
-        # send the schemas dict to the defog servers
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
-                "api_key": self.api_key,
-                "schemas": schemas,
-                "foreign_keys": [],
-                "indexes": [],
-            },
-        )
-        resp = r.json()
-        if "csv" in resp:
-            csv = resp["csv"]
-            if return_format == "csv":
-                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                return "defog_metadata.csv"
-            else:
-                return csv
+        # Convert to DataFrame format for CSV generation
+        flattened_data = []
+        for table_name, columns in schemas.items():
+            for col in columns:
+                flattened_data.append({
+                    "table_name": table_name,
+                    "column_name": col.get("column_name", ""),
+                    "data_type": col.get("data_type", ""),
+                    "column_description": col.get("column_description", ""),
+                    "table_description": ""
+                })
+        
+        df = pd.DataFrame(flattened_data)
+        
+        # Save using LocalStorage
+        storage = LocalStorage()
+        
+        if return_format == "csv":
+            # Save as CSV
+            csv_data = df.to_csv(index=False)
+            result = storage.save_schema(csv_data, "defog_metadata.csv", 
+                                       api_key=getattr(self, 'api_key', None),
+                                       db_type=getattr(self, 'db_type', 'redshift'))
+            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'redshift')) / "defog_metadata.csv")
         else:
-            print(f"We got an error!")
-            if "message" in resp:
-                print(f"Error message: {resp['message']}")
-            print(
-                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
-            )
+            # Return CSV string
+            return df.to_csv(index=False)
     else:
         return schemas
 
@@ -434,6 +459,15 @@ def generate_mysql_schema(
     scan: bool = True,
     return_tables_only: bool = False,
 ) -> str:
+    # Issue deprecation warning for upload parameter
+    if upload:
+        warnings.warn(
+            "The 'upload' parameter is deprecated and will be removed in a future version. "
+            "Schema data is now saved locally by default.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    
     try:
         import mysql.connector
     except:
@@ -473,30 +507,36 @@ def generate_mysql_schema(
     conn.close()
 
     if upload:
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
-                "api_key": self.api_key,
-                "schemas": schemas,
-                "foreign_keys": [],
-                "indexes": [],
-            },
+        print(
+            "Saving the schema to local storage and generating column descriptions..."
         )
-        resp = r.json()
-        if "csv" in resp:
-            csv = resp["csv"]
-            if return_format == "csv":
-                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                return "defog_metadata.csv"
-            else:
-                return csv
+        # Convert to DataFrame format for CSV generation
+        flattened_data = []
+        for table_name, columns in schemas.items():
+            for col in columns:
+                flattened_data.append({
+                    "table_name": table_name,
+                    "column_name": col.get("column_name", ""),
+                    "data_type": col.get("data_type", ""),
+                    "column_description": col.get("column_description", ""),
+                    "table_description": ""
+                })
+        
+        df = pd.DataFrame(flattened_data)
+        
+        # Save using LocalStorage
+        storage = LocalStorage()
+        
+        if return_format == "csv":
+            # Save as CSV
+            csv_data = df.to_csv(index=False)
+            result = storage.save_schema(csv_data, "defog_metadata.csv", 
+                                       api_key=getattr(self, 'api_key', None),
+                                       db_type=getattr(self, 'db_type', 'mysql'))
+            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'mysql')) / "defog_metadata.csv")
         else:
-            print(f"We got an error!")
-            if "message" in resp:
-                print(f"Error message: {resp['message']}")
-            print(
-                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
-            )
+            # Return CSV string
+            return df.to_csv(index=False)
     else:
         return schemas
 
@@ -509,6 +549,15 @@ def generate_databricks_schema(
     scan: bool = True,
     return_tables_only: bool = False,
 ) -> str:
+    # Issue deprecation warning for upload parameter
+    if upload:
+        warnings.warn(
+            "The 'upload' parameter is deprecated and will be removed in a future version. "
+            "Schema data is now saved locally by default.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    
     try:
         from databricks import sql
     except:
@@ -547,30 +596,36 @@ def generate_databricks_schema(
     conn.close()
 
     if upload:
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
-                "api_key": self.api_key,
-                "schemas": schemas,
-                "foreign_keys": [],
-                "indexes": [],
-            },
+        print(
+            "Saving the schema to local storage and generating column descriptions..."
         )
-        resp = r.json()
-        if "csv" in resp:
-            csv = resp["csv"]
-            if return_format == "csv":
-                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                return "defog_metadata.csv"
-            else:
-                return csv
+        # Convert to DataFrame format for CSV generation
+        flattened_data = []
+        for table_name, columns in schemas.items():
+            for col in columns:
+                flattened_data.append({
+                    "table_name": table_name,
+                    "column_name": col.get("column_name", ""),
+                    "data_type": col.get("data_type", ""),
+                    "column_description": col.get("column_description", ""),
+                    "table_description": ""
+                })
+        
+        df = pd.DataFrame(flattened_data)
+        
+        # Save using LocalStorage
+        storage = LocalStorage()
+        
+        if return_format == "csv":
+            # Save as CSV
+            csv_data = df.to_csv(index=False)
+            result = storage.save_schema(csv_data, "defog_metadata.csv", 
+                                       api_key=getattr(self, 'api_key', None),
+                                       db_type=getattr(self, 'db_type', 'databricks'))
+            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'databricks')) / "defog_metadata.csv")
         else:
-            print(f"We got an error!")
-            if "message" in resp:
-                print(f"Error message: {resp['message']}")
-            print(
-                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
-            )
+            # Return CSV string
+            return df.to_csv(index=False)
     else:
         return schemas
 
@@ -583,6 +638,15 @@ def generate_snowflake_schema(
     scan: bool = True,
     return_tables_only: bool = False,
 ) -> str:
+    # Issue deprecation warning for upload parameter
+    if upload:
+        warnings.warn(
+            "The 'upload' parameter is deprecated and will be removed in a future version. "
+            "Schema data is now saved locally by default.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    
     try:
         import snowflake.connector
     except:
@@ -638,32 +702,35 @@ def generate_snowflake_schema(
 
     if upload:
         print(
-            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
+            "Saving the schema to local storage and generating column descriptions..."
         )
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
-                "api_key": self.api_key,
-                "schemas": schemas,
-                "foreign_keys": [],
-                "indexes": [],
-            },
-        )
-        resp = r.json()
-        if "csv" in resp:
-            csv = resp["csv"]
-            if return_format == "csv":
-                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                return "defog_metadata.csv"
-            else:
-                return csv
+        # Convert to DataFrame format for CSV generation
+        flattened_data = []
+        for table_name, columns in schemas.items():
+            for col in columns:
+                flattened_data.append({
+                    "table_name": table_name,
+                    "column_name": col.get("column_name", ""),
+                    "data_type": col.get("data_type", ""),
+                    "column_description": col.get("column_description", ""),
+                    "table_description": ""
+                })
+        
+        df = pd.DataFrame(flattened_data)
+        
+        # Save using LocalStorage
+        storage = LocalStorage()
+        
+        if return_format == "csv":
+            # Save as CSV
+            csv_data = df.to_csv(index=False)
+            result = storage.save_schema(csv_data, "defog_metadata.csv", 
+                                       api_key=getattr(self, 'api_key', None),
+                                       db_type=getattr(self, 'db_type', 'snowflake'))
+            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'snowflake')) / "defog_metadata.csv")
         else:
-            print(f"We got an error!")
-            if "message" in resp:
-                print(f"Error message: {resp['message']}")
-            print(
-                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
-            )
+            # Return CSV string
+            return df.to_csv(index=False)
     else:
         return schemas
 
@@ -676,6 +743,15 @@ def generate_bigquery_schema(
     scan: bool = True,
     return_tables_only: bool = False,
 ) -> str:
+    # Issue deprecation warning for upload parameter
+    if upload:
+        warnings.warn(
+            "The 'upload' parameter is deprecated and will be removed in a future version. "
+            "Schema data is now saved locally by default.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    
     try:
         from google.cloud import bigquery
     except:
@@ -711,32 +787,35 @@ def generate_bigquery_schema(
 
     if upload:
         print(
-            "Sending the schema to Defog servers and generating column descriptions. This might take up to 2 minutes..."
+            "Saving the schema to local storage..."
         )
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
-                "api_key": self.api_key,
-                "schemas": schemas,
-                "foreign_keys": [],
-                "indexes": [],
-            },
-        )
-        resp = r.json()
-        if "csv" in resp:
-            csv = resp["csv"]
-            if return_format == "csv":
-                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                return "defog_metadata.csv"
-            else:
-                return csv
+        # Convert to DataFrame format for CSV generation
+        flattened_data = []
+        for table_name, columns in schemas.items():
+            for col in columns:
+                flattened_data.append({
+                    "table_name": table_name,
+                    "column_name": col.get("column_name", ""),
+                    "data_type": col.get("data_type", ""),
+                    "column_description": col.get("column_description", ""),
+                    "table_description": ""
+                })
+        
+        df = pd.DataFrame(flattened_data)
+        
+        # Save using LocalStorage
+        storage = LocalStorage()
+        
+        if return_format == "csv":
+            # Save as CSV
+            csv_data = df.to_csv(index=False)
+            result = storage.save_schema(csv_data, "defog_metadata.csv", 
+                                       api_key=getattr(self, 'api_key', None),
+                                       db_type=getattr(self, 'db_type', 'bigquery'))
+            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'bigquery')) / "defog_metadata.csv")
         else:
-            print(f"We got an error!")
-            if "message" in resp:
-                print(f"Error message: {resp['message']}")
-            print(
-                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
-            )
+            # Return CSV string
+            return df.to_csv(index=False)
     else:
         return schemas
 
@@ -748,6 +827,15 @@ def generate_sqlserver_schema(
     return_format: str = "csv",
     return_tables_only: bool = False,
 ) -> str:
+    # Issue deprecation warning for upload parameter
+    if upload:
+        warnings.warn(
+            "The 'upload' parameter is deprecated and will be removed in a future version. "
+            "Schema data is now saved locally by default.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    
     try:
         import pyodbc
     except:
@@ -833,32 +921,35 @@ def generate_sqlserver_schema(
     conn.close()
     if upload:
         print(
-            "Sending the schema to Defog servers and generating column descriptions. This might take up to 2 minutes..."
+            "Saving the schema to local storage and generating column descriptions..."
         )
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
-                "api_key": self.api_key,
-                "schemas": schemas,
-                "foreign_keys": [],
-                "indexes": [],
-            },
-        )
-        resp = r.json()
-        if "csv" in resp:
-            csv = resp["csv"]
-            if return_format == "csv":
-                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                return "defog_metadata.csv"
-            else:
-                return csv
+        # Convert to DataFrame format for CSV generation
+        flattened_data = []
+        for table_name, columns in schemas.items():
+            for col in columns:
+                flattened_data.append({
+                    "table_name": table_name,
+                    "column_name": col.get("column_name", ""),
+                    "data_type": col.get("data_type", ""),
+                    "column_description": col.get("column_description", ""),
+                    "table_description": ""
+                })
+        
+        df = pd.DataFrame(flattened_data)
+        
+        # Save using LocalStorage
+        storage = LocalStorage()
+        
+        if return_format == "csv":
+            # Save as CSV
+            csv_data = df.to_csv(index=False)
+            result = storage.save_schema(csv_data, "defog_metadata.csv", 
+                                       api_key=getattr(self, 'api_key', None),
+                                       db_type=getattr(self, 'db_type', 'sqlserver'))
+            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'sqlserver')) / "defog_metadata.csv")
         else:
-            print(f"We got an error!")
-            if "message" in resp:
-                print(f"Error message: {resp['message']}")
-            print(
-                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
-            )
+            # Return CSV string
+            return df.to_csv(index=False)
     else:
         return schemas
 
@@ -883,6 +974,15 @@ def generate_sqlite_schema(
         defog = Defog(db_type="sqlite", db_creds={"database": ":memory:"})
         schema = defog.generate_db_schema([], upload=False)
     """
+    # Issue deprecation warning for upload parameter
+    if upload:
+        warnings.warn(
+            "The 'upload' parameter is deprecated and will be removed in a future version. "
+            "Schema data is now saved locally by default.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    
     try:
         import sqlite3
     except ImportError as e:
@@ -921,32 +1021,35 @@ def generate_sqlite_schema(
 
     if upload:
         print(
-            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
+            "Saving the schema to local storage and generating column descriptions..."
         )
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
-                "api_key": self.api_key,
-                "schemas": schemas,
-                "foreign_keys": [],
-                "indexes": [],
-            },
-        )
-        resp = r.json()
-        if "csv" in resp:
-            csv = resp["csv"]
-            if return_format == "csv":
-                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                return "defog_metadata.csv"
-            else:
-                return csv
+        # Convert to DataFrame format for CSV generation
+        flattened_data = []
+        for table_name, columns in schemas.items():
+            for col in columns:
+                flattened_data.append({
+                    "table_name": table_name,
+                    "column_name": col.get("column_name", ""),
+                    "data_type": col.get("data_type", ""),
+                    "column_description": col.get("column_description", ""),
+                    "table_description": ""
+                })
+        
+        df = pd.DataFrame(flattened_data)
+        
+        # Save using LocalStorage
+        storage = LocalStorage()
+        
+        if return_format == "csv":
+            # Save as CSV
+            csv_data = df.to_csv(index=False)
+            result = storage.save_schema(csv_data, "defog_metadata.csv", 
+                                       api_key=getattr(self, 'api_key', None),
+                                       db_type=getattr(self, 'db_type', 'sqlite'))
+            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'sqlite')) / "defog_metadata.csv")
         else:
-            print(f"We got an error!")
-            if "message" in resp:
-                print(f"Error message: {resp['message']}")
-            print(
-                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
-            )
+            # Return CSV string
+            return df.to_csv(index=False)
     else:
         return schemas
 
@@ -973,6 +1076,15 @@ def generate_duckdb_schema(
         defog = Defog(db_type="duckdb", db_creds={"database": ":memory:"})
         schema = defog.generate_db_schema([], upload=False)
     """
+    # Issue deprecation warning for upload parameter
+    if upload:
+        warnings.warn(
+            "The 'upload' parameter is deprecated and will be removed in a future version. "
+            "Schema data is now saved locally by default.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+    
     try:
         import duckdb
     except ImportError as e:
@@ -1131,32 +1243,36 @@ def generate_duckdb_schema(
 
     if upload:
         print(
-            "Sending the schema to the defog servers and generating column descriptions. This might take up to 2 minutes..."
+            "Saving the schema to local storage and generating column descriptions..."
         )
-        r = requests.post(
-            f"{self.base_url}/get_schema_csv",
-            json={
-                "api_key": self.api_key,
-                "schemas": schemas,
-                "foreign_keys": [],
-                "indexes": [],
-            },
-        )
-        resp = r.json()
-        if "csv" in resp:
-            csv = resp["csv"]
-            if return_format == "csv":
-                pd.read_csv(StringIO(csv)).to_csv("defog_metadata.csv", index=False)
-                return "defog_metadata.csv"
-            else:
-                return csv
+        # Convert to DataFrame format for CSV generation
+        flattened_data = []
+        for table_name, table_info in schemas.items():
+            table_description = table_info.get("table_description", "")
+            for col in table_info.get("columns", []):
+                flattened_data.append({
+                    "table_name": table_name,
+                    "column_name": col.get("column_name", ""),
+                    "data_type": col.get("data_type", ""),
+                    "column_description": col.get("column_description", ""),
+                    "table_description": table_description
+                })
+        
+        df = pd.DataFrame(flattened_data)
+        
+        # Save using LocalStorage
+        storage = LocalStorage()
+        
+        if return_format == "csv":
+            # Save as CSV
+            csv_data = df.to_csv(index=False)
+            result = storage.save_schema(csv_data, "defog_metadata.csv", 
+                                       api_key=getattr(self, 'api_key', None),
+                                       db_type=getattr(self, 'db_type', 'duckdb'))
+            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'duckdb')) / "defog_metadata.csv")
         else:
-            print(f"We got an error!")
-            if "message" in resp:
-                print(f"Error message: {resp['message']}")
-            print(
-                f"Please feel free to open a github issue at https://github.com/defog-ai/defog-python if this a generic library issue, or email support@defog.ai."
-            )
+            # Return CSV string
+            return df.to_csv(index=False)
     else:
         return schemas
 
