@@ -25,7 +25,7 @@ class ExplorationConfig:
     max_parallel_explorations: int = 3
     exploration_timeout: float = 300.0  # 5 minutes
     enable_learning: bool = True
-    default_strategy: ExplorationStrategy = ExplorationStrategy.ADAPTIVE
+    default_strategy: ExplorationStrategy = ExplorationStrategy.PARALLEL
 
 
 @dataclass
