@@ -1,13 +1,14 @@
 import json
 from typing import Dict, List, Optional
-from defog.util import make_async_post_request
 import pandas as pd
 import asyncio
+from defog.metadata_cache import get_global_cache
+from defog.local_storage import LocalStorage
 
 
 async def update_db_schema(self, path_to_csv, dev=False, temp=False):
     """
-    Update the DB schema via a CSV
+    Update the DB schema via a CSV - now saves to local storage
     """
     schema_df = pd.read_csv(path_to_csv).fillna("")
     # check columns
@@ -24,17 +25,19 @@ async def update_db_schema(self, path_to_csv, dev=False, temp=False):
             ["column_name", "data_type", "column_description"]
         ].to_dict(orient="records")
 
-    payload = {
-        "api_key": self.api_key,
-        "table_metadata": schema,
-        "db_type": self.db_type,
-        "dev": dev,
-        "temp": temp,
-    }
-
-    resp = await make_async_post_request(
-        url=f"{self.base_url}/update_metadata", payload=payload
+    # Save to local storage instead of API
+    storage = LocalStorage()
+    resp = await asyncio.to_thread(
+        storage.save_metadata,
+        metadata={"table_metadata": schema, "db_type": self.db_type, "dev": dev},
+        api_key=self.api_key,
+        db_type=self.db_type
     )
+
+    # Invalidate cache after updating schema
+    cache = get_global_cache()
+    cache.invalidate(self.api_key, self.db_type, dev)
+
     return resp
 
 
@@ -47,73 +50,90 @@ async def update_glossary(
     dev: bool = False,
 ):
     """
-    Updates the glossary on the defog servers.
+    Updates the glossary in local storage.
     :param glossary: The glossary to be used.
     """
-    data = {
-        "api_key": self.api_key,
-        "glossary": glossary,
-        "dev": dev,
-        "glossary_compulsory": glossary_compulsory,
-        "glossary_prunable_units": glossary_prunable_units,
-    }
-    if customized_glossary:
-        data["customized_glossary"] = customized_glossary
-    resp = await make_async_post_request(
-        url=f"{self.base_url}/update_glossary", payload=data
+    # Save glossary to local storage
+    storage = LocalStorage()
+    
+    # Save the main glossary
+    resp = await asyncio.to_thread(
+        storage.save_glossary,
+        glossary=glossary,
+        api_key=self.api_key,
+        db_type=self.db_type
     )
+    
+    # If there's customized glossary, save it as metadata
+    if customized_glossary or glossary_compulsory or glossary_prunable_units:
+        metadata = storage.get_metadata(self.api_key, self.db_type).get("metadata", {})
+        metadata["customized_glossary"] = customized_glossary or {}
+        metadata["glossary_compulsory"] = glossary_compulsory
+        metadata["glossary_prunable_units"] = glossary_prunable_units
+        await asyncio.to_thread(
+            storage.save_metadata,
+            metadata,
+            self.api_key,
+            self.db_type
+        )
+    
     return resp
 
 
 async def delete_glossary(self, user_type=None, dev=False):
     """
-    Deletes the glossary on the defog servers.
+    Deletes the glossary from local storage.
     """
-    data = {
-        "api_key": self.api_key,
-        "dev": dev,
-    }
-    if user_type:
-        data["key"] = user_type
-    r = await make_async_post_request(
-        url=f"{self.base_url}/delete_glossary",
-        payload=data,
-        return_response_object=True,
+    storage = LocalStorage()
+    resp = await asyncio.to_thread(
+        storage.delete_glossary,
+        api_key=self.api_key,
+        db_type=self.db_type
     )
-    if r.status_code == 200:
-        print("Glossary deleted successfully.")
-    else:
-        error_message = r.json().get("message", "")
-        print(f"Glossary deletion failed.\nError message: {error_message}")
+    print("Glossary deleted successfully.")
+    return resp
 
 
 async def get_glossary(self, mode="general", dev=False):
     """
-    Gets the glossary on the defog servers.
+    Gets the glossary from local storage.
     """
-    resp = await make_async_post_request(
-        url=f"{self.base_url}/get_glossary",
-        payload={"api_key": self.api_key, "dev": dev},
-    )
+    storage = LocalStorage()
+    
     if mode == "general":
-        return resp["glossary"]
+        return await asyncio.to_thread(
+            storage.get_glossary,
+            self.api_key,
+            self.db_type
+        )
     elif mode == "customized":
-        return resp["customized_glossary"]
+        metadata = await asyncio.to_thread(
+            storage.get_metadata,
+            self.api_key,
+            self.db_type
+        )
+        return metadata.get("metadata", {}).get("customized_glossary", {})
 
 
 async def get_metadata(self, format="markdown", export_path=None, dev=False):
     """
-    Gets the metadata on the defog servers.
+    Gets the metadata from local storage.
     """
-    resp = await make_async_post_request(
-        url=f"{self.base_url}/get_metadata",
-        payload={"api_key": self.api_key, "dev": dev},
+    storage = LocalStorage()
+    resp = await asyncio.to_thread(
+        storage.get_metadata,
+        self.api_key,
+        self.db_type
     )
+    metadata = resp.get("metadata", {})
+    table_metadata = metadata.get("table_metadata", {})
+    
     items = []
-    for table in resp["table_metadata"]:
-        for item in resp["table_metadata"][table]:
+    for table in table_metadata:
+        for item in table_metadata[table]:
             item["table_name"] = table
             items.append(item)
+    
     if format == "markdown":
         return pd.DataFrame(items)[
             ["table_name", "column_name", "data_type", "column_description"]
@@ -127,38 +147,23 @@ async def get_metadata(self, format="markdown", export_path=None, dev=False):
         print(f"Metadata exported to {export_path}")
         return True
     elif format == "json":
-        return resp["table_metadata"]
+        return table_metadata
 
 
 async def get_feedback(self, n_rows: int = 50, start_from: int = 0):
     """
-    Gets the feedback on the defog servers.
+    This method is deprecated as feedback is no longer tracked locally.
     """
-    resp = await make_async_post_request(
-        url=f"{self.base_url}/get_feedback", payload={"api_key": self.api_key}
-    )
-    df = pd.DataFrame(resp["data"], columns=resp["columns"])
-    df["created_at"] = df["created_at"].apply(lambda x: x[:10])
-    for col in ["query_generated", "feedback_text"]:
-        df[col] = df[col].fillna("")
-        df[col] = df[col].apply(lambda x: x.replace("\n", "\\n"))
-    return df.iloc[start_from:].head(n_rows).to_markdown(index=False)
+    print("Warning: get_feedback is deprecated. Feedback tracking has been removed.")
+    return pd.DataFrame().to_markdown(index=False)
 
 
 async def get_quota(self) -> Optional[Dict]:
     """
-    Get the quota usage for the API key.
+    This method is deprecated as quota management is no longer needed for local generation.
     """
-    api_key = self.api_key
-    r = await make_async_post_request(
-        url=f"{self.base_url}/check_api_usage",
-        payload={"api_key": api_key},
-        return_response_object=True,
-    )
-    # get status code and return None if not 200
-    if r.status_code != 200:
-        return None
-    return r.json()
+    print("Warning: get_quota is deprecated. Quota management is not needed for local generation.")
+    return {"quota": "unlimited", "usage": "n/a"}
 
 
 async def update_golden_queries(
@@ -169,7 +174,7 @@ async def update_golden_queries(
     dev: bool = False,
 ):
     """
-    Updates the golden queries on the defog servers.
+    Updates the golden queries in local storage.
     :param golden_queries: The golden queries to be used.
     :param golden_queries_path: The path to the golden queries CSV.
     :param scrub: Whether to scrub the golden queries.
@@ -182,20 +187,17 @@ async def update_golden_queries(
             pd.read_csv(golden_queries_path).fillna("").to_dict(orient="records")
         )
 
-    resp = await make_async_post_request(
-        url=f"{self.base_url}/update_golden_queries",
-        payload={
-            "api_key": self.api_key,
-            "golden_queries": golden_queries,
-            "scrub": scrub,
-            "dev": dev,
-        },
+    # Save to local storage
+    storage = LocalStorage()
+    resp = await asyncio.to_thread(
+        storage.save_golden_queries,
+        golden_queries=golden_queries,
+        api_key=self.api_key,
+        db_type=self.db_type
     )
+    
     print(
-        "Golden queries have been received by the system, and will be processed shortly..."
-    )
-    print(
-        "Once that is done, you should be able to see improved results for your questions."
+        "Golden queries have been saved locally and are now available for use."
     )
     return resp
 
@@ -208,45 +210,58 @@ async def delete_golden_queries(
     dev: bool = False,
 ):
     """
-    Updates the golden queries on the defog servers.
-    :param golden_queries: The golden queries to be used.
+    Deletes golden queries from local storage.
+    :param golden_queries: The golden queries to be deleted.
     :param golden_queries_path: The path to the golden queries CSV.
-    :param scrub: Whether to scrub the golden queries.
+    :param all: Whether to delete all golden queries.
     """
     if golden_queries is None and golden_queries_path is None and not all:
         raise ValueError(
             "Please provide either golden_queries or golden_queries_path, or set all=True."
         )
 
+    storage = LocalStorage()
+    
     if all:
-        resp = await make_async_post_request(
-            url=f"{self.base_url}/delete_golden_queries",
-            payload={"api_key": self.api_key, "all": True, "dev": dev},
+        # Delete all by removing the file
+        resp = await asyncio.to_thread(
+            storage.delete_golden_queries,
+            [],
+            self.api_key,
+            self.db_type
         )
         print("All golden queries have now been deleted.")
+        return {"status": "success", "message": "All golden queries deleted"}
     else:
         if golden_queries is None:
             golden_queries = (
                 pd.read_csv(golden_queries_path).fillna("").to_dict(orient="records")
             )
-        resp = await make_async_post_request(
-            url=f"{self.base_url}/update_golden_queries",
-            payload={"api_key": self.api_key, "golden_queries": golden_queries},
+        
+        # Extract questions to delete
+        questions_to_delete = [q["question"] for q in golden_queries]
+        resp = await asyncio.to_thread(
+            storage.delete_golden_queries,
+            golden_queries=questions_to_delete,
+            api_key=self.api_key,
+            db_type=self.db_type
         )
-    return resp
+        return resp
 
 
 async def get_golden_queries(
     self, format: str = "csv", export_path: str = None, dev: bool = False
 ):
     """
-    Gets the golden queries on the defog servers.
+    Gets the golden queries from local storage.
     """
-    resp = await make_async_post_request(
-        url=f"{self.base_url}/get_golden_queries",
-        payload={"api_key": self.api_key, "dev": dev},
+    storage = LocalStorage()
+    golden_queries = await asyncio.to_thread(
+        storage.get_golden_queries,
+        self.api_key,
+        self.db_type
     )
-    golden_queries = resp["golden_queries"]
+    
     if format == "csv":
         if export_path is None:
             export_path = "golden_queries.csv"
@@ -256,16 +271,16 @@ async def get_golden_queries(
     elif format == "json":
         if export_path is None:
             export_path = "golden_queries.json"
-        # Writing JSON asynchronously
-        async with open(export_path, "w") as f:
-            await f.write(json.dumps(resp, indent=4))
+        with open(export_path, "w") as f:
+            json.dump({"golden_queries": golden_queries}, f, indent=4)
         print(f"{len(golden_queries)} golden queries exported to {export_path}")
         return golden_queries
     else:
         raise ValueError("format must be either 'csv' or 'json'.")
 
 
-async def create_table_ddl(
+# The DDL and create_empty_tables functions are the same as sync version
+def create_table_ddl(
     table_name: str, columns: List[Dict[str, str]], add_exists=True
 ) -> str:
     """
@@ -295,7 +310,7 @@ async def create_table_ddl(
     return md_create
 
 
-async def create_ddl_from_metadata(
+def create_ddl_from_metadata(
     metadata: Dict[str, List[Dict[str, str]]], add_exists=True
 ) -> str:
     """
@@ -321,92 +336,104 @@ async def create_empty_tables(self, dev: bool = False):
     """
     Create empty tables based on metadata
     """
-    metadata = self.get_metadata(format="json", dev=dev)
+    metadata = await self.get_metadata(format="json", dev=dev)
     if self.db_type == "sqlserver":
         ddl = create_ddl_from_metadata(metadata, add_exists=False)
     else:
         ddl = create_ddl_from_metadata(metadata)
 
+    # The database operations would need to be made async, but for now we'll use asyncio.to_thread
     try:
         if self.db_type == "postgres" or self.db_type == "redshift":
-            import asyncpg
+            import psycopg2
 
-            conn = await asyncpg.connect(**self.db_creds)
-            await conn.execute(ddl)
-            await conn.close()
-            return True
+            def execute_postgres():
+                conn = psycopg2.connect(**self.db_creds)
+                cur = conn.cursor()
+                cur.execute(ddl)
+                conn.commit()
+                conn.close()
+                return True
+            
+            return await asyncio.to_thread(execute_postgres)
 
         elif self.db_type == "mysql":
-            import aiomysql
+            import mysql.connector
 
-            db_creds = self.db_creds.copy()
-            db_creds["db"] = db_creds["database"]
-            del db_creds["database"]
-            conn = await aiomysql.connect(**db_creds)
-            async with conn.cursor() as cur:
+            def execute_mysql():
+                conn = mysql.connector.connect(**self.db_creds)
+                cur = conn.cursor()
                 for statement in ddl.split(";"):
-                    await cur.execute(statement)
-            await conn.commit()
-            await conn.ensure_closed()
-            return True
+                    cur.execute(statement)
+                conn.commit()
+                conn.close()
+                return True
+            
+            return await asyncio.to_thread(execute_mysql)
 
         elif self.db_type == "databricks":
             from databricks import sql
 
-            conn = await asyncio.to_thread(sql.connect, **self.db_creds)
-            await asyncio.to_thread(conn.execute, ddl)
-            await asyncio.to_thread(conn.commit)
-            await asyncio.to_thread(conn.close)
-            return True
+            def execute_databricks():
+                con = sql.connect(**self.db_creds)
+                con.execute(ddl)
+                conn.commit()
+                conn.close()
+                return True
+            
+            return await asyncio.to_thread(execute_databricks)
 
         elif self.db_type == "snowflake":
             import snowflake.connector
 
-            conn = snowflake.connector.connect(
-                user=self.db_creds["user"],
-                password=self.db_creds["password"],
-                account=self.db_creds["account"],
-            )
-            cur = conn.cursor()
-            cur.execute(
-                f"USE WAREHOUSE {self.db_creds['warehouse']}"
-            )  # set the warehouse
-            for statement in ddl.split(";"):
-                cur.execute_async(statement)
-                query_id = cur.sfqid
-                while conn.is_still_running(conn.get_query_status(query_id)):
-                    await asyncio.sleep(1)
-            cur.close()
-            conn.close()
-            return True
+            def execute_snowflake():
+                conn = snowflake.connector.connect(
+                    user=self.db_creds["user"],
+                    password=self.db_creds["password"],
+                    account=self.db_creds["account"],
+                )
+                cur = conn.cursor()
+                cur.execute(
+                    f"USE WAREHOUSE {self.db_creds['warehouse']}"
+                )  # set the warehouse
+                for statement in ddl.split(";"):
+                    cur.execute(statement)
+                conn.commit()
+                conn.close()
+                return True
+            
+            return await asyncio.to_thread(execute_snowflake)
 
         elif self.db_type == "bigquery":
             from google.cloud import bigquery
 
-            client = await asyncio.to_thread(
-                bigquery.Client.from_service_account_json,
-                self.db_creds["json_key_path"],
-            )
-            for statement in ddl.split(";"):
-                await asyncio.to_thread(client.query, statement)
-            return True
+            def execute_bigquery():
+                client = bigquery.Client.from_service_account_json(
+                    self.db_creds["json_key_path"]
+                )
+                for statement in ddl.split(";"):
+                    client.query(statement)
+                return True
+            
+            return await asyncio.to_thread(execute_bigquery)
 
         elif self.db_type == "sqlserver":
-            import aioodbc
+            import pyodbc
 
-            if self.db_creds["database"] != "":
-                connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
-            else:
-                connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
-            conn = await aioodbc.connect(dsn=connection_string)
-            cur = await conn.cursor()
-            for statement in ddl.split(";"):
-                await cur.execute(statement)
-            await conn.commit()
-            await cur.close()
-            await conn.close()
-            return True
-
+            def execute_sqlserver():
+                if self.db_creds["database"] != "":
+                    connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};DATABASE={self.db_creds['database']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
+                else:
+                    connection_string = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={self.db_creds['server']};UID={self.db_creds['user']};PWD={self.db_creds['password']};TrustServerCertificate=yes;Connection Timeout=120;"
+                conn = pyodbc.connect(connection_string)
+                cur = conn.cursor()
+                for statement in ddl.split(";"):
+                    cur.execute(statement)
+                conn.commit()
+                conn.close()
+                return True
+            
+            return await asyncio.to_thread(execute_sqlserver)
         else:
             raise ValueError(f"Unsupported DB type: {self.db_type}")
     except Exception as e:
