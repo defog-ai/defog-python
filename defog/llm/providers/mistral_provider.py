@@ -2,6 +2,7 @@ import os
 import time
 import json
 import base64
+import logging
 from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse
@@ -9,6 +10,8 @@ from ..exceptions import ProviderError, MaxTokensError
 from ..config import LLMConfig
 from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs
+
+logger = logging.getLogger(__name__)
 
 
 class MistralProvider(BaseLLMProvider):
@@ -54,7 +57,7 @@ class MistralProvider(BaseLLMProvider):
         description: str = "Tool generated image",
     ) -> Dict[str, Any]:
         """
-        Create a message with image content in Mistral's format.
+        Create a message with image content in Mistral's format with validation.
 
         Args:
             image_base64: Base64-encoded image data - can be single string or list of strings
@@ -62,18 +65,33 @@ class MistralProvider(BaseLLMProvider):
 
         Returns:
             Message dict in Mistral's format
+            
+        Raises:
+            ValueError: If no valid images are provided or validation fails
         """
+        from ..utils_image_support import validate_and_process_image_data, safe_extract_media_type_and_data
+        
+        # Validate and process image data
+        valid_images, errors = validate_and_process_image_data(image_base64)
+        
+        if not valid_images:
+            error_summary = "; ".join(errors) if errors else "No valid images provided"
+            raise ValueError(f"Cannot create image message: {error_summary}")
+        
+        if errors:
+            # Log warnings for any invalid images but continue with valid ones
+            for error in errors:
+                logger.warning(f"Skipping invalid image: {error}")
+
         content = [{"type": "text", "text": description}]
 
-        # Handle both single image and list of images
-        images = image_base64 if isinstance(image_base64, list) else [image_base64]
-
-        for img_data in images:
-            media_type = self._get_media_type(img_data)
+        # Handle validated images
+        for img_data in valid_images:
+            media_type, clean_data = safe_extract_media_type_and_data(img_data)
             content.append(
                 {
                     "type": "image_url",
-                    "image_url": f"data:{media_type};base64,{img_data}",
+                    "image_url": f"data:{media_type};base64,{clean_data}",
                 }
             )
 

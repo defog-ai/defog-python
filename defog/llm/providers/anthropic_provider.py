@@ -3,6 +3,7 @@ import os
 import time
 import json
 import base64
+import logging
 from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse
@@ -12,6 +13,8 @@ from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs, convert_tool_choice
 from ..image_utils import convert_to_anthropic_format
 from ..utils_image_support import process_tool_results_with_images
+
+logger = logging.getLogger(__name__)
 
 
 class AnthropicProvider(BaseLLMProvider):
@@ -44,7 +47,7 @@ class AnthropicProvider(BaseLLMProvider):
         image_base64: Union[str, List[str]],
         description: str = "Tool generated image",
     ) -> Dict[str, Any]:
-        """Create an image message in Anthropic format.
+        """Create an image message in Anthropic format with validation.
         
         Args:
             image_base64: Base64 encoded image string or list of strings
@@ -52,11 +55,23 @@ class AnthropicProvider(BaseLLMProvider):
             
         Returns:
             Dict containing the formatted message with image(s)
+            
+        Raises:
+            ValueError: If no valid images are provided or validation fails
         """
-        from typing import Union
+        from ..utils_image_support import validate_and_process_image_data, safe_extract_media_type_and_data
         
-        if isinstance(image_base64, str):
-            image_base64 = [image_base64]
+        # Validate and process image data
+        valid_images, errors = validate_and_process_image_data(image_base64)
+        
+        if not valid_images:
+            error_summary = "; ".join(errors) if errors else "No valid images provided"
+            raise ValueError(f"Cannot create image message: {error_summary}")
+        
+        if errors:
+            # Log warnings for any invalid images but continue with valid ones
+            for error in errors:
+                logger.warning(f"Skipping invalid image: {error}")
             
         content = []
         
@@ -64,23 +79,16 @@ class AnthropicProvider(BaseLLMProvider):
         if description:
             content.append({"type": "text", "text": description})
             
-        # Add each image
-        for img_data in image_base64:
-            # Detect MIME type from base64 data if it has a data URI prefix
-            if img_data.startswith("data:"):
-                # Extract MIME type and clean base64 data
-                media_type = img_data.split(";")[0].split(":")[1]
-                img_data = img_data.split(",")[1]
-            else:
-                # Default to JPEG if no prefix
-                media_type = "image/jpeg"
+        # Add each validated image
+        for img_data in valid_images:
+            media_type, clean_data = safe_extract_media_type_and_data(img_data)
                 
             content.append({
                 "type": "image",
                 "source": {
                     "type": "base64",
                     "media_type": media_type,
-                    "data": img_data,
+                    "data": clean_data,
                 },
             })
             
@@ -451,18 +459,17 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                             "type": "text",
                                             "text": tool_data.tool_result_text
                                         })
-                                        # Add image content - handle both string and list
-                                        image_list = tool_data.image_data if isinstance(tool_data.image_data, list) else [tool_data.image_data]
-                                        for image_base64 in image_list:
-                                            # Detect MIME type from base64 data if it has a data URI prefix
-                                            if image_base64.startswith("data:"):
-                                                # Extract MIME type and clean base64 data
-                                                media_type = image_base64.split(";")[0].split(":")[1]
-                                                clean_image_data = image_base64.split(",")[1]
-                                            else:
-                                                # Default to JPEG if no prefix
-                                                media_type = "image/jpeg"
-                                                clean_image_data = image_base64
+                                        # Add image content - handle both string and list with validation
+                                        from ..utils_image_support import validate_and_process_image_data, safe_extract_media_type_and_data
+                                        
+                                        valid_images, errors = validate_and_process_image_data(tool_data.image_data)
+                                        
+                                        # Log any validation errors but continue with valid images
+                                        for error in errors:
+                                            logger.warning(f"Invalid image in tool result: {error}")
+                                        
+                                        for image_base64 in valid_images:
+                                            media_type, clean_image_data = safe_extract_media_type_and_data(image_base64)
                                                 
                                             tool_result["content"].append({
                                                 "type": "image",

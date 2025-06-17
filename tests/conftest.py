@@ -20,12 +20,20 @@ class ColoredFormatter(logging.Formatter):
         record.levelname = f"{log_color}{record.levelname}{self.RESET}"
         return super().format(record)
 
-# Configure logger for test skips
+# Configure logger for test skips with respect to pytest verbosity
 skip_logger = logging.getLogger('test_skip')
 skip_logger.setLevel(logging.WARNING)
 handler = logging.StreamHandler()
 handler.setFormatter(ColoredFormatter('%(levelname)s: %(message)s'))
 skip_logger.addHandler(handler)
+
+def _should_log_skips() -> bool:
+    """Check if we should log test skips based on pytest verbosity."""
+    import sys
+    
+    # Check for pytest verbosity flags
+    verbose_flags = ['-v', '--verbose', '-s', '--capture=no']
+    return any(flag in sys.argv for flag in verbose_flags)
 
 
 # Check which API keys are available
@@ -94,7 +102,7 @@ def get_available_models():
 def skip_if_no_api_key(provider: str):
     """Decorator to skip test if API key for provider is not available."""
     def decorator(test_func):
-        if not AVAILABLE_PROVIDERS.get(provider, False):
+        if not AVAILABLE_PROVIDERS.get(provider, False) and _should_log_skips():
             skip_logger.warning(f"🚫 Skipping {test_func.__name__} - No API key for {provider} provider")
         return pytest.mark.skipif(
             not AVAILABLE_PROVIDERS.get(provider, False),
@@ -106,7 +114,7 @@ def skip_if_no_api_key(provider: str):
 def skip_if_no_models():
     """Decorator to skip test if no models are available (no API keys)."""
     def decorator(test_func):
-        if not any(AVAILABLE_PROVIDERS.values()):
+        if not any(AVAILABLE_PROVIDERS.values()) and _should_log_skips():
             skip_logger.warning(f"🚫 Skipping {test_func.__name__} - No API keys available for any provider")
         return pytest.mark.skipif(
             not any(AVAILABLE_PROVIDERS.values()),

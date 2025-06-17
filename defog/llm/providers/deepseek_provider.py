@@ -2,6 +2,7 @@ import os
 import time
 import json
 import base64
+import logging
 from copy import deepcopy
 from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
@@ -10,6 +11,8 @@ from ..exceptions import ProviderError, MaxTokensError
 from ..config import LLMConfig
 from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs, convert_tool_choice
+
+logger = logging.getLogger(__name__)
 
 
 class DeepSeekProvider(BaseLLMProvider):
@@ -75,9 +78,24 @@ class DeepSeekProvider(BaseLLMProvider):
 
         Returns:
             Message dict with text description only (images not yet supported)
+            
+        Raises:
+            ValueError: If image validation fails (for consistency with other providers)
         """
+        from ..utils_image_support import validate_and_process_image_data
+        
+        # Validate image data even though we won't use it
+        valid_images, errors = validate_and_process_image_data(image_base64)
+        
+        if errors:
+            logger.warning(f"DeepSeek provider received invalid images: {'; '.join(errors)}")
+        
         # For now, just return a text message since DeepSeek API doesn't fully support images yet
-        return {"role": "user", "content": description + " [Image input not yet supported by DeepSeek API]"}
+        image_count = len(valid_images) if valid_images else 0
+        if image_count > 0:
+            return {"role": "user", "content": f"{description} [Note: {image_count} image(s) received but not displayed - DeepSeek API image support is limited]"}
+        else:
+            return {"role": "user", "content": description}
 
     def build_params(
         self,

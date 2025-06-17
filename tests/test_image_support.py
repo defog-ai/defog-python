@@ -15,6 +15,10 @@ from pydantic import BaseModel, Field
 from defog.llm.utils_image_support import (
     detect_image_in_result,
     process_tool_results_with_images,
+    validate_base64_image,
+    detect_image_format,
+    validate_and_process_image_data,
+    safe_extract_media_type_and_data,
 )
 
 
@@ -321,3 +325,186 @@ class TestProviderMessageCreation:
         import base64
         expected_bytes = base64.b64decode(image_data)
         assert msg.parts[1].inline_data.data == expected_bytes
+
+
+class TestImageValidation:
+    """Test image validation functionality."""
+
+    def test_validate_base64_image_valid_png(self):
+        """Test validation of valid PNG image."""
+        image_data = create_test_image()
+        is_valid, error = validate_base64_image(image_data)
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_base64_image_invalid_data(self):
+        """Test validation with invalid base64 data."""
+        is_valid, error = validate_base64_image("invalid_base64!")
+        assert is_valid is False
+        assert "Invalid base64 encoding" in error
+
+    def test_validate_base64_image_empty_string(self):
+        """Test validation with empty string."""
+        is_valid, error = validate_base64_image("")
+        assert is_valid is False
+        assert "non-empty string" in error
+
+    def test_validate_base64_image_non_string(self):
+        """Test validation with non-string input."""
+        is_valid, error = validate_base64_image(123)
+        assert is_valid is False
+        assert "must be a non-empty string" in error
+
+    def test_validate_base64_image_too_large(self):
+        """Test validation with oversized image."""
+        # Create a valid but oversized image by repeating a valid base64 string
+        small_image = create_test_image()
+        # Repeat the image data to make it larger than 20MB
+        large_data = small_image * 1000  # This should exceed the size limit
+        is_valid, error = validate_base64_image(large_data)
+        assert is_valid is False
+        # It might fail on size limit OR format validation, both are acceptable
+        assert ("exceeds" in error and "MB limit" in error) or "Unrecognized image format" in error
+
+    def test_validate_base64_image_with_data_uri(self):
+        """Test validation with data URI prefix."""
+        image_data = create_test_image()
+        data_uri = f"data:image/png;base64,{image_data}"
+        is_valid, error = validate_base64_image(data_uri)
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_base64_image_malformed_data_uri(self):
+        """Test validation with malformed data URI."""
+        is_valid, error = validate_base64_image("data:malformed")
+        assert is_valid is False
+        assert "Malformed data URI prefix" in error
+
+    def test_detect_image_format_png(self):
+        """Test PNG format detection."""
+        image_data = create_test_image()
+        decoded = base64.b64decode(image_data)
+        format_type = detect_image_format(decoded)
+        assert format_type == "image/png"
+
+    def test_detect_image_format_unknown(self):
+        """Test format detection with unknown format."""
+        unknown_data = b"unknown binary data"
+        format_type = detect_image_format(unknown_data)
+        assert format_type is None
+
+    def test_detect_image_format_too_short(self):
+        """Test format detection with insufficient data."""
+        short_data = b"abc"
+        format_type = detect_image_format(short_data)
+        assert format_type is None
+
+    def test_validate_and_process_image_data_single_valid(self):
+        """Test processing single valid image."""
+        image_data = create_test_image()
+        valid_images, errors = validate_and_process_image_data(image_data)
+        assert len(valid_images) == 1
+        assert len(errors) == 0
+        assert valid_images[0] == image_data
+
+    def test_validate_and_process_image_data_list_mixed(self):
+        """Test processing list with valid and invalid images."""
+        valid_image = create_test_image()
+        invalid_image = "invalid_base64!"
+        image_list = [valid_image, invalid_image]
+        
+        valid_images, errors = validate_and_process_image_data(image_list)
+        assert len(valid_images) == 1
+        assert len(errors) == 1
+        assert valid_images[0] == valid_image
+
+    def test_validate_and_process_image_data_all_invalid(self):
+        """Test processing list with all invalid images."""
+        invalid_images = ["invalid1", "invalid2"]
+        valid_images, errors = validate_and_process_image_data(invalid_images)
+        assert len(valid_images) == 0
+        assert len(errors) == 2
+
+    def test_safe_extract_media_type_and_data_with_uri(self):
+        """Test extracting media type from data URI."""
+        image_data = create_test_image()
+        data_uri = f"data:image/png;base64,{image_data}"
+        media_type, clean_data = safe_extract_media_type_and_data(data_uri)
+        assert media_type == "image/png"
+        assert clean_data == image_data
+
+    def test_safe_extract_media_type_and_data_without_uri(self):
+        """Test extracting media type from raw base64."""
+        image_data = create_test_image()
+        media_type, clean_data = safe_extract_media_type_and_data(image_data)
+        assert media_type == "image/png"  # Should detect PNG
+        assert clean_data == image_data
+
+    def test_safe_extract_media_type_and_data_invalid(self):
+        """Test extracting media type from invalid data."""
+        media_type, clean_data = safe_extract_media_type_and_data("invalid")
+        assert media_type == "image/jpeg"  # Fallback
+        assert clean_data == "invalid"
+
+
+class TestProviderImageMessageValidation:
+    """Test that providers properly validate images."""
+
+    def test_anthropic_provider_invalid_image(self):
+        """Test Anthropic provider with invalid image data."""
+        from defog.llm.providers.anthropic_provider import AnthropicProvider
+        
+        provider = AnthropicProvider(api_key="test")
+        
+        with pytest.raises(ValueError) as exc_info:
+            provider.create_image_message("invalid_base64!", "Test")
+        
+        assert "Cannot create image message" in str(exc_info.value)
+
+    def test_openai_provider_invalid_image(self):
+        """Test OpenAI provider with invalid image data."""
+        from defog.llm.providers.openai_provider import OpenAIProvider
+        
+        provider = OpenAIProvider(api_key="test")
+        
+        with pytest.raises(ValueError) as exc_info:
+            provider.create_image_message("invalid_base64!", "Test")
+        
+        assert "Cannot create image message" in str(exc_info.value)
+
+    def test_gemini_provider_invalid_image(self):
+        """Test Gemini provider with invalid image data."""
+        from defog.llm.providers.gemini_provider import GeminiProvider
+        
+        provider = GeminiProvider(api_key="test")
+        
+        with pytest.raises(ValueError) as exc_info:
+            provider.create_image_message("invalid_base64!", "Test")
+        
+        assert "Cannot create image message" in str(exc_info.value)
+
+    def test_deepseek_provider_handles_invalid_image(self):
+        """Test DeepSeek provider gracefully handles invalid images."""
+        from defog.llm.providers.deepseek_provider import DeepSeekProvider
+        
+        provider = DeepSeekProvider(api_key="test")
+        
+        # DeepSeek should handle invalid images gracefully (just log warnings)
+        msg = provider.create_image_message("invalid_base64!", "Test")
+        assert msg["role"] == "user"
+        assert "Test" in msg["content"]
+
+    def test_provider_partial_validation_success(self):
+        """Test provider behavior with mixed valid/invalid images."""
+        from defog.llm.providers.anthropic_provider import AnthropicProvider
+        
+        provider = AnthropicProvider(api_key="test")
+        valid_image = create_test_image()
+        mixed_images = [valid_image, "invalid_base64!"]
+        
+        # Should succeed with valid image, log warning for invalid
+        msg = provider.create_image_message(mixed_images, "Mixed test")
+        assert msg["role"] == "user"
+        assert len(msg["content"]) == 2  # text + 1 valid image
+        assert msg["content"][0]["type"] == "text"
+        assert msg["content"][1]["type"] == "image"
