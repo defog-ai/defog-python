@@ -99,6 +99,10 @@ class OpenAIProvider(BaseLLMProvider):
         """
         from ..utils_image_support import validate_and_process_image_data, safe_extract_media_type_and_data
         
+        # Validate image_detail parameter
+        if image_detail not in ["low", "high"]:
+            raise ValueError(f"Invalid image_detail value: {image_detail}. Must be 'low' or 'high'")
+        
         # Validate and process image data
         valid_images, errors = validate_and_process_image_data(image_base64)
         

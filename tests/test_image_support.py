@@ -510,6 +510,20 @@ class TestProviderImageMessageValidation:
         assert len(msg["content"]) == 2  # text + 1 valid image
         assert msg["content"][0]["type"] == "text"
         assert msg["content"][1]["type"] == "image"
+    
+    def test_openai_provider_invalid_image_detail(self):
+        """Test OpenAI provider with invalid image_detail parameter."""
+        from defog.llm.providers.openai_provider import OpenAIProvider
+        
+        provider = OpenAIProvider(api_key="test")
+        valid_image = create_test_image()
+        
+        # Test invalid image_detail value
+        with pytest.raises(ValueError) as exc_info:
+            provider.create_image_message(valid_image, "Test", image_detail="invalid")
+        
+        assert "Invalid image_detail value" in str(exc_info.value)
+        assert "Must be 'low' or 'high'" in str(exc_info.value)
 
 
 class TestImageValidationEdgeCases:

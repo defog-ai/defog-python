@@ -16,6 +16,10 @@ MAX_IMAGE_SIZE_MB = 20  # Maximum image size in MB
 MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 SUPPORTED_IMAGE_FORMATS = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 DEFAULT_TEXT_FIELDS = ["result", "text", "content", "output", "response"]
+
+# Text length limit to prevent misidentifying base64-encoded data as regular text.
+# Base64-encoded images typically exceed 10K characters even for small images.
+# This helps distinguish between actual text content and encoded binary data.
 TEXT_LENGTH_LIMIT = 10000  # Maximum length for text fields to avoid encoded data
 
 logger = logging.getLogger(__name__)
