@@ -215,7 +215,11 @@ class DuckDBConnectorTestCase(unittest.TestCase):
 
         # Check users table schema
         users_schema = schema["users"]
-        column_names = [col["column_name"] for col in users_schema]
+        # DuckDB schema format includes table_description and columns
+        self.assertIn("columns", users_schema)
+        columns = users_schema["columns"]
+
+        column_names = [col["column_name"] for col in columns]
         self.assertIn("id", column_names)
         self.assertIn("name", column_names)
         self.assertIn("email", column_names)
@@ -225,7 +229,7 @@ class DuckDBConnectorTestCase(unittest.TestCase):
         self.assertIn("created_at", column_names)
 
         # Check data types are properly detected
-        for col in users_schema:
+        for col in columns:
             if col["column_name"] == "id":
                 self.assertEqual(col["data_type"], "INTEGER")
             elif col["column_name"] == "name":

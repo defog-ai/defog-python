@@ -1,10 +1,8 @@
 import os
 from typing import List
+import warnings
 
 from prompt_toolkit import prompt
-import requests
-
-import aiohttp
 import asyncio
 
 
@@ -12,11 +10,11 @@ def parse_update(
     args_list: List[str], attributes_list: List[str], config_dict: dict
 ) -> dict:
     """
-    Parse the command line arguments from args_list for each attribute in
+    Parse the arguments from args_list for each attribute in
     attributes_list, and update the config dictionary in place if present.
 
     Args:
-        args_list (List[str]): The command line arguments.
+        args_list (List[str]): The arguments list.
         config_dict (dict): The given config dictionary.
 
     Returns:
@@ -39,8 +37,8 @@ def parse_update(
 
 def write_logs(msg: str) -> None:
     """
-    Write out log messages to ~/.defog/logs to avoid bloating cli output,
-    while still preserving more verbose error messages when debugging.
+    Write out log messages to ~/.defog/logs to preserve
+    more verbose error messages when debugging.
 
     Args:
         msg (str): The message to write.
@@ -223,225 +221,28 @@ def get_feedback(
     api_key: str, db_type: str, user_question: str, sql_generated: str, base_url: str
 ):
     """
-    Get feedback from the user on whether the query was good or bad, and why.
+    DEPRECATED: This function relied on API endpoints that are no longer available.
+    Feedback collection has been removed as part of the local-only refactor.
     """
-    feedback = prompt(
-        "Did Defog answer your question well? Just hit enter to skip (y/n):\n"
+    warnings.warn(
+        "get_feedback is deprecated and no longer functional. "
+        "Feedback collection has been removed.",
+        DeprecationWarning,
+        stacklevel=2,
     )
-    while feedback not in ["y", "n", ""]:
-        feedback = prompt("Please enter y or n:\n")
-    if feedback == "":
-        # user skipped feedback
-        return
-    # get explanation for negative feedback
-    if feedback == "n":
-        feedback_text = prompt(
-            "Could you tell us why this was a bad query? This will help us improve the model for you. Just hit enter if you want to leave this blank.\n"
-        )
-    else:
-        feedback_text = ""
-    try:
-        data = {
-            "api_key": api_key,
-            "feedback": "good" if feedback == "y" else "bad",
-            "db_type": db_type,
-            "question": user_question,
-            "query": sql_generated,
-        }
-        if feedback_text != "":
-            data["feedback_text"] = feedback_text
-        requests.post(
-            f"{base_url}/feedback",
-            json=data,
-            timeout=1,
-        )
-        if feedback == "y":
-            print("Thank you for the feedback!")
-        elif feedback == "n":
-            data = {
-                "api_key": api_key,
-                "question": user_question,
-                "sql_generated": sql_generated,
-                "error": feedback_text,
-            }
-            print(
-                "Thank you for the feedback, let us see how can we improve this for you...\n\nGenerating an automated assessment for improving the metadata and glossary. This can take up to 60 seconds. Please be patient...\n"
-            )
-            response = requests.post(
-                f"{base_url}/reflect_on_error",
-                json=data,
-            )
-
-            if response.status_code == 200:
-                response_dict = response.json()
-                feedback = response_dict.get("feedback")
-                if feedback:
-                    print(f"Here is our automated assessment:\n{feedback}\n")
-                # 1) validate and update glossary
-                instruction_set = response_dict.get("instruction_set")
-                if instruction_set:
-                    print(
-                        f"We came up with the following additions for improving your glossary:\n{instruction_set}"
-                    )
-                    add_to_glossary = prompt(
-                        "If you would like to add these suggestions to your glossary, please enter 'y'. If you would like to amend it, just type in the new glossary and hit enter. Otherwise, enter 'n'.\n"
-                    )
-                    if add_to_glossary == "y":
-                        md_resp = requests.post(
-                            f"{base_url}/get_metadata",
-                            json={"api_key": api_key},
-                        )
-                        md_resp_dict = md_resp.json()
-                        glossary_current = md_resp_dict.get("glossary", "")
-                        glossary_updated = glossary_current + "\n" + instruction_set
-                        requests.post(
-                            f"{base_url}/update_glossary",
-                            json={
-                                "api_key": api_key,
-                                "glossary": glossary_updated,
-                            },
-                        )
-                        print("Glossary updated successfully.\n")
-                    elif add_to_glossary != "n":
-                        md_resp = requests.post(
-                            f"{base_url}/get_metadata",
-                            json={"api_key": api_key},
-                        )
-                        md_resp_dict = md_resp.json()
-                        glossary_current = md_resp_dict.get("glossary", "")
-                        glossary_updated = glossary_current + "\n" + add_to_glossary
-                        requests.post(
-                            f"{base_url}/update_glossary",
-                            json={
-                                "api_key": api_key,
-                                "glossary": glossary_updated,
-                            },
-                        )
-                        print("Glossary updated successfully.\n")
-                    else:
-                        print("Glossary not updated.\n")
-
-                # 2) validate and update column descriptions in metadata
-                new_column_descriptions = response_dict.get("column_descriptions")
-                if new_column_descriptions:
-                    print(
-                        f"We came up with the following suggestions for improving your column descriptions:\n{new_column_descriptions}"
-                    )
-                    # get original metadata
-                    r = requests.post(
-                        f"{base_url}/get_metadata",
-                        json={"api_key": api_key},
-                    )
-                    resp = r.json()
-                    md = resp.get("table_metadata", {})
-                    # we will be editing md in place
-                    column_changed = False
-                    for new_column_description in new_column_descriptions:
-                        table_name = new_column_description.get("table_name")
-                        column_name = new_column_description.get("column_name")
-                        description = new_column_description.get("description")
-                        if table_name in md:
-                            for column in md[table_name]:
-                                if column.get("column_name") == column_name:
-                                    print(
-                                        f"\nCurrent description for {column_name}: {column.get('column_description')}"
-                                    )
-                                    print(
-                                        f"Suggested description for {column_name}: {description}"
-                                    )
-                                    replace = prompt(
-                                        "Would you like to replace this description with our suggestion? Please enter 'y' to replace, or your own description to amend. Otherwise, enter 'n' to skip.\n"
-                                    )
-                                    if replace == "y":
-                                        column["column_description"] = description
-                                        print("Updated description.")
-                                        column_changed = True
-                                        break
-                                    elif replace != "n":
-                                        column["column_description"] = replace
-                                        print("Updated description.")
-                                        column_changed = True
-                                        break
-                                    else:
-                                        print("Description not updated.")
-                                        break
-                    if column_changed:
-                        requests.post(
-                            f"{base_url}/update_metadata",
-                            json={
-                                "api_key": api_key,
-                                "table_metadata": new_column_description,
-                                "db_type": db_type,
-                            },
-                        )
-                        print("Metadata updated successfully.\n")
-                    else:
-                        print("No metadata changes to update.\n")
-                # 3) validate and update reference_queries
-                new_reference_queries = response_dict.get("reference_queries")
-                if (
-                    isinstance(new_reference_queries, list)
-                    and len(new_reference_queries) > 0
-                ):
-                    reference_queries_to_add = []
-                    print(
-                        f"We came up with the following suggestions for adding as your reference queries:"
-                    )
-                    for new_reference_query in new_reference_queries:
-                        question = new_reference_query.get("question")
-                        sql = new_reference_query.get("sql")
-                        print(f"Question: {question}\nSQL: {sql}")
-                        update_reference_queries = prompt(
-                            "Would you like to add this as one of your reference queries? Please hit 'y' to add, or anything else to skip to the next suggestion.\n"
-                        )
-                        if update_reference_queries == "y":
-                            reference_queries_to_add.append(new_reference_query)
-                    if len(reference_queries_to_add) > 0:
-                        r = requests.post(
-                            f"{base_url}/update_golden_queries",
-                            json={
-                                "api_key": api_key,
-                                "golden_queries": reference_queries_to_add,
-                                "scrub": True,
-                            },
-                        )
-                        if r.status_code == 200:
-                            print(
-                                f"{len(reference_queries_to_add)} reference queries added successfully."
-                            )
-                        else:
-                            print("Reference queries not updated.")
-                    else:
-                        print("No reference queries to update.")
-                    print()
-            else:
-                print("There was an error in getting suggestions. Our apologies!")
-
-    except Exception as e:
-        write_logs(f"Error in get_feedback:\n{e}")
-        pass
+    return
 
 
 async def make_async_post_request(
     url: str, payload: dict, timeout=300, return_response_object=False
 ):
     """
-    Helper function to make async POST requests and defaults to return the JSON response. Optionally allows returning the response object itself.
-
-    Args:
-        url (str): The URL to make the POST request to.
-        payload (dict): The payload to send with the POST request.
-        timeout (int): The timeout for the request.
-        return_response_object (bool): Whether to return the response object itself.
-
-    Returns:
-        dict: The JSON response from the POST request or the response object itself if return_response_object is True.
+    DEPRECATED: This function is no longer needed as API calls have been removed.
     """
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload, timeout=timeout) as response:
-                if return_response_object:
-                    return response
-                return await response.json()
-    except Exception as e:
-        return {"error": str(e)}
+    warnings.warn(
+        "make_async_post_request is deprecated and will be removed in a future version. "
+        "API calls have been replaced with local operations.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return {"error": "API calls are no longer supported"}

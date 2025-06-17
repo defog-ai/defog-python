@@ -34,14 +34,14 @@ def main():
         defog = Defog(
             db_type="postgres",
             db_creds=postgres_creds,
-            api_key="your_defog_api_key",  # Optional for local use
+            # api_key parameter is deprecated and no longer needed
         )
 
         # Generate schema with LLM documentation
         print("Generating schema with LLM-powered documentation...")
         schema = defog.generate_db_schema(
             tables=[],  # Empty list = all tables
-            upload=False,  # Don't upload to Defog servers for this example
+            # upload parameter is deprecated - schemas are now saved locally
             self_document=True,  # Enable LLM documentation
             documentation_config={
                 "provider": "anthropic",

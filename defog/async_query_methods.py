@@ -1,4 +1,3 @@
-from defog.util import make_async_post_request
 from defog.query import async_execute_query
 from datetime import datetime
 from defog.llm.sql_generator import generate_sql_query_local
@@ -28,117 +27,67 @@ async def get_query(
     prune_glossary_max_tokens: int = 1000,
     prune_glossary_num_cos_sim_units: int = 10,
     prune_glossary_bm25_units: int = 10,
-    use_llm_directly: bool = False,
+    use_llm_directly: bool = True,  # Deprecated parameter, always True now
     llm_provider: Optional[Union[LLMProvider, str]] = None,
     llm_model: Optional[str] = None,
     table_metadata: Optional[dict] = None,
     cache_metadata: bool = True,
 ):
     """
-    Asynchronously sends the query to the defog servers, and return the response.
+    Asynchronously generates SQL query using local LLM and returns the response.
     :param question: The question to be asked.
-    :param use_llm_directly: Use LLM directly for SQL generation instead of Defog API
-    :param llm_provider: LLM provider to use for direct generation
-    :param llm_model: Model name for direct generation
-    :param table_metadata: Database schema for direct generation
+    :param llm_provider: LLM provider to use for generation (default: Anthropic)
+    :param llm_model: Model name for generation (default: claude-sonnet-4-20250514)
+    :param table_metadata: Database schema for generation
     :param cache_metadata: Whether to cache metadata (default: True)
-    :return: The response from the defog server.
+    :return: The generated SQL query and metadata.
     """
-    # Use LLM directly if requested
-    if use_llm_directly:
+    # Always use local LLM generation
+    if table_metadata is None:
+        # Try to get from cache first
+        cache = get_global_cache()
+        table_metadata = cache.get(self.api_key, self.db_type, dev)
+
         if table_metadata is None:
-            # Try to get from cache first
-            cache = get_global_cache()
-            table_metadata = cache.get(self.api_key, self.db_type, dev)
+            # Not in cache, extract metadata directly from the database
+            try:
+                table_metadata = await extract_metadata_from_db_async(
+                    db_type=self.db_type,
+                    db_creds=self.db_creds,
+                    cache=cache if cache_metadata else None,
+                    api_key=self.api_key,
+                )
+            except Exception as e:
+                return {
+                    "ran_successfully": False,
+                    "error_message": f"Failed to extract database metadata: {str(e)}. Please provide table_metadata parameter or check database connection.",
+                }
 
-            if table_metadata is None:
-                # Not in cache, extract metadata directly from the database
-                try:
-                    table_metadata = await extract_metadata_from_db_async(
-                        db_type=self.db_type,
-                        db_creds=self.db_creds,
-                        cache=cache if cache_metadata else None,
-                        api_key=self.api_key,
-                    )
-                except Exception as e:
-                    return {
-                        "ran_successfully": False,
-                        "error_message": f"Failed to extract database metadata: {str(e)}. Please provide table_metadata parameter or check database connection.",
-                    }
+    # Set defaults for provider and model if not specified
+    if llm_provider is None:
+        llm_provider = LLMProvider.ANTHROPIC
+    if llm_model is None:
+        llm_model = "claude-sonnet-4-20250514"
 
-        # Set defaults for provider and model if not specified
-        if llm_provider is None:
-            llm_provider = LLMProvider.ANTHROPIC
-        if llm_model is None:
-            llm_model = "claude-sonnet-4-20250514"
+    t_start = datetime.now()
+    result = await generate_sql_query_local(
+        question=question,
+        table_metadata=table_metadata,
+        db_type=self.db_type,
+        provider=llm_provider,
+        model=llm_model,
+        glossary=glossary,
+        hard_filters=hard_filters,
+        previous_context=previous_context,
+        temperature=0.0,
+        config=getattr(self, "llm_config", None),
+    )
+    t_end = datetime.now()
 
-        return await generate_sql_query_local(
-            question=question,
-            table_metadata=table_metadata,
-            db_type=self.db_type,
-            provider=llm_provider,
-            model=llm_model,
-            glossary=glossary,
-            hard_filters=hard_filters,
-            previous_context=previous_context,
-            temperature=0.0,
-            config=getattr(self, "llm_config", None),
-        )
+    if profile:
+        result["time_taken"] = (t_end - t_start).total_seconds()
 
-    # Original API-based implementation
-    try:
-        data = {
-            "question": question,
-            "api_key": self.api_key,
-            "previous_context": previous_context,
-            "db_type": self.db_type if self.db_type != "databricks" else "postgres",
-            "glossary": glossary,
-            "hard_filters": hard_filters,
-            "dev": dev,
-            "temp": temp,
-            "ignore_cache": ignore_cache,
-            "model": model,
-            "use_golden_queries": use_golden_queries,
-            "subtable_pruning": subtable_pruning,
-            "glossary_pruning": glossary_pruning,
-            "prune_max_tokens": prune_max_tokens,
-            "prune_bm25_num_columns": prune_bm25_num_columns,
-            "prune_glossary_max_tokens": prune_glossary_max_tokens,
-            "prune_glossary_num_cos_sim_units": prune_glossary_num_cos_sim_units,
-            "prune_glossary_bm25_units": prune_glossary_bm25_units,
-        }
-
-        t_start = datetime.now()
-
-        resp = await make_async_post_request(
-            url=self.generate_query_url, payload=data, timeout=300
-        )
-
-        t_end = datetime.now()
-        time_taken = (t_end - t_start).total_seconds()
-        query_generated = resp.get("sql", resp.get("query_generated"))
-        ran_successfully = resp.get("ran_successfully")
-        error_message = resp.get("error_message")
-        query_db = self.db_type
-        resp = {
-            "query_generated": query_generated,
-            "ran_successfully": ran_successfully,
-            "error_message": error_message,
-            "query_db": query_db,
-            "previous_context": resp.get("previous_context"),
-            "reason_for_query": resp.get("reason_for_query"),
-        }
-        if profile:
-            resp["time_taken"] = time_taken
-
-        return resp
-    except Exception as e:
-        if debug:
-            print(e)
-        return {
-            "ran_successfully": False,
-            "error_message": "Sorry :( Our server is at capacity right now and we are unable to process your query. Please try again in a few minutes?",
-        }
+    return result
 
 
 async def run_query(
@@ -162,7 +111,7 @@ async def run_query(
     prune_glossary_max_tokens: int = 1000,
     prune_glossary_num_cos_sim_units: int = 10,
     prune_glossary_bm25_units: int = 10,
-    use_llm_directly: bool = False,
+    use_llm_directly: bool = True,  # Deprecated parameter, always True now
     llm_provider: Optional[Union[LLMProvider, str]] = None,
     llm_model: Optional[str] = None,
     table_metadata: Optional[dict] = None,

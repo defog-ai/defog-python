@@ -8,7 +8,6 @@ This library used to be an SDK for accessing Defog's cloud hosted text-to-SQL se
 4. **SQL Agent capabilities** - Natural language to SQL conversion with automatic table filtering for large databases
 5. **Agent orchestration** - Hierarchical task delegation and multi-agent coordination
 6. **Memory management** - Automatic conversation compactification for long-context scenarios
-7. **Local development server** - FastAPI server for integration and testing
 
 If you are looking for deep-research like capabilities, check out [introspect](https://github.com/defog-ai/introspect), our open-source, MIT licensed repo that uses this library as a dependency.
 
@@ -462,6 +461,60 @@ Key features:
 
 For a complete example, see [sql_agent_example.py](sql_agent_example.py).
 
+### Schema Documentation Tool
+
+Automatically generate intelligent documentation for your database schemas using AI:
+
+```python
+from defog.llm.schema_documenter import SchemaDocumenter
+
+# Initialize documenter
+documenter = SchemaDocumenter(
+    model="claude-3-5-sonnet",
+    provider="anthropic",
+    db_type="postgres",
+    db_creds=db_creds
+)
+
+# Document specific tables
+documented_tables = await documenter.document_tables(
+    tables=["customers", "orders", "products"],
+    include_existing_comments=True  # Preserve existing database comments
+)
+
+# Get documentation with confidence scores
+for table_doc in documented_tables:
+    print(f"Table: {table_doc['table_name']}")
+    print(f"Description: {table_doc['table_description']}")
+    for col in table_doc['columns']:
+        print(f"  - {col['column_name']}: {col['description']} (confidence: {col['confidence']})")
+```
+
+### PDF Data Extraction Tool
+
+Extract structured data from PDFs using intelligent AI analysis:
+
+```python
+from defog.llm.pdf_data_extractor import PDFDataExtractor
+
+# Initialize extractor
+extractor = PDFDataExtractor(
+    model="claude-3-5-sonnet",
+    provider="anthropic"
+)
+
+# Extract data with automatic schema generation
+result = await extractor.extract_data(
+    pdf_path="financial_report.pdf",
+    instructions="Extract all financial metrics, key performance indicators, and revenue breakdowns"
+)
+
+if result["success"]:
+    print(f"Extracted data: {result['extracted_data']}")
+    print(f"Extraction cost: ${result['total_cost_in_cents'] / 100:.4f}")
+else:
+    print(f"Error: {result['error']}")
+
 ### Database Query Execution
 
 Execute SQL queries directly on local databases without requiring a Defog API key:
@@ -506,6 +559,111 @@ Supported database types:
 - Redshift (`redshift`)
 - SQLite (`sqlite`)
 - DuckDB (`duckdb`)
+
+### Enhanced Agent Orchestration
+
+The library includes an enhanced orchestration system for complex multi-agent workflows:
+
+```python
+from defog.llm.enhanced_orchestrator import EnhancedAgentOrchestrator
+from defog.llm.thinking_agent import ThinkingAgent
+
+# Create orchestrator with shared context
+orchestrator = EnhancedAgentOrchestrator(
+    model="claude-3-5-sonnet",
+    provider="anthropic",
+    enable_shared_context=True,
+    enable_thinking_agents=True
+)
+
+# Create thinking agents for complex reasoning
+research_agent = ThinkingAgent(
+    agent_id="researcher",
+    model="claude-3-5-sonnet",
+    enable_extended_thinking=True
+)
+
+# Execute coordinated tasks with shared memory
+results = await orchestrator.execute_tasks(
+    tasks=[...],
+    agents={"researcher": research_agent}
+)
+```
+
+### Metadata Caching System
+
+Improve performance with intelligent metadata caching:
+
+```python
+from defog.metadata_cache import MetadataCache
+
+# Initialize cache with TTL
+cache = MetadataCache(ttl_seconds=3600)  # 1 hour TTL
+
+# Cache metadata
+cache.set("db_key", metadata)
+
+# Retrieve cached metadata
+cached_data = cache.get("db_key")
+```
+
+## Local LLM SQL Generation
+
+Generate SQL queries using local LLMs without Defog API:
+
+```python
+from defog import Defog
+
+df = Defog()  # No API key needed for local generation
+
+# Use local LLM for SQL generation
+result = await df.run_query(
+    question="Show me top customers",
+    db_type="postgres",
+    db_creds=db_creds,
+    use_llm_directly=True,  # Use local LLM
+    llm_provider="openai",
+    llm_model="gpt-4o",
+    table_metadata=metadata  # Optional: provide schema directly
+)
+```
+
+## Health Check Utilities
+
+Validate your configuration and data:
+
+```python
+# Check golden query coverage
+coverage = df.check_golden_queries_coverage()
+print(f"Table coverage: {coverage['table_coverage']}%")
+print(f"Column coverage: {coverage['column_coverage']}%")
+
+# Validate metadata
+is_valid = df.check_md_valid()
+
+# Check glossary consistency
+consistency = df.check_glossary_consistency()
+```
+
+## Advanced Configuration
+
+For detailed configuration options and advanced features, see the [documentation](docs/README.md).
+
+## Environment Variables
+
+The library supports various environment variables for configuration:
+
+```bash
+# API Keys
+export DEFOG_API_KEY="your-api-key"
+export OPENAI_API_KEY="your-openai-key"
+export ANTHROPIC_API_KEY="your-anthropic-key"
+export GEMINI_API_KEY="your-gemini-key"
+export TOGETHER_API_KEY="your-together-key"
+
+# Custom endpoints
+export DEFOG_BASE_URL="https://custom-api.example.com"
+```
 
 # Testing
 For developers who want to test or add tests for this client, you can run:

@@ -1,13 +1,13 @@
 import json
 from typing import Dict, List, Optional
-import requests
 import pandas as pd
 from defog.metadata_cache import get_global_cache
+from defog.local_storage import LocalStorage
 
 
 def update_db_schema(self, path_to_csv, dev=False, temp=False):
     """
-    Update the DB schema via a CSV
+    Update the DB schema via a CSV - now saves to local storage
     """
     schema_df = pd.read_csv(path_to_csv).fillna("")
     # check columns
@@ -24,17 +24,13 @@ def update_db_schema(self, path_to_csv, dev=False, temp=False):
             ["column_name", "data_type", "column_description"]
         ].to_dict(orient="records")
 
-    r = requests.post(
-        f"{self.base_url}/update_metadata",
-        json={
-            "api_key": self.api_key,
-            "table_metadata": schema,
-            "db_type": self.db_type,
-            "dev": dev,
-            "temp": temp,
-        },
+    # Save to local storage instead of API
+    storage = LocalStorage()
+    resp = storage.save_metadata(
+        metadata={"table_metadata": schema, "db_type": self.db_type, "dev": dev},
+        api_key=self.api_key,
+        db_type=self.db_type,
     )
-    resp = r.json()
 
     # Invalidate cache after updating schema
     cache = get_global_cache()
@@ -52,70 +48,66 @@ def update_glossary(
     dev: bool = False,
 ):
     """
-    Updates the glossary on the defog servers.
+    Updates the glossary in local storage.
     :param glossary: The glossary to be used.
     """
-    data = {
-        "api_key": self.api_key,
-        "glossary": glossary,
-        "dev": dev,
-        "glossary_compulsory": glossary_compulsory,
-        "glossary_prunable_units": glossary_prunable_units,
-    }
-    if customized_glossary:
-        data["customized_glossary"] = customized_glossary
-    r = requests.post(f"{self.base_url}/update_glossary", json=data)
-    resp = r.json()
+    # Save glossary to local storage
+    storage = LocalStorage()
+
+    # Save the main glossary
+    resp = storage.save_glossary(
+        glossary=glossary, api_key=self.api_key, db_type=self.db_type
+    )
+
+    # If there's customized glossary, save it as metadata
+    if customized_glossary or glossary_compulsory or glossary_prunable_units:
+        metadata = storage.get_metadata(self.api_key, self.db_type).get("metadata", {})
+        metadata["customized_glossary"] = customized_glossary or {}
+        metadata["glossary_compulsory"] = glossary_compulsory
+        metadata["glossary_prunable_units"] = glossary_prunable_units
+        storage.save_metadata(metadata, self.api_key, self.db_type)
+
     return resp
 
 
 def delete_glossary(self, user_type=None, dev=False):
     """
-    Deletes the glossary on the defog servers.
+    Deletes the glossary from local storage.
     """
-    data = {
-        "api_key": self.api_key,
-        "dev": dev,
-    }
-    if user_type:
-        data["key"] = user_type
-    r = requests.post(f"{self.base_url}/delete_glossary", json=data)
-    if r.status_code == 200:
-        print("Glossary deleted successfully.")
-    else:
-        error_message = r.json().get("message", "")
-        print(f"Glossary deletion failed.\nError message: {error_message}")
+    storage = LocalStorage()
+    resp = storage.delete_glossary(api_key=self.api_key, db_type=self.db_type)
+    print("Glossary deleted successfully.")
+    return resp
 
 
 def get_glossary(self, mode="general", dev=False):
     """
-    Gets the glossary on the defog servers.
+    Gets the glossary from local storage.
     """
-    r = requests.post(
-        f"{self.base_url}/get_metadata",
-        json={"api_key": self.api_key, "dev": dev},
-    )
-    resp = r.json()
+    storage = LocalStorage()
+
     if mode == "general":
-        return resp["glossary"]
+        return storage.get_glossary(self.api_key, self.db_type)
     elif mode == "customized":
-        return resp["customized_glossary"]
+        metadata = storage.get_metadata(self.api_key, self.db_type).get("metadata", {})
+        return metadata.get("customized_glossary", {})
 
 
 def get_metadata(self, format="markdown", export_path=None, dev=False):
     """
-    Gets the metadata on the defog servers.
+    Gets the metadata from local storage.
     """
-    r = requests.post(
-        f"{self.base_url}/get_metadata",
-        json={"api_key": self.api_key, "dev": dev},
-    )
-    resp = r.json()
+    storage = LocalStorage()
+    resp = storage.get_metadata(self.api_key, self.db_type)
+    metadata = resp.get("metadata", {})
+    table_metadata = metadata.get("table_metadata", {})
+
     items = []
-    for table in resp["table_metadata"]:
-        for item in resp["table_metadata"][table]:
+    for table in table_metadata:
+        for item in table_metadata[table]:
             item["table_name"] = table
             items.append(item)
+
     if format == "markdown":
         return pd.DataFrame(items)[
             ["table_name", "column_name", "data_type", "column_description"]
@@ -129,35 +121,25 @@ def get_metadata(self, format="markdown", export_path=None, dev=False):
         print(f"Metadata exported to {export_path}")
         return True
     elif format == "json":
-        return resp["table_metadata"]
+        return table_metadata
 
 
 def get_feedback(self, n_rows: int = 50, start_from: int = 0):
     """
-    Gets the feedback on the defog servers.
+    This method is deprecated as feedback is no longer tracked locally.
     """
-    r = requests.post(f"{self.base_url}/get_feedback", json={"api_key": self.api_key})
-    resp = r.json()
-    df = pd.DataFrame(resp["data"], columns=resp["columns"])
-    df["created_at"] = df["created_at"].apply(lambda x: x[:10])
-    for col in ["query_generated", "feedback_text"]:
-        df[col] = df[col].fillna("")
-        df[col] = df[col].apply(lambda x: x.replace("\n", "\\n"))
-    return df.iloc[start_from:].head(n_rows).to_markdown(index=False)
+    print("Warning: get_feedback is deprecated. Feedback tracking has been removed.")
+    return pd.DataFrame().to_markdown(index=False)
 
 
 def get_quota(self) -> Optional[Dict]:
     """
-    Get the quota for the API key.
+    This method is deprecated as quota management is no longer needed for local generation.
     """
-    api_key = self.api_key
-    response = requests.post(
-        f"{self.base_url}/check_api_usage", json={"api_key": api_key}
+    print(
+        "Warning: get_quota is deprecated. Quota management is not needed for local generation."
     )
-    # get status code and return None if not 200
-    if response.status_code != 200:
-        return None
-    return response.json()
+    return {"quota": "unlimited", "usage": "n/a"}
 
 
 def update_golden_queries(
@@ -168,7 +150,7 @@ def update_golden_queries(
     dev: bool = False,
 ):
     """
-    Updates the golden queries on the defog servers.
+    Updates the golden queries in local storage.
     :param golden_queries: The golden queries to be used.
     :param golden_queries_path: The path to the golden queries CSV.
     :param scrub: Whether to scrub the golden queries.
@@ -181,22 +163,13 @@ def update_golden_queries(
             pd.read_csv(golden_queries_path).fillna("").to_dict(orient="records")
         )
 
-    r = requests.post(
-        f"{self.base_url}/update_golden_queries",
-        json={
-            "api_key": self.api_key,
-            "golden_queries": golden_queries,
-            "scrub": scrub,
-            "dev": dev,
-        },
+    # Save to local storage
+    storage = LocalStorage()
+    resp = storage.save_golden_queries(
+        golden_queries=golden_queries, api_key=self.api_key, db_type=self.db_type
     )
-    resp = r.json()
-    print(
-        "Golden queries have been received by the system, and will be processed shortly..."
-    )
-    print(
-        "Once that is done, you should be able to see improved results for your questions."
-    )
+
+    print("Golden queries have been saved locally and are now available for use.")
     return resp
 
 
@@ -208,55 +181,48 @@ def delete_golden_queries(
     dev: bool = False,
 ):
     """
-    Updates the golden queries on the defog servers.
-    :param golden_queries: The golden queries to be used.
+    Deletes golden queries from local storage.
+    :param golden_queries: The golden queries to be deleted.
     :param golden_queries_path: The path to the golden queries CSV.
-    :param scrub: Whether to scrub the golden queries.
+    :param all: Whether to delete all golden queries.
     """
     if golden_queries is None and golden_queries_path is None and not all:
         raise ValueError(
             "Please provide either golden_queries or golden_queries_path, or set all=True."
         )
 
+    storage = LocalStorage()
+
     if all:
-        r = requests.post(
-            f"{self.base_url}/delete_golden_queries",
-            json={"api_key": self.api_key, "all": True, "dev": dev},
-        )
-        resp = r.json()
+        # Delete all by removing the file
+        storage.delete_golden_queries([], self.api_key, self.db_type)
         print("All golden queries have now been deleted.")
+        return {"status": "success", "message": "All golden queries deleted"}
     else:
         if golden_queries is None:
             golden_queries = (
                 pd.read_csv(golden_queries_path).fillna("").to_dict(orient="records")
             )
 
-        r = requests.post(
-            f"{self.base_url}/update_golden_queries",
-            json={
-                "api_key": self.api_key,
-                "golden_queries": golden_queries,
-            },
+        # Extract questions to delete
+        questions_to_delete = [q["question"] for q in golden_queries]
+        resp = storage.delete_golden_queries(
+            golden_queries=questions_to_delete,
+            api_key=self.api_key,
+            db_type=self.db_type,
         )
-        resp = r.json()
-    return resp
+        return resp
 
 
 def get_golden_queries(
     self, format: str = "csv", export_path: str = None, dev: bool = False
 ):
     """
-    Gets the golden queries on the defog servers.
+    Gets the golden queries from local storage.
     """
-    r = requests.post(
-        f"{self.base_url}/get_golden_queries",
-        json={
-            "api_key": self.api_key,
-            "dev": dev,
-        },
-    )
-    resp = r.json()
-    golden_queries = resp["golden_queries"]
+    storage = LocalStorage()
+    golden_queries = storage.get_golden_queries(self.api_key, self.db_type)
+
     if format == "csv":
         if export_path is None:
             export_path = "golden_queries.csv"
@@ -267,7 +233,7 @@ def get_golden_queries(
         if export_path is None:
             export_path = "golden_queries.json"
         with open(export_path, "w") as f:
-            json.dump(resp, f, indent=4)
+            json.dump({"golden_queries": golden_queries}, f, indent=4)
         print(f"{len(golden_queries)} golden queries exported to {export_path}")
         return golden_queries
     else:

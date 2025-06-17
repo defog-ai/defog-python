@@ -11,6 +11,7 @@ from defog import (
 )
 from typing import Dict, List, Optional, Union, Any
 from defog.llm.llm_providers import LLMProvider
+import warnings
 
 try:
     __version__ = version("defog")
@@ -50,6 +51,13 @@ class BaseDefog:
         generate_query_url: str = "https://api.defog.ai/generate_query_chat",
         verbose: bool = False,
     ):
+        if api_key is not None:
+            warnings.warn(
+                "The 'api_key' parameter is deprecated and will be removed in a future version. "
+                "Defog now focuses on local generation and no longer requires an API key.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
         self.check_db_creds(db_type, db_creds)
         self.api_key = api_key
         self.db_type = db_type

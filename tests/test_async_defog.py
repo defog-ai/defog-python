@@ -4,15 +4,21 @@ from defog import AsyncDefog
 
 class TestAsyncDefog(unittest.TestCase):
     def test_async_defog_good_init_no_db_creds(self):
+        # api_key is deprecated but still supported for backward compatibility
         df = AsyncDefog(api_key="test_api_key", db_type="redis")
         self.assertEqual(df.api_key, "test_api_key")
         self.assertEqual(df.db_type, "redis")
         self.assertEqual(df.db_creds, {})
 
+        # Test without api_key (preferred)
+        df2 = AsyncDefog(db_type="redis")
+        self.assertEqual(df2.api_key, None)
+        self.assertEqual(df2.db_type, "redis")
+        self.assertEqual(df2.db_creds, {})
+
     def test_async_defog_bad_init_incomplete_creds(self):
         with self.assertRaises(KeyError):
             AsyncDefog(
-                api_key="test_api_key",
                 db_type="postgres",
                 db_creds={"host": "some_host"},
             )
@@ -25,8 +31,8 @@ class TestAsyncDefog(unittest.TestCase):
             "user": "some_user",
             "password": "some_password",
         }
-        df = AsyncDefog("test_api_key", "postgres", db_creds)
-        self.assertEqual(df.api_key, "test_api_key")
+        df = AsyncDefog(db_type="postgres", db_creds=db_creds)
+        self.assertEqual(df.api_key, None)
         self.assertEqual(df.db_type, "postgres")
         self.assertEqual(df.db_creds, db_creds)
         db_creds = {
