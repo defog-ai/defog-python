@@ -10,11 +10,11 @@ def parse_update(
     args_list: List[str], attributes_list: List[str], config_dict: dict
 ) -> dict:
     """
-    Parse the command line arguments from args_list for each attribute in
+    Parse the arguments from args_list for each attribute in
     attributes_list, and update the config dictionary in place if present.
 
     Args:
-        args_list (List[str]): The command line arguments.
+        args_list (List[str]): The arguments list.
         config_dict (dict): The given config dictionary.
 
     Returns:
@@ -37,8 +37,8 @@ def parse_update(
 
 def write_logs(msg: str) -> None:
     """
-    Write out log messages to ~/.defog/logs to avoid bloating cli output,
-    while still preserving more verbose error messages when debugging.
+    Write out log messages to ~/.defog/logs to preserve
+    more verbose error messages when debugging.
 
     Args:
         msg (str): The message to write.
