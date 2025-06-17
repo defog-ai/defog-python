@@ -29,7 +29,7 @@ class SubAgentTask:
     agent_id: str
     task_description: str
     context: Optional[Dict[str, Any]] = None
-    execution_mode: ExecutionMode = ExecutionMode.SEQUENTIAL
+    execution_mode: ExecutionMode = ExecutionMode.PARALLEL
     dependencies: Optional[List[str]] = None  # IDs of tasks that must complete first
     max_retries: int = 3
     retry_delay: float = 1.0
@@ -45,7 +45,7 @@ class SubAgentPlan:
     system_prompt: str
     task_description: str
     tools: List[str]  # Tool names from available tools
-    execution_mode: ExecutionMode = ExecutionMode.SEQUENTIAL
+    execution_mode: ExecutionMode = ExecutionMode.PARALLEL
     dependencies: Optional[List[str]] = None
 
 
