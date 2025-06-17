@@ -103,29 +103,6 @@ class BaseLLMProvider(ABC):
         """Execute a chat completion with the provider."""
         pass
 
-    def create_image_message(
-        self, 
-        image_base64: Union[str, List[str]], 
-        description: str = "Tool generated image"
-    ) -> Dict[str, Any]:
-        """
-        Create a message with image content in the provider's specific format.
-        
-        Args:
-            image_base64: Base64-encoded image data - can be single string or list of strings
-            description: Description of the image(s)
-            
-        Returns:
-            Message dict in the provider's format
-        """
-        # Default implementation - subclasses should override for provider-specific format
-        return {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": description},
-                {"type": "image_base64", "data": image_base64}
-            ]
-        }
 
 
     @abstractmethod
@@ -143,12 +120,14 @@ class BaseLLMProvider(ABC):
         self,
         image_base64: Union[str, List[str]],
         description: str = "Tool generated image",
+        image_detail: str = "low",
     ) -> Any:
         """Create an image message in the provider's format.
         
         Args:
             image_base64: Base64 encoded image string or list of strings
             description: Description text for the image(s)
+            image_detail: Level of detail for image analysis (provider-specific, default: "low")
             
         Returns:
             Message in the provider's format (dict, object, etc.)

@@ -66,6 +66,7 @@ class DeepSeekProvider(BaseLLMProvider):
         self,
         image_base64: Union[str, List[str]],
         description: str = "Tool generated image",
+        image_detail: str = "low",
     ) -> Dict[str, Any]:
         """
         Create a message with image content. 
@@ -75,6 +76,7 @@ class DeepSeekProvider(BaseLLMProvider):
         Args:
             image_base64: Base64-encoded image data - can be single string or list of strings
             description: Description of the image(s)
+            image_detail: Level of detail (ignored by DeepSeek, included for interface consistency)
 
         Returns:
             Message dict with text description only (images not yet supported)

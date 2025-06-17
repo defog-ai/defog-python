@@ -46,12 +46,14 @@ class AnthropicProvider(BaseLLMProvider):
         self,
         image_base64: Union[str, List[str]],
         description: str = "Tool generated image",
+        image_detail: str = "low",
     ) -> Dict[str, Any]:
         """Create an image message in Anthropic format with validation.
         
         Args:
             image_base64: Base64 encoded image string or list of strings
             description: Description text for the image(s)
+            image_detail: Level of detail (ignored by Anthropic, included for interface consistency)
             
         Returns:
             Dict containing the formatted message with image(s)

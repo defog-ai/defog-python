@@ -81,6 +81,7 @@ class OpenAIProvider(BaseLLMProvider):
         self,
         image_base64: Union[str, List[str]],
         description: str = "Tool generated image",
+        image_detail: str = "low",
     ) -> Dict[str, Any]:
         """
         Create a message with image content in OpenAI's format with validation.
@@ -88,6 +89,7 @@ class OpenAIProvider(BaseLLMProvider):
         Args:
             image_base64: Base64-encoded image data - can be single string or list of strings
             description: Description of the image(s)
+            image_detail: Level of detail for image analysis - "low" or "high" (default: "low")
 
         Returns:
             Message dict in OpenAI's format
@@ -119,7 +121,7 @@ class OpenAIProvider(BaseLLMProvider):
                     "type": "image_url",
                     "image_url": {
                         "url": f"data:{media_type};base64,{clean_data}",
-                        "detail": "low",
+                        "detail": image_detail,
                     },
                 }
             )

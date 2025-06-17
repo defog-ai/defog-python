@@ -7,6 +7,7 @@ in tool results and injects them as separate messages.
 
 import pytest
 import base64
+import logging
 from io import BytesIO
 from PIL import Image, ImageDraw
 from typing import Optional
@@ -19,6 +20,7 @@ from defog.llm.utils_image_support import (
     detect_image_format,
     validate_and_process_image_data,
     safe_extract_media_type_and_data,
+    MAX_IMAGE_SIZE_BYTES,
 )
 
 
@@ -508,3 +510,127 @@ class TestProviderImageMessageValidation:
         assert len(msg["content"]) == 2  # text + 1 valid image
         assert msg["content"][0]["type"] == "text"
         assert msg["content"][1]["type"] == "image"
+
+
+class TestImageValidationEdgeCases:
+    """Comprehensive edge case tests for image validation."""
+    
+    def test_empty_base64_data(self):
+        """Test validation with empty base64 data."""
+        is_valid, error = validate_base64_image("")
+        assert is_valid is False
+        assert "non-empty string" in error
+        
+    def test_none_input(self):
+        """Test validation with None input."""
+        is_valid, error = validate_base64_image(None)
+        assert is_valid is False
+        assert "non-empty string" in error
+        
+    def test_whitespace_only_base64(self):
+        """Test validation with whitespace-only string."""
+        is_valid, error = validate_base64_image("   \n\t   ")
+        assert is_valid is False
+        assert "Invalid base64 encoding" in error
+        
+    def test_malformed_data_uri_missing_comma(self):
+        """Test malformed data URI without comma separator."""
+        is_valid, error = validate_base64_image("data:image/png;base64")
+        assert is_valid is False
+        assert "Malformed data URI prefix" in error
+        
+    def test_malformed_data_uri_missing_base64(self):
+        """Test malformed data URI without base64 marker."""
+        is_valid, error = validate_base64_image("data:image/png,somedata")
+        assert is_valid is False
+        # Could fail on either base64 decoding or format recognition
+        assert "Invalid base64 encoding" in error or "Unrecognized image format" in error
+        
+    def test_corrupted_base64_padding(self):
+        """Test base64 with incorrect padding."""
+        is_valid, error = validate_base64_image("YWJjZGVmZ2hp=")  # Missing padding
+        assert is_valid is False
+        assert "Unrecognized image format" in error  # Will fail format check
+        
+    def test_valid_base64_but_not_image(self):
+        """Test valid base64 that doesn't contain image data."""
+        text_base64 = base64.b64encode(b"This is plain text").decode()
+        is_valid, error = validate_base64_image(text_base64)
+        assert is_valid is False
+        assert "Unrecognized image format" in error
+        
+    def test_truncated_image_data(self):
+        """Test image data that's too short to be valid."""
+        truncated = base64.b64encode(b"\xff\xd8").decode()  # Just JPEG start
+        is_valid, error = validate_base64_image(truncated)
+        assert is_valid is False
+        assert "Unrecognized image format" in error
+        
+    def test_media_type_mismatch_warning(self, caplog):
+        """Test warning when data URI media type doesn't match detected format."""
+        # Create a PNG but label it as JPEG
+        png_data = create_test_image()
+        mislabeled = f"data:image/jpeg;base64,{png_data}"
+        
+        with caplog.at_level(logging.WARNING):
+            is_valid, error = validate_base64_image(mislabeled)
+        
+        assert is_valid is True
+        assert error is None
+        assert "Media type mismatch" in caplog.text
+        
+    def test_extremely_large_base64_string(self):
+        """Test handling of extremely large base64 strings."""
+        # Create a string larger than MAX_IMAGE_SIZE_BYTES
+        large_data = "A" * (MAX_IMAGE_SIZE_BYTES * 2)  # Base64 expands by ~4/3
+        is_valid, error = validate_base64_image(large_data)
+        assert is_valid is False
+        # Should fail on size or format validation
+        assert ("exceeds" in error and "MB limit" in error) or "Unrecognized image format" in error
+        
+    def test_special_characters_in_base64(self):
+        """Test base64 with special characters that should be invalid."""
+        is_valid, error = validate_base64_image("YWJj@#$%^&*")
+        assert is_valid is False
+        assert "Invalid base64 encoding" in error
+        
+    def test_webp_format_detection(self):
+        """Test proper WebP format detection."""
+        # Minimal valid WebP header
+        webp_header = b'RIFF\x00\x00\x00\x00WEBPVP8 '
+        webp_base64 = base64.b64encode(webp_header).decode()
+        
+        # Should pass basic validation but might fail on complete image validation
+        decoded = base64.b64decode(webp_base64)
+        format_type = detect_image_format(decoded)
+        assert format_type == "image/webp"
+        
+    def test_process_image_data_with_mixed_types(self):
+        """Test processing image data with mixed valid types."""
+        valid_png = create_test_image()
+        valid_images, errors = validate_and_process_image_data([
+            valid_png,
+            123,  # Invalid type
+            None,  # Invalid type
+            "",  # Empty string
+            valid_png  # Another valid one
+        ])
+        
+        assert len(valid_images) == 2
+        assert len(errors) == 3
+        assert any("must be string" in e for e in errors)
+        assert any("non-empty string" in e for e in errors)
+        
+    def test_safe_extract_with_multiple_semicolons(self):
+        """Test media type extraction with complex data URI."""
+        complex_uri = "data:image/png;charset=utf-8;base64,iVBORw0KGgo="
+        media_type, data = safe_extract_media_type_and_data(complex_uri)
+        assert media_type == "image/png"
+        assert data == "iVBORw0KGgo="
+        
+    def test_safe_extract_fallback_behavior(self):
+        """Test fallback behavior in safe_extract_media_type_and_data."""
+        # Test with completely invalid input
+        media_type, data = safe_extract_media_type_and_data("not_base64_at_all")
+        assert media_type == "image/jpeg"  # Fallback
+        assert data == "not_base64_at_all"

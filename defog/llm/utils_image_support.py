@@ -16,6 +16,7 @@ MAX_IMAGE_SIZE_MB = 20  # Maximum image size in MB
 MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 SUPPORTED_IMAGE_FORMATS = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 DEFAULT_TEXT_FIELDS = ["result", "text", "content", "output", "response"]
+TEXT_LENGTH_LIMIT = 10000  # Maximum length for text fields to avoid encoded data
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ def detect_image_format(image_bytes: bytes) -> Optional[str]:
         return "image/png"
     elif image_bytes.startswith(b'GIF8'):
         return "image/gif"
-    elif image_bytes.startswith(b'RIFF') and b'WEBP' in image_bytes[:12]:
+    elif image_bytes.startswith(b'RIFF') and len(image_bytes) >= 12 and image_bytes[8:12] == b'WEBP':
         return "image/webp"
     
     return None
@@ -127,7 +128,7 @@ def extract_text_from_result(result: Any, image_found: bool = False) -> str:
         for key, value in obj.items():
             if (isinstance(value, str) and 
                 not key.lower().endswith(('_base64', '_image', '_img', '_data')) and
-                len(value) < 10000):  # Avoid very long strings that might be encoded data
+                len(value) < TEXT_LENGTH_LIMIT):  # Avoid very long strings that might be encoded data
                 return value
     
     # Final fallback: string representation

@@ -60,6 +60,7 @@ class GeminiProvider(BaseLLMProvider):
         self,
         image_base64: Union[str, List[str]],
         description: str = "Tool generated image",
+        image_detail: str = "low",
     ) -> Content:
         """
         Create a message with image content in Gemini's format with validation.
@@ -67,6 +68,7 @@ class GeminiProvider(BaseLLMProvider):
         Args:
             image_base64: Base64-encoded image data - can be single string or list of strings
             description: Description of the image(s)
+            image_detail: Level of detail (ignored by Gemini, included for interface consistency)
 
         Returns:
             Content object in Gemini's format
