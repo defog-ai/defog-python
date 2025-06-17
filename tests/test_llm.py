@@ -8,6 +8,7 @@ from defog.llm.llm_providers import LLMProvider
 import re
 
 from pydantic import BaseModel
+from tests.conftest import skip_if_no_api_key, skip_if_no_models, AVAILABLE_MODELS
 
 messages_sql = [
     {
@@ -132,7 +133,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         from defog.llm.config import LLMConfig
 
         # Test provider instantiation
-        config = LLMConfig()
+        config = LLMConfig(api_keys={"mistral": "test-api-key"})
         provider = get_provider_instance("mistral", config)
         self.assertIsInstance(provider, MistralProvider)
         self.assertEqual(provider.get_provider_name(), "mistral")
@@ -185,6 +186,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
                     self.assertIn("temperature", params)
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_api_key("deepseek")
     async def test_deepseek_structured_output_integration(self):
         """Test DeepSeek provider's structured output integration end-to-end for both models"""
         # This test would require an actual API key, so we'll just test the parameter building
@@ -207,16 +209,20 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(response.content, ResponseFormat)
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_models()
     async def test_simple_chat_async(self):
-        models = [
-            "claude-3-7-sonnet-latest",
-            "gpt-4.1-mini",
-            "o4-mini",
-            "o3",
-            "gemini-2.0-flash",
-            "gemini-2.5-pro-preview-03-25",
-            "mistral-small-latest",
-        ]
+        # Use a subset of available models for this test
+        test_models = []
+        if AVAILABLE_MODELS.get("anthropic"):
+            test_models.append("claude-3-7-sonnet-latest")
+        if AVAILABLE_MODELS.get("openai"):
+            test_models.extend(["gpt-4.1-mini", "o4-mini", "o3"])
+        if AVAILABLE_MODELS.get("gemini"):
+            test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro-preview-03-25"])
+        if AVAILABLE_MODELS.get("mistral"):
+            test_models.append("mistral-small-latest")
+        
+        models = [m for m in test_models if m in sum(AVAILABLE_MODELS.values(), [])]
         messages = [
             {"role": "user", "content": "Return a greeting in not more than 2 words\n"}
         ]
@@ -235,17 +241,18 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(response.time, float)
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_models()
     async def test_sql_chat_async(self):
-        models = [
-            "gpt-4o-mini",
-            "gemini-2.0-flash",
-            "gemini-2.5-pro-preview-03-25",
-            "o3",
-            "o4-mini",
-            "gpt-4.1-mini",
-            "gpt-4.1-nano",
-            "mistral-small-latest",
-        ]
+        # Use a subset of available models for SQL test
+        test_models = []
+        if AVAILABLE_MODELS.get("openai"):
+            test_models.extend(["gpt-4o-mini", "o3", "o4-mini", "gpt-4.1-mini", "gpt-4.1-nano"])
+        if AVAILABLE_MODELS.get("gemini"):
+            test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro-preview-03-25"])
+        if AVAILABLE_MODELS.get("mistral"):
+            test_models.append("mistral-small-latest")
+            
+        models = [m for m in test_models if m in sum(AVAILABLE_MODELS.values(), [])]
         for model in models:
             provider = map_model_to_provider(model)
             response = await chat_async(
@@ -261,10 +268,21 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(response.time, float)
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_models()
     async def test_sql_chat_structured_reasoning_effort_async(self):
+        # Only test models that support reasoning effort
+        test_models = []
+        if AVAILABLE_MODELS.get("openai") and "o4-mini" in AVAILABLE_MODELS["openai"]:
+            test_models.append("o4-mini")
+        if AVAILABLE_MODELS.get("anthropic") and "claude-3-7-sonnet-latest" in AVAILABLE_MODELS["anthropic"]:
+            test_models.append("claude-3-7-sonnet-latest")
+            
+        if not test_models:
+            self.skipTest("No models with reasoning effort support available")
+            
         reasoning_effort = ["low", "medium", "high", None]
         for effort in reasoning_effort:
-            for model in ["o4-mini", "claude-3-7-sonnet-latest"]:
+            for model in test_models:
                 provider = map_model_to_provider(model)
                 response = await chat_async(
                     provider=provider,
@@ -281,18 +299,20 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(response.content.reasoning, str)
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_models()
     async def test_sql_chat_structured_async(self):
-        models = [
-            "gpt-4o",
-            "gemini-2.0-flash",
-            "gemini-2.5-pro-preview-03-25",
-            "claude-3-7-sonnet-latest",  # Added Anthropic model to test structured output
-            "o3",
-            "o4-mini",
-            "gpt-4.1",
-            "gpt-4.1-nano",
-            "mistral-small-latest",
-        ]
+        # Use a subset of available models for structured output test
+        test_models = []
+        if AVAILABLE_MODELS.get("openai"):
+            test_models.extend(["gpt-4o", "o3", "o4-mini", "gpt-4.1", "gpt-4.1-nano"])
+        if AVAILABLE_MODELS.get("gemini"):
+            test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro-preview-03-25"])
+        if AVAILABLE_MODELS.get("anthropic"):
+            test_models.append("claude-3-7-sonnet-latest")
+        if AVAILABLE_MODELS.get("mistral"):
+            test_models.append("mistral-small-latest")
+            
+        models = [m for m in test_models if m in sum(AVAILABLE_MODELS.values(), [])]
         for model in models:
             provider = map_model_to_provider(model)
             response = await chat_async(

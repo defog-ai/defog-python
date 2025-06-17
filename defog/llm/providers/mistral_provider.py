@@ -1,13 +1,17 @@
 import os
 import time
 import json
-from typing import Dict, List, Any, Optional, Callable, Tuple
+import base64
+import logging
+from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
 from ..config import LLMConfig
 from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs
+
+logger = logging.getLogger(__name__)
 
 
 class MistralProvider(BaseLLMProvider):
@@ -31,6 +35,69 @@ class MistralProvider(BaseLLMProvider):
     def supports_response_format(self, model: str) -> bool:
         # Mistral supports structured outputs via response_format
         return True
+    
+    def _get_media_type(self, img_data: str) -> str:
+        """Detect media type from base64 image data."""
+        try:
+            decoded = base64.b64decode(img_data[:100])
+            if decoded.startswith(b"\xff\xd8\xff"):
+                return "image/jpeg"
+            elif decoded.startswith(b"GIF8"):
+                return "image/gif"
+            elif decoded.startswith(b"RIFF"):
+                return "image/webp"
+            else:
+                return "image/png"  # Default
+        except Exception:
+            return "image/png"
+
+    def create_image_message(
+        self,
+        image_base64: Union[str, List[str]],
+        description: str = "Tool generated image",
+        image_detail: str = "low",
+    ) -> Dict[str, Any]:
+        """
+        Create a message with image content in Mistral's format with validation.
+
+        Args:
+            image_base64: Base64-encoded image data - can be single string or list of strings
+            description: Description of the image(s)
+            image_detail: Level of detail (ignored by Mistral, included for interface consistency)
+
+        Returns:
+            Message dict in Mistral's format
+            
+        Raises:
+            ValueError: If no valid images are provided or validation fails
+        """
+        from ..utils_image_support import validate_and_process_image_data, safe_extract_media_type_and_data
+        
+        # Validate and process image data
+        valid_images, errors = validate_and_process_image_data(image_base64)
+        
+        if not valid_images:
+            error_summary = "; ".join(errors) if errors else "No valid images provided"
+            raise ValueError(f"Cannot create image message: {error_summary}")
+        
+        if errors:
+            # Log warnings for any invalid images but continue with valid ones
+            for error in errors:
+                logger.warning(f"Skipping invalid image: {error}")
+
+        content = [{"type": "text", "text": description}]
+
+        # Handle validated images
+        for img_data in valid_images:
+            media_type, clean_data = safe_extract_media_type_and_data(img_data)
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": f"data:{media_type};base64,{clean_data}",
+                }
+            )
+
+        return {"role": "user", "content": content}
 
     def build_params(
         self,

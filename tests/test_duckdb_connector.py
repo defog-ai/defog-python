@@ -215,10 +215,7 @@ class DuckDBConnectorTestCase(unittest.TestCase):
 
         # Check users table schema
         users_schema = schema["users"]
-        # DuckDB schema format includes table_description and columns
-        self.assertIn("columns", users_schema)
         columns = users_schema["columns"]
-
         column_names = [col["column_name"] for col in columns]
         self.assertIn("id", column_names)
         self.assertIn("name", column_names)

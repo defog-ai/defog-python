@@ -1,11 +1,14 @@
 import os
 import time
-from typing import Dict, List, Any, Optional, Callable, Tuple
+import logging
+from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
 from ..config import LLMConfig
 from ..cost import CostCalculator
+
+logger = logging.getLogger(__name__)
 
 
 class TogetherProvider(BaseLLMProvider):
@@ -29,6 +32,43 @@ class TogetherProvider(BaseLLMProvider):
 
     def supports_response_format(self, model: str) -> bool:
         return False  # Currently Together models don't support structured output in our implementation
+    
+    def create_image_message(
+        self,
+        image_base64: Union[str, List[str]],
+        description: str = "Tool generated image",
+        image_detail: str = "low",
+    ) -> Dict[str, Any]:
+        """
+        Create a message with image content.
+        Note: Together AI's image support depends on the specific model being used.
+        This is a basic implementation that returns text only.
+
+        Args:
+            image_base64: Base64-encoded image data - can be single string or list of strings
+            description: Description of the image(s)
+            image_detail: Level of detail (ignored by Together, included for interface consistency)
+
+        Returns:
+            Message dict with text description only
+            
+        Raises:
+            ValueError: If image validation fails (for consistency with other providers)
+        """
+        from ..utils_image_support import validate_and_process_image_data
+        
+        # Validate image data even though we won't use it
+        valid_images, errors = validate_and_process_image_data(image_base64)
+        
+        if errors:
+            logger.warning(f"Together provider received invalid images: {'; '.join(errors)}")
+        
+        # Together AI's image support varies by model - for now return text only
+        image_count = len(valid_images) if valid_images else 0
+        if image_count > 0:
+            return {"role": "user", "content": f"{description} [Note: {image_count} image(s) received but not displayed - Together AI image support varies by model]"}
+        else:
+            return {"role": "user", "content": description}
 
     def build_params(
         self,
@@ -99,6 +139,7 @@ class TogetherProvider(BaseLLMProvider):
         reasoning_effort: Optional[str] = None,
         post_tool_function: Optional[Callable] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
+        image_result_keys: Optional[List[str]] = None,
         **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with Together."""

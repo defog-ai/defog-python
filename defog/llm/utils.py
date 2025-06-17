@@ -64,6 +64,7 @@ def get_provider_instance(
         "together": TogetherProvider,
         "deepseek": DeepSeekProvider,
         "mistral": MistralProvider,
+        "alibaba": OpenAIProvider,  # Alibaba uses OpenAI-compatible API
     }
 
     if provider_name not in provider_classes:
@@ -71,8 +72,16 @@ def get_provider_instance(
 
     provider_class = provider_classes[provider_name]
 
-    # Use the provider's from_config method for consistent initialization
-    return provider_class.from_config(config)
+    # Handle special cases for providers that need custom configuration
+    if provider_name == "alibaba":
+        return provider_class(
+            api_key=config.get_api_key("alibaba"),
+            base_url=config.get_base_url("alibaba"),
+            config=config,
+        )
+    else:
+        # Use the provider's from_config method for consistent initialization
+        return provider_class.from_config(config)
 
 
 async def chat_async(
@@ -96,6 +105,7 @@ async def chat_async(
     post_tool_function: Optional[Callable] = None,
     config: Optional[LLMConfig] = None,
     mcp_servers: Optional[List[Dict[str, Any]]] = None,
+    image_result_keys: Optional[List[str]] = None,
 ) -> LLMResponse:
     """
     Execute a chat completion with explicit provider parameter.
@@ -121,6 +131,7 @@ async def chat_async(
         post_tool_function: Function to call after each tool execution
         config: LLM configuration object
         mcp_servers: List of MCP server configurations (Anthropic only)
+        image_result_keys: List of keys to check in tool results for image data (e.g., ['image_base64', 'screenshot_data'])
 
     Returns:
         LLMResponse object containing the result
@@ -174,6 +185,7 @@ async def chat_async(
                 reasoning_effort=reasoning_effort,
                 post_tool_function=post_tool_function,
                 mcp_servers=mcp_servers,
+                image_result_keys=image_result_keys,
             )
 
         except Exception as e:
@@ -192,6 +204,7 @@ async def chat_async(
                 if isinstance(e, LLMError):
                     raise e
                 else:
+                    traceback.print_exc()
                     raise LLMError(f"All attempts failed. Latest error: {e}") from e
 
     # This should never be reached, but just in case
@@ -237,6 +250,8 @@ def map_model_to_provider(model: str) -> LLMProvider:
         or model.startswith("Qwen")
     ):
         return LLMProvider.TOGETHER
+    elif model.startswith("qwen"):  # lowercase qwen for Alibaba Cloud
+        return LLMProvider.ALIBABA
     else:
         raise ConfigurationError(f"Unknown model: {model}")
 

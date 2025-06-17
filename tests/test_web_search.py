@@ -3,6 +3,7 @@ import pytest
 import os
 from defog.llm.web_search import web_search_tool
 from defog.llm.llm_providers import LLMProvider
+from tests.conftest import skip_if_no_api_key
 
 
 class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
@@ -78,18 +79,21 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         return result
 
     @pytest.mark.asyncio
+    @skip_if_no_api_key("openai")
     async def test_web_search_openai_structure(self):
         await self._test_provider_structure(
             LLMProvider.OPENAI, "gpt-4.1-mini", "OPENAI_API_KEY"
         )
 
     @pytest.mark.asyncio
+    @skip_if_no_api_key("anthropic")
     async def test_web_search_anthropic_structure(self):
         await self._test_provider_structure(
             LLMProvider.ANTHROPIC, "claude-3-7-sonnet-latest", "ANTHROPIC_API_KEY"
         )
 
     @pytest.mark.asyncio
+    @skip_if_no_api_key("gemini")
     async def test_web_search_gemini_structure(self):
         await self._test_provider_structure(
             LLMProvider.GEMINI, "gemini-2.0-flash", "GEMINI_API_KEY"
