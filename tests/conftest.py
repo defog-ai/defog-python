@@ -1,5 +1,31 @@
 import os
 import pytest
+import logging
+
+# Set up colored logging for test skips
+class ColoredFormatter(logging.Formatter):
+    """Custom formatter with colors for different log levels."""
+    
+    COLORS = {
+        'DEBUG': '\033[36m',    # Cyan
+        'INFO': '\033[32m',     # Green
+        'WARNING': '\033[33m',  # Yellow
+        'ERROR': '\033[31m',    # Red
+        'CRITICAL': '\033[35m', # Magenta
+    }
+    RESET = '\033[0m'
+    
+    def format(self, record):
+        log_color = self.COLORS.get(record.levelname, self.RESET)
+        record.levelname = f"{log_color}{record.levelname}{self.RESET}"
+        return super().format(record)
+
+# Configure logger for test skips
+skip_logger = logging.getLogger('test_skip')
+skip_logger.setLevel(logging.WARNING)
+handler = logging.StreamHandler()
+handler.setFormatter(ColoredFormatter('%(levelname)s: %(message)s'))
+skip_logger.addHandler(handler)
 
 
 # Check which API keys are available
@@ -68,6 +94,8 @@ def get_available_models():
 def skip_if_no_api_key(provider: str):
     """Decorator to skip test if API key for provider is not available."""
     def decorator(test_func):
+        if not AVAILABLE_PROVIDERS.get(provider, False):
+            skip_logger.warning(f"🚫 Skipping {test_func.__name__} - No API key for {provider} provider")
         return pytest.mark.skipif(
             not AVAILABLE_PROVIDERS.get(provider, False),
             reason=f"No API key for {provider} provider"
@@ -78,6 +106,8 @@ def skip_if_no_api_key(provider: str):
 def skip_if_no_models():
     """Decorator to skip test if no models are available (no API keys)."""
     def decorator(test_func):
+        if not any(AVAILABLE_PROVIDERS.values()):
+            skip_logger.warning(f"🚫 Skipping {test_func.__name__} - No API keys available for any provider")
         return pytest.mark.skipif(
             not any(AVAILABLE_PROVIDERS.values()),
             reason="No API keys available for any provider"

@@ -5,6 +5,7 @@ import base64
 from defog.llm.utils import chat_async
 from defog.llm.llm_providers import LLMProvider
 from pydantic import BaseModel
+from tests.conftest import skip_if_no_api_key
 
 
 class ImageAnalysis(BaseModel):
@@ -34,6 +35,7 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
                 self.local_image_data_url = f"data:image/png;base64,{base64_data}"
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_api_key("anthropic")
     async def test_anthropic_image_support(self):
         """Test Anthropic provider with image support"""
         # Test with URL
@@ -93,6 +95,7 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
             self.assertGreater(len(response.content), 0)
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_api_key("openai")
     async def test_openai_image_support(self):
         """Test OpenAI provider with image support"""
         messages = [
@@ -124,6 +127,7 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(response.content), 0)
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_api_key("gemini")
     async def test_gemini_image_support(self):
         """Test Gemini provider with image support"""
         messages = [
@@ -155,6 +159,7 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(response.content), 0)
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_api_key("anthropic")
     async def test_multiple_images(self):
         """Test multiple images in a single message"""
         messages = [
@@ -193,6 +198,7 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
         )
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_api_key("openai")
     async def test_structured_output_with_images(self):
         """Test structured output with image analysis"""
         messages = [
@@ -227,6 +233,7 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(response.content.main_colors, list)
 
     @pytest.mark.asyncio(loop_scope="session")
+    @skip_if_no_api_key("anthropic")
     async def test_conversation_with_images(self):
         """Test a conversation that includes images"""
         messages = [

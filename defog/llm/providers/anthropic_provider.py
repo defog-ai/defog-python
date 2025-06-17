@@ -440,28 +440,38 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                     tool_result = {
                                         "type": "tool_result",
                                         "tool_use_id": tool_data.tool_id,
-                                        "content": tool_data.result
+                                        "content": tool_data.tool_result_text
                                     }
                                     
                                     # If there are images, add them to the content
-                                    if tool_data.images:
+                                    if tool_data.image_data:
                                         tool_result["content"] = []
                                         # Add text content first
                                         tool_result["content"].append({
                                             "type": "text",
-                                            "text": tool_data.result
+                                            "text": tool_data.tool_result_text
                                         })
-                                        # Add image content
-                                        for image_data in tool_data.images:
-                                            image_message = self.create_image_message(
-                                                image_data["image_base64"],
-                                                image_data.get("description", "Tool generated image")
-                                            )
-                                            # Extract the image blocks from the message content
-                                            if isinstance(image_message["content"], list):
-                                                for content_item in image_message["content"]:
-                                                    if content_item.get("type") == "image":
-                                                        tool_result["content"].append(content_item)
+                                        # Add image content - handle both string and list
+                                        image_list = tool_data.image_data if isinstance(tool_data.image_data, list) else [tool_data.image_data]
+                                        for image_base64 in image_list:
+                                            # Detect MIME type from base64 data if it has a data URI prefix
+                                            if image_base64.startswith("data:"):
+                                                # Extract MIME type and clean base64 data
+                                                media_type = image_base64.split(";")[0].split(":")[1]
+                                                clean_image_data = image_base64.split(",")[1]
+                                            else:
+                                                # Default to JPEG if no prefix
+                                                media_type = "image/jpeg"
+                                                clean_image_data = image_base64
+                                                
+                                            tool_result["content"].append({
+                                                "type": "image",
+                                                "source": {
+                                                    "type": "base64",
+                                                    "media_type": media_type,
+                                                    "data": clean_image_data,
+                                                },
+                                            })
                                     
                                     tool_results_content.append(tool_result)
 

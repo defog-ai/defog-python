@@ -7,6 +7,7 @@ import pytest
 import os
 from defog.llm.code_interp import code_interpreter_tool
 from defog.llm.llm_providers import LLMProvider
+from tests.conftest import skip_if_no_api_key
 
 
 class TestCodeInterp(unittest.IsolatedAsyncioTestCase):
@@ -22,10 +23,9 @@ Charlie Wilson,32,48000,Marketing"""
         self.complex_question = "What is the average salary by department? Show the results in a table format."
 
     @pytest.mark.asyncio
+    @skip_if_no_api_key("openai")
     async def test_openai_complex_analysis(self):
         """Test OpenAI provider with complex aggregation question."""
-        if not os.getenv("OPENAI_API_KEY"):
-            self.skipTest("OPENAI_API_KEY not set")
 
         response = await code_interpreter_tool(
             question=self.complex_question,
@@ -45,10 +45,9 @@ Charlie Wilson,32,48000,Marketing"""
         self.assertIn("Sales", output_text)
 
     @pytest.mark.asyncio
+    @skip_if_no_api_key("anthropic")
     async def test_anthropic_complex_analysis(self):
         """Test Anthropic provider with complex aggregation question."""
-        if not os.getenv("ANTHROPIC_API_KEY"):
-            self.skipTest("ANTHROPIC_API_KEY not set")
 
         response = await code_interpreter_tool(
             question=self.complex_question,
@@ -68,10 +67,9 @@ Charlie Wilson,32,48000,Marketing"""
         self.assertIn("Sales", output_text)
 
     @pytest.mark.asyncio
+    @skip_if_no_api_key("gemini")
     async def test_gemini_complex_analysis(self):
         """Test Gemini provider with complex aggregation question."""
-        if not os.getenv("GEMINI_API_KEY"):
-            self.skipTest("GEMINI_API_KEY not set")
 
         response = await code_interpreter_tool(
             question=self.complex_question,
@@ -87,10 +85,9 @@ Charlie Wilson,32,48000,Marketing"""
         self.assertGreater(len(response["code"] + response["output"]), 0)
 
     @pytest.mark.asyncio
+    @skip_if_no_api_key("openai")
     async def test_large_dataset_analysis(self):
         """Test analysis with larger dataset."""
-        if not os.getenv("OPENAI_API_KEY"):
-            self.skipTest("OPENAI_API_KEY not set")
 
         # Generate larger CSV with 100 rows
         large_csv_header = "id,name,age,salary,department,years_experience\n"
@@ -130,10 +127,9 @@ Charlie Wilson,32,48000,Marketing"""
         )
 
     @pytest.mark.asyncio
+    @skip_if_no_api_key("anthropic")
     async def test_mathematical_calculations(self):
         """Test mathematical calculations and formulas."""
-        if not os.getenv("ANTHROPIC_API_KEY"):
-            self.skipTest("ANTHROPIC_API_KEY not set")
 
         math_csv = """product,price,quantity,discount_rate
 Laptop,1000,5,0.1
@@ -158,10 +154,9 @@ Monitor,300,20,0.08"""
         self.assertTrue(any(char.isdigit() for char in output_text))
 
     @pytest.mark.asyncio
+    @skip_if_no_api_key("openai")
     async def test_time_series_data(self):
         """Test analysis with time-based data."""
-        if not os.getenv("OPENAI_API_KEY"):
-            self.skipTest("OPENAI_API_KEY not set")
 
         time_series_csv = """date,sales,customers
 2024-01-01,1000,50
