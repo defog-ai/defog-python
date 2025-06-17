@@ -1,7 +1,6 @@
 import json
 import re
-import requests
-from defog.util import write_logs, make_async_post_request
+from defog.util import write_logs
 import asyncio
 import os
 
