@@ -288,7 +288,7 @@ class TestProviderMessageCreation:
         msg = provider.create_image_message(image_data, "Test image")
         assert msg["role"] == "user"
         assert len(msg["content"]) == 2
-        assert msg["content"][0]["type"] == "input_text"
+        assert msg["content"][0]["type"] == "text"
         assert msg["content"][0]["text"] == "Test image"
         assert msg["content"][1]["type"] == "image_url"
         assert "data:image/png;base64," in msg["content"][1]["image_url"]["url"]
