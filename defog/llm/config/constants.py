@@ -5,6 +5,7 @@ DEFAULT_TEMPERATURE = 0.0
 # Provider-specific constants
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 OPENAI_BASE_URL = "https://api.openai.com/v1/"
+ALIBABA_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 # Model families that require special handling
 O_MODELS = ["o1-mini", "o1-preview", "o1", "o3-mini", "o3", "o4-mini"]

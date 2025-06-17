@@ -1,8 +1,44 @@
 import inspect
+import json
+import jsonref
 import asyncio
 from typing import Callable, List, Dict, Any, Union
 from pydantic import BaseModel
 from defog.llm.models import OpenAIFunctionSpecs, AnthropicFunctionSpecs
+
+
+def cleanup_obj(obj: dict, model: str):
+    """
+    Converts a pydantic model's json to a format that gemini supports (recursively):
+    - Converts properties called "anyOf" to "any_of"
+    - Converts all "types" to uppercase
+    - Removes "$defs" properties that are created by nested pydantic models
+    - Removes $ref properties that are also created by nested pydantic models
+    """
+    new_obj = obj
+
+    keys = new_obj.keys()
+    if "anyOf" in new_obj:
+        new_obj["any_of"] = new_obj["anyOf"]
+        del new_obj["anyOf"]
+
+    if "type" in new_obj:
+        if model.startswith("gemini"):
+            new_obj["type"] = new_obj["type"].upper()
+        else:
+            new_obj["type"] = new_obj["type"]
+
+    if "$defs" in new_obj:
+        del new_obj["$defs"]
+
+    if "$ref" in new_obj:
+        del new_obj["$ref"]
+
+    for k in keys:
+        if type(new_obj[k]) == dict:
+            new_obj[k] = cleanup_obj(new_obj[k], model)
+
+    return new_obj
 
 
 def get_function_specs(
@@ -35,7 +71,15 @@ def get_function_specs(
             )
 
         # Get the JSON schema from the model
-        input_schema = model_class.model_json_schema()
+        input_schema: dict = model_class.model_json_schema()
+
+        # if there are references (due to nested pydantic models), dereference them
+        # these show up as "$defs"
+        # need proxies=False to replace the refs with actual objects and not just JsonRef instances
+        input_schema = jsonref.replace_refs(input_schema, proxies=False)
+
+        # cleanup object
+        input_schema = cleanup_obj(input_schema, model)
 
         # Remove title from input_schema
         input_schema.pop("title")
@@ -64,6 +108,7 @@ def get_function_specs(
                 }
             )
         elif model.startswith("claude"):
+            input_schema["type"] = "object"
             function_specs.append(
                 {
                     "name": func.__name__,
@@ -74,16 +119,12 @@ def get_function_specs(
         elif model.startswith("gemini"):
             from google.genai import types
 
-            # change all "type" values to uppercase
-            input_schema["type"] = input_schema["type"].upper()
-            for prop in input_schema["properties"].values():
-                prop["type"] = prop["type"].upper()
-
             func_spec = {
                 "name": func.__name__,
                 "description": docstring,
                 "parameters": input_schema,
             }
+
             function_declaration = types.FunctionDeclaration(**func_spec)
             tool = types.Tool(function_declarations=[function_declaration])
 

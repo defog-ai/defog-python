@@ -9,3 +9,4 @@ class LLMProvider(Enum):
     DEEPSEEK = "deepseek"
     TOGETHER = "together"
     MISTRAL = "mistral"
+    ALIBABA = "alibaba"

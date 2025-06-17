@@ -125,4 +125,17 @@ MODEL_COSTS = {
         "input_cost_per1k": 0.002,  # $2/M tokens
         "output_cost_per1k": 0.006,  # $6/M tokens
     },
+    # Alibaba Qwen models
+    "qwen-max": {
+        "input_cost_per1k": 0.0016,
+        "output_cost_per1k": 0.0064,
+    },
+    "qwen-plus": {
+        "input_cost_per1k": 0.0004,
+        "output_cost_per1k": 0.0012,
+    },
+    "qwen-turbo": {
+        "input_cost_per1k": 0.00005,
+        "output_cost_per1k": 0.0002,
+    },
 }

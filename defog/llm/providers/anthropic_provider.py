@@ -1,6 +1,8 @@
+import traceback
 import os
 import time
 import json
+import base64
 from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse
@@ -25,6 +27,7 @@ class AnthropicProvider(BaseLLMProvider):
 
     def get_provider_name(self) -> str:
         return "anthropic"
+
 
     def supports_tools(self, model: str) -> bool:
         return True  # All current Claude models support tools
@@ -583,6 +586,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             api_key=self.api_key,
             default_headers=headers,
         )
+
         params, _ = self.build_params(
             messages=messages,
             model=model,
@@ -608,6 +612,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
 
         try:
             response = await func_to_call(**params)
+
             (
                 content,
                 tool_outputs,
@@ -627,6 +632,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 image_result_keys=image_result_keys,
             )
         except Exception as e:
+            traceback.print_exc()
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
 
         # Calculate cost

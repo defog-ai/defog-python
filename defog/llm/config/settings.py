@@ -6,6 +6,7 @@ from .constants import (
     DEFAULT_TEMPERATURE,
     DEEPSEEK_BASE_URL,
     OPENAI_BASE_URL,
+    ALIBABA_BASE_URL,
 )
 
 
@@ -43,6 +44,7 @@ class LLMConfig:
             "deepseek": "DEEPSEEK_API_KEY",
             "together": "TOGETHER_API_KEY",
             "mistral": "MISTRAL_API_KEY",
+            "alibaba": "ALIBABA_API_KEY",
         }
 
         for provider, env_var in key_mappings.items():
@@ -54,6 +56,7 @@ class LLMConfig:
         default_urls = {
             "openai": OPENAI_BASE_URL,
             "deepseek": DEEPSEEK_BASE_URL,
+            "alibaba": ALIBABA_BASE_URL,
         }
 
         for provider, url in default_urls.items():

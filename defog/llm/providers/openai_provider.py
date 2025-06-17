@@ -1,8 +1,10 @@
 import os
 import time
 import json
+import re
+import base64
 from copy import deepcopy
-from typing import Dict, List, Any, Optional, Callable, Tuple
+from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
@@ -56,6 +58,55 @@ class OpenAIProvider(BaseLLMProvider):
                     msg["role"] = "developer"
 
         return messages
+
+    def _get_media_type(self, img_data: str) -> str:
+        """Detect media type from base64 image data."""
+        try:
+            decoded = base64.b64decode(img_data[:100])
+            if decoded.startswith(b"\xff\xd8\xff"):
+                return "image/jpeg"
+            elif decoded.startswith(b"GIF8"):
+                return "image/gif"
+            elif decoded.startswith(b"RIFF"):
+                return "image/webp"
+            else:
+                return "image/png"  # Default
+        except Exception:
+            return "image/png"
+
+    def create_image_message(
+        self,
+        image_base64: Union[str, List[str]],
+        description: str = "Tool generated image",
+    ) -> Dict[str, Any]:
+        """
+        Create a message with image content in OpenAI's format.
+
+        Args:
+            image_base64: Base64-encoded image data - can be single string or list of strings
+            description: Description of the image(s)
+
+        Returns:
+            Message dict in OpenAI's format
+        """
+        content = [{"type": "text", "text": description}]
+
+        # Handle both single image and list of images
+        images = image_base64 if isinstance(image_base64, list) else [image_base64]
+
+        for img_data in images:
+            media_type = self._get_media_type(img_data)
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{media_type};base64,{img_data}",
+                        "detail": "low",
+                    },
+                }
+            )
+
+        return {"role": "user", "content": content}
 
     def supports_tools(self, model: str) -> bool:
         return True
@@ -188,6 +239,7 @@ class OpenAIProvider(BaseLLMProvider):
         response_format=None,
         model: str = "",
         post_tool_function: Optional[Callable] = None,
+        image_result_keys: Optional[List[str]] = None,
         **kwargs,
     ) -> Tuple[
         Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
@@ -254,7 +306,10 @@ class OpenAIProvider(BaseLLMProvider):
                             }
                         )
 
-                        # Process results and append tool messages
+                        # Process results and handle images with provider-specific format
+                        tool_call_blocks = message.tool_calls
+
+                        # Store tool outputs for tracking
                         for tool_call, result in zip(message.tool_calls, results):
                             func_name = tool_call.function.name
                             try:
@@ -262,7 +317,6 @@ class OpenAIProvider(BaseLLMProvider):
                             except json.JSONDecodeError:
                                 args = {}
 
-                            # Store the tool call, result, and text
                             tool_outputs.append(
                                 {
                                     "tool_call_id": tool_call.id,
@@ -275,14 +329,33 @@ class OpenAIProvider(BaseLLMProvider):
                                 }
                             )
 
-                            # Append the tool message
+                        # Use provider-specific image processing
+                        from ..utils_image_support import (
+                            process_tool_results_with_images,
+                        )
+
+                        tool_data_list = process_tool_results_with_images(
+                            tool_call_blocks, results, image_result_keys
+                        )
+
+                        # Create OpenAI-specific messages (separate tool and image messages)
+                        for tool_data in tool_data_list:
+                            # Add tool message
                             request_params["messages"].append(
                                 {
                                     "role": "tool",
-                                    "tool_call_id": tool_call.id,
-                                    "content": str(result),
+                                    "tool_call_id": tool_data.tool_id,
+                                    "content": tool_data.tool_result_text,
                                 }
                             )
+
+                            # Add image message immediately after if present
+                            if tool_data.image_data:
+                                image_message = self.create_image_message(
+                                    tool_data.image_data,
+                                    f"Image generated by {tool_data.tool_name} tool",
+                                )
+                                request_params["messages"].append(image_message)
 
                         # Set tool_choice to "auto" so that the next message will be generated normally
                         request_params["tool_choice"] = (
@@ -494,6 +567,7 @@ class OpenAIProvider(BaseLLMProvider):
                     response_format=response_format,
                     model=model,
                     post_tool_function=post_tool_function,
+                    image_result_keys=image_result_keys,
                 )
         except Exception as e:
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)

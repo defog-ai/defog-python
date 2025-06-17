@@ -103,6 +103,31 @@ class BaseLLMProvider(ABC):
         """Execute a chat completion with the provider."""
         pass
 
+    def create_image_message(
+        self, 
+        image_base64: Union[str, List[str]], 
+        description: str = "Tool generated image"
+    ) -> Dict[str, Any]:
+        """
+        Create a message with image content in the provider's specific format.
+        
+        Args:
+            image_base64: Base64-encoded image data - can be single string or list of strings
+            description: Description of the image(s)
+            
+        Returns:
+            Message dict in the provider's format
+        """
+        # Default implementation - subclasses should override for provider-specific format
+        return {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": description},
+                {"type": "image_base64", "data": image_base64}
+            ]
+        }
+
+
     @abstractmethod
     def supports_tools(self, model: str) -> bool:
         """Check if the model supports tool calling."""

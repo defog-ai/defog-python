@@ -1,6 +1,18 @@
 import os
+import traceback
 import time
-from typing import Dict, List, Any, Optional, Callable, Tuple
+import base64
+from typing import Dict, List, Any, Optional, Callable, Tuple, Union
+
+from google import genai
+from google.genai.types import (
+    Part,
+    Content,
+    AutomaticFunctionCallingConfig,
+    ToolConfig,
+    FunctionCallingConfig,
+    GenerateContentConfig,
+)
 
 from .base import BaseLLMProvider, LLMResponse
 from ..exceptions import ProviderError, MaxTokensError
@@ -13,7 +25,9 @@ from ..image_utils import convert_to_gemini_parts
 class GeminiProvider(BaseLLMProvider):
     """Google Gemini provider implementation."""
 
-    def __init__(self, api_key: Optional[str] = None, config=None):
+    def __init__(
+        self, api_key: Optional[str] = None, config: Optional[LLMConfig] = None
+    ):
         super().__init__(api_key or os.getenv("GEMINI_API_KEY"), config=config)
 
     @classmethod
@@ -23,6 +37,54 @@ class GeminiProvider(BaseLLMProvider):
 
     def get_provider_name(self) -> str:
         return "gemini"
+
+    def _get_media_type(self, img_data: str) -> str:
+        """Detect media type from base64 image data."""
+        try:
+            decoded = base64.b64decode(img_data[:100])
+            if decoded.startswith(b"\xff\xd8\xff"):
+                return "image/jpeg"
+            elif decoded.startswith(b"GIF8"):
+                return "image/gif"
+            elif decoded.startswith(b"RIFF"):
+                return "image/webp"
+            else:
+                return "image/png"  # Default
+        except Exception:
+            return "image/png"
+
+    def create_image_message(
+        self,
+        image_base64: Union[str, List[str]],
+        description: str = "Tool generated image",
+    ) -> Content:
+        """
+        Create a message with image content in Gemini's format.
+
+        Args:
+            image_base64: Base64-encoded image data - can be single string or list of strings
+            description: Description of the image(s)
+
+        Returns:
+            Message dict in Gemini's format
+        """
+        parts = [Part.from_text(text=description)]
+
+        # Handle both single image and list of images
+        images = image_base64 if isinstance(image_base64, list) else [image_base64]
+
+        for img_data in images:
+            media_type = self._get_media_type(img_data)
+            # Convert base64 to bytes for Gemini's format
+            image_bytes = base64.b64decode(img_data)
+            parts.append(
+                Part.from_bytes(
+                    data=image_bytes,
+                    mime_type=media_type,
+                )
+            )
+
+        return Content(role="user", parts=parts)
 
     def supports_tools(self, model: str) -> bool:
         return True  # All current Gemini models support tools
@@ -40,7 +102,7 @@ class GeminiProvider(BaseLLMProvider):
         model: str,
         max_completion_tokens: Optional[int] = None,
         temperature: float = 0.0,
-        response_format=None,
+        response_format: Optional[Any] = None,
         seed: int = 0,
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
@@ -114,7 +176,7 @@ class GeminiProvider(BaseLLMProvider):
                 tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
             if tool_choice:
                 request_params["automatic_function_calling"] = (
-                    types.AutomaticFunctionCallingConfig(disable=True)
+                    AutomaticFunctionCallingConfig(disable=True)
                 )
                 request_params["tool_config"] = tool_choice
 
@@ -132,15 +194,16 @@ class GeminiProvider(BaseLLMProvider):
 
     async def process_response(
         self,
-        client,
-        response,
+        client: genai.Client,
+        response: Any,  # Gemini response type
         request_params: Dict[str, Any],
         messages: List[Dict[str, Any]],
         tools: Optional[List[Callable]],
         tool_dict: Dict[str, Callable],
-        response_format=None,
+        response_format: Optional[Any] = None,
         model: str = "",
         post_tool_function: Optional[Callable] = None,
+        image_result_keys: Optional[List[str]] = None,
         **kwargs,
     ) -> Tuple[
         Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
@@ -148,9 +211,6 @@ class GeminiProvider(BaseLLMProvider):
         """Extract content (including any tool calls) and usage info from Gemini response.
         Handles chaining of tool calls.
         """
-
-        from google.genai import types
-
         if len(response.candidates) == 0:
             raise ProviderError(self.get_provider_name(), "No response from Gemini")
         if response.candidates[0].finish_reason == "MAX_TOKENS":
@@ -163,8 +223,13 @@ class GeminiProvider(BaseLLMProvider):
         if tools and len(tools) > 0:
             consecutive_exceptions = 0
             while True:
-                total_input_tokens += response.usage_metadata.prompt_token_count
-                total_output_tokens += response.usage_metadata.candidates_token_count
+                # this can sometimes be none
+                total_input_tokens += response.usage_metadata.prompt_token_count or 0
+
+                # this can sometimes be none
+                total_output_tokens += (
+                    response.usage_metadata.candidates_token_count or 0
+                )
                 if response.function_calls:
                     try:
                         # Prepare tool calls for batch execution
@@ -195,6 +260,10 @@ class GeminiProvider(BaseLLMProvider):
 
                         # Try to get text if available
                         try:
+                            # Note that this will throw a warning:
+                            # Warning: there are non-text parts in the response: ['function_call'], returning concatenated text result from text parts. Check the full candidates.content.parts accessor to get the full model response.
+                            # this seems intentional: https://github.com/googleapis/python-genai/issues/850
+                            # happens when accessing .text for responses that also contain function calls
                             text = response.text
                         except Exception:
                             text = None
@@ -203,14 +272,12 @@ class GeminiProvider(BaseLLMProvider):
                         tool_call_content = response.candidates[0].content
                         messages.append(tool_call_content)
 
-                        # Build tool result parts
-                        tool_result_parts = []
+                        # Store tool outputs for tracking
                         for tool_call, result in zip(response.function_calls, results):
                             func_name = tool_call.name
                             args = tool_call.args
                             tool_id = getattr(tool_call, "id", None)
 
-                            # Store the tool call, result, and text
                             tool_outputs.append(
                                 {
                                     "tool_id": tool_id,
@@ -221,29 +288,54 @@ class GeminiProvider(BaseLLMProvider):
                                 }
                             )
 
-                            tool_result_parts.append(
-                                types.Part.from_function_response(
-                                    name=func_name,
-                                    response={"result": str(result)},
-                                )
-                            )
-
-                        # Append all tool results in a single message
-                        messages.append(
-                            types.Content(
-                                role="tool",
-                                parts=tool_result_parts,
-                            )
+                        # Use provider-specific image processing
+                        from ..utils_image_support import (
+                            process_tool_results_with_images,
                         )
+
+                        # print(results, image_result_keys)
+
+                        tool_data_list = process_tool_results_with_images(
+                            response.function_calls, results, image_result_keys
+                        )
+
+                        # Create Gemini-specific messages
+                        for tool_data in tool_data_list:
+                            # For Gemini, we need to combine function response and images in one message
+                            parts = [
+                                Part.from_function_response(
+                                    name=tool_data.tool_name,
+                                    response={"result": tool_data.tool_result_text},
+                                )
+                            ]
+
+                            # Add images to the same message if present
+                            if tool_data.image_data:
+                                print("HAS IMAGE DATAAAAA")
+                                # Use the create_image_message method to get properly formatted parts
+                                image_message = self.create_image_message(
+                                    image_base64=tool_data.image_data,
+                                    description=f"Image(s) generated by {tool_data.tool_name} tool:",
+                                )
+                                # Extract parts from the image message and add them to our parts list
+                                # Skip the first part which is the description text, as we'll add it separately
+                                parts.append(
+                                    Part.from_text(
+                                        text=f"Image(s) generated by {tool_data.tool_name} tool:"
+                                    )
+                                )
+                                parts.extend(
+                                    image_message.parts[1:]
+                                )  # Add all image parts
+
+                            messages.append(Content(role="user", parts=parts))
 
                         # Set tool_choice to AUTO so that the next message will be generated normally without required tool calls
                         request_params["automatic_function_calling"] = (
-                            types.AutomaticFunctionCallingConfig(disable=False)
+                            AutomaticFunctionCallingConfig(disable=False)
                         )
-                        request_params["tool_config"] = types.ToolConfig(
-                            function_calling_config=types.FunctionCallingConfig(
-                                mode="AUTO"
-                            )
+                        request_params["tool_config"] = ToolConfig(
+                            function_calling_config=FunctionCallingConfig(mode="AUTO")
                         )
                     except ProviderError:
                         # Re-raise provider errors from base class
@@ -264,9 +356,9 @@ class GeminiProvider(BaseLLMProvider):
                             f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
                         )
                         messages.append(
-                            types.Content(
+                            Content(
                                 role="model",
-                                parts=[types.Part.from_text(text=str(e))],
+                                parts=[Part.from_text(text=str(e))],
                             )
                         )
 
@@ -274,7 +366,7 @@ class GeminiProvider(BaseLLMProvider):
                     response = await client.aio.models.generate_content(
                         model=model,
                         contents=messages,
-                        config=types.GenerateContentConfig(**request_params),
+                        config=GenerateContentConfig(**request_params),
                     )
                 else:
                     # Break out of loop when tool calls are finished
@@ -289,8 +381,8 @@ class GeminiProvider(BaseLLMProvider):
                 content = response.text.strip() if response.text else None
 
         usage = response.usage_metadata
-        total_input_tokens += usage.prompt_token_count
-        total_output_tokens += usage.candidates_token_count
+        total_input_tokens += usage.prompt_token_count or 0
+        total_output_tokens += usage.candidates_token_count or 0
         return (
             content,
             tool_outputs,
@@ -306,7 +398,7 @@ class GeminiProvider(BaseLLMProvider):
         model: str,
         max_completion_tokens: Optional[int] = None,
         temperature: float = 0.0,
-        response_format=None,
+        response_format: Optional[Any] = None,
         seed: int = 0,
         tools: Optional[List[Callable]] = None,
         tool_choice: Optional[str] = None,
@@ -321,9 +413,6 @@ class GeminiProvider(BaseLLMProvider):
         **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with Gemini."""
-        from google import genai
-        from google.genai import types
-
         if post_tool_function:
             self.tool_handler.validate_post_tool_function(post_tool_function)
 
@@ -351,7 +440,7 @@ class GeminiProvider(BaseLLMProvider):
                 tool_choice = convert_tool_choice(tool_choice, tool_names_list, model)
             if tool_choice:
                 request_params["automatic_function_calling"] = (
-                    types.AutomaticFunctionCallingConfig(disable=True)
+                    AutomaticFunctionCallingConfig(disable=True)
                 )
                 request_params["tool_config"] = tool_choice
 
@@ -359,7 +448,7 @@ class GeminiProvider(BaseLLMProvider):
             response = await client.aio.models.generate_content(
                 model=model,
                 contents=messages,
-                config=types.GenerateContentConfig(**request_params),
+                config=GenerateContentConfig(**request_params),
             )
 
             (
@@ -379,8 +468,10 @@ class GeminiProvider(BaseLLMProvider):
                 response_format=response_format,
                 model=model,
                 post_tool_function=post_tool_function,
+                image_result_keys=image_result_keys,
             )
         except Exception as e:
+            traceback.print_exc()
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
 
         # Calculate cost
