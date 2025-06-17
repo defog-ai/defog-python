@@ -15,6 +15,14 @@ from .memory import (
 from .pdf_processor import analyze_pdf, PDFAnalysisInput, ClaudePDFProcessor
 from .pdf_data_extractor import PDFDataExtractor, extract_pdf_data
 
+# Orchestration components
+from .orchestrator import (
+    Orchestrator,
+    AgentOrchestrator,  # Backward compatibility
+    Agent,
+    SubAgentTask,
+    SubAgentResult,
+)
 # Enhanced orchestration components
 from .shared_context import SharedContextStore, Artifact, ArtifactType
 from .enhanced_memory import EnhancedMemoryManager, SharedMemoryEntry
@@ -25,7 +33,7 @@ from .exploration_executor import (
     ExplorationPath,
     ExplorationResult,
 )
-from .enhanced_orchestrator import EnhancedAgentOrchestrator
+from .enhanced_orchestrator import EnhancedAgentOrchestrator  # Backward compatibility
 from .config import (
     EnhancedOrchestratorConfig,
     SharedContextConfig,
@@ -52,6 +60,12 @@ __all__ = [
     "ClaudePDFProcessor",
     "PDFDataExtractor",
     "extract_pdf_data",
+    # Orchestration
+    "Orchestrator",
+    "AgentOrchestrator",  # Backward compatibility
+    "Agent",
+    "SubAgentTask",
+    "SubAgentResult",
     # Enhanced orchestration
     "SharedContextStore",
     "Artifact",
@@ -63,7 +77,7 @@ __all__ = [
     "ExplorationStrategy",
     "ExplorationPath",
     "ExplorationResult",
-    "EnhancedAgentOrchestrator",
+    "EnhancedAgentOrchestrator",  # Backward compatibility
     # Configuration classes
     "EnhancedOrchestratorConfig",
     "SharedContextConfig",
