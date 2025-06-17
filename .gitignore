@@ -85,3 +85,8 @@ examples/cricket_wc2015.duckdb
 
 # ruff
 .ruff_cache/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
