@@ -37,9 +37,9 @@ def generate_postgres_schema(
             "The 'upload' parameter is deprecated and will be removed in a future version. "
             "Schema data is now saved locally by default.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
-    
+
     try:
         import psycopg2
     except ImportError:
@@ -237,26 +237,38 @@ def generate_postgres_schema(
         for table_name, table_info in table_columns.items():
             table_description = table_info.get("table_description", "")
             for col in table_info.get("columns", []):
-                flattened_data.append({
-                    "table_name": table_name,
-                    "column_name": col.get("column_name", ""),
-                    "data_type": col.get("data_type", ""),
-                    "column_description": col.get("column_description", ""),
-                    "table_description": table_description
-                })
-        
+                flattened_data.append(
+                    {
+                        "table_name": table_name,
+                        "column_name": col.get("column_name", ""),
+                        "data_type": col.get("data_type", ""),
+                        "column_description": col.get("column_description", ""),
+                        "table_description": table_description,
+                    }
+                )
+
         df = pd.DataFrame(flattened_data)
-        
+
         # Save using LocalStorage
         storage = LocalStorage()
-        
+
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(csv_data, "defog_metadata.csv", 
-                                       api_key=getattr(self, 'api_key', None),
-                                       db_type=getattr(self, 'db_type', 'postgres'))
-            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'postgres')) / "defog_metadata.csv")
+            result = storage.save_schema(
+                csv_data,
+                "defog_metadata.csv",
+                api_key=getattr(self, "api_key", None),
+                db_type=getattr(self, "db_type", "postgres"),
+            )
+            return str(
+                storage.storage_dir
+                / "schemas"
+                / storage._get_project_id(
+                    getattr(self, "api_key", None), getattr(self, "db_type", "postgres")
+                )
+                / "defog_metadata.csv"
+            )
         else:
             # Return CSV string
             return df.to_csv(index=False)
@@ -363,9 +375,9 @@ def generate_redshift_schema(
             "The 'upload' parameter is deprecated and will be removed in a future version. "
             "Schema data is now saved locally by default.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
-    
+
     try:
         import psycopg2
     except ImportError:
@@ -424,26 +436,38 @@ def generate_redshift_schema(
         flattened_data = []
         for table_name, columns in schemas.items():
             for col in columns:
-                flattened_data.append({
-                    "table_name": table_name,
-                    "column_name": col.get("column_name", ""),
-                    "data_type": col.get("data_type", ""),
-                    "column_description": col.get("column_description", ""),
-                    "table_description": ""
-                })
-        
+                flattened_data.append(
+                    {
+                        "table_name": table_name,
+                        "column_name": col.get("column_name", ""),
+                        "data_type": col.get("data_type", ""),
+                        "column_description": col.get("column_description", ""),
+                        "table_description": "",
+                    }
+                )
+
         df = pd.DataFrame(flattened_data)
-        
+
         # Save using LocalStorage
         storage = LocalStorage()
-        
+
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(csv_data, "defog_metadata.csv", 
-                                       api_key=getattr(self, 'api_key', None),
-                                       db_type=getattr(self, 'db_type', 'redshift'))
-            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'redshift')) / "defog_metadata.csv")
+            result = storage.save_schema(
+                csv_data,
+                "defog_metadata.csv",
+                api_key=getattr(self, "api_key", None),
+                db_type=getattr(self, "db_type", "redshift"),
+            )
+            return str(
+                storage.storage_dir
+                / "schemas"
+                / storage._get_project_id(
+                    getattr(self, "api_key", None), getattr(self, "db_type", "redshift")
+                )
+                / "defog_metadata.csv"
+            )
         else:
             # Return CSV string
             return df.to_csv(index=False)
@@ -465,9 +489,9 @@ def generate_mysql_schema(
             "The 'upload' parameter is deprecated and will be removed in a future version. "
             "Schema data is now saved locally by default.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
-    
+
     try:
         import mysql.connector
     except:
@@ -514,26 +538,38 @@ def generate_mysql_schema(
         flattened_data = []
         for table_name, columns in schemas.items():
             for col in columns:
-                flattened_data.append({
-                    "table_name": table_name,
-                    "column_name": col.get("column_name", ""),
-                    "data_type": col.get("data_type", ""),
-                    "column_description": col.get("column_description", ""),
-                    "table_description": ""
-                })
-        
+                flattened_data.append(
+                    {
+                        "table_name": table_name,
+                        "column_name": col.get("column_name", ""),
+                        "data_type": col.get("data_type", ""),
+                        "column_description": col.get("column_description", ""),
+                        "table_description": "",
+                    }
+                )
+
         df = pd.DataFrame(flattened_data)
-        
+
         # Save using LocalStorage
         storage = LocalStorage()
-        
+
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(csv_data, "defog_metadata.csv", 
-                                       api_key=getattr(self, 'api_key', None),
-                                       db_type=getattr(self, 'db_type', 'mysql'))
-            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'mysql')) / "defog_metadata.csv")
+            result = storage.save_schema(
+                csv_data,
+                "defog_metadata.csv",
+                api_key=getattr(self, "api_key", None),
+                db_type=getattr(self, "db_type", "mysql"),
+            )
+            return str(
+                storage.storage_dir
+                / "schemas"
+                / storage._get_project_id(
+                    getattr(self, "api_key", None), getattr(self, "db_type", "mysql")
+                )
+                / "defog_metadata.csv"
+            )
         else:
             # Return CSV string
             return df.to_csv(index=False)
@@ -555,9 +591,9 @@ def generate_databricks_schema(
             "The 'upload' parameter is deprecated and will be removed in a future version. "
             "Schema data is now saved locally by default.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
-    
+
     try:
         from databricks import sql
     except:
@@ -603,26 +639,39 @@ def generate_databricks_schema(
         flattened_data = []
         for table_name, columns in schemas.items():
             for col in columns:
-                flattened_data.append({
-                    "table_name": table_name,
-                    "column_name": col.get("column_name", ""),
-                    "data_type": col.get("data_type", ""),
-                    "column_description": col.get("column_description", ""),
-                    "table_description": ""
-                })
-        
+                flattened_data.append(
+                    {
+                        "table_name": table_name,
+                        "column_name": col.get("column_name", ""),
+                        "data_type": col.get("data_type", ""),
+                        "column_description": col.get("column_description", ""),
+                        "table_description": "",
+                    }
+                )
+
         df = pd.DataFrame(flattened_data)
-        
+
         # Save using LocalStorage
         storage = LocalStorage()
-        
+
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(csv_data, "defog_metadata.csv", 
-                                       api_key=getattr(self, 'api_key', None),
-                                       db_type=getattr(self, 'db_type', 'databricks'))
-            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'databricks')) / "defog_metadata.csv")
+            result = storage.save_schema(
+                csv_data,
+                "defog_metadata.csv",
+                api_key=getattr(self, "api_key", None),
+                db_type=getattr(self, "db_type", "databricks"),
+            )
+            return str(
+                storage.storage_dir
+                / "schemas"
+                / storage._get_project_id(
+                    getattr(self, "api_key", None),
+                    getattr(self, "db_type", "databricks"),
+                )
+                / "defog_metadata.csv"
+            )
         else:
             # Return CSV string
             return df.to_csv(index=False)
@@ -644,9 +693,9 @@ def generate_snowflake_schema(
             "The 'upload' parameter is deprecated and will be removed in a future version. "
             "Schema data is now saved locally by default.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
-    
+
     try:
         import snowflake.connector
     except:
@@ -708,26 +757,39 @@ def generate_snowflake_schema(
         flattened_data = []
         for table_name, columns in schemas.items():
             for col in columns:
-                flattened_data.append({
-                    "table_name": table_name,
-                    "column_name": col.get("column_name", ""),
-                    "data_type": col.get("data_type", ""),
-                    "column_description": col.get("column_description", ""),
-                    "table_description": ""
-                })
-        
+                flattened_data.append(
+                    {
+                        "table_name": table_name,
+                        "column_name": col.get("column_name", ""),
+                        "data_type": col.get("data_type", ""),
+                        "column_description": col.get("column_description", ""),
+                        "table_description": "",
+                    }
+                )
+
         df = pd.DataFrame(flattened_data)
-        
+
         # Save using LocalStorage
         storage = LocalStorage()
-        
+
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(csv_data, "defog_metadata.csv", 
-                                       api_key=getattr(self, 'api_key', None),
-                                       db_type=getattr(self, 'db_type', 'snowflake'))
-            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'snowflake')) / "defog_metadata.csv")
+            result = storage.save_schema(
+                csv_data,
+                "defog_metadata.csv",
+                api_key=getattr(self, "api_key", None),
+                db_type=getattr(self, "db_type", "snowflake"),
+            )
+            return str(
+                storage.storage_dir
+                / "schemas"
+                / storage._get_project_id(
+                    getattr(self, "api_key", None),
+                    getattr(self, "db_type", "snowflake"),
+                )
+                / "defog_metadata.csv"
+            )
         else:
             # Return CSV string
             return df.to_csv(index=False)
@@ -749,9 +811,9 @@ def generate_bigquery_schema(
             "The 'upload' parameter is deprecated and will be removed in a future version. "
             "Schema data is now saved locally by default.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
-    
+
     try:
         from google.cloud import bigquery
     except:
@@ -786,33 +848,43 @@ def generate_bigquery_schema(
     client.close()
 
     if upload:
-        print(
-            "Saving the schema to local storage..."
-        )
+        print("Saving the schema to local storage...")
         # Convert to DataFrame format for CSV generation
         flattened_data = []
         for table_name, columns in schemas.items():
             for col in columns:
-                flattened_data.append({
-                    "table_name": table_name,
-                    "column_name": col.get("column_name", ""),
-                    "data_type": col.get("data_type", ""),
-                    "column_description": col.get("column_description", ""),
-                    "table_description": ""
-                })
-        
+                flattened_data.append(
+                    {
+                        "table_name": table_name,
+                        "column_name": col.get("column_name", ""),
+                        "data_type": col.get("data_type", ""),
+                        "column_description": col.get("column_description", ""),
+                        "table_description": "",
+                    }
+                )
+
         df = pd.DataFrame(flattened_data)
-        
+
         # Save using LocalStorage
         storage = LocalStorage()
-        
+
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(csv_data, "defog_metadata.csv", 
-                                       api_key=getattr(self, 'api_key', None),
-                                       db_type=getattr(self, 'db_type', 'bigquery'))
-            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'bigquery')) / "defog_metadata.csv")
+            result = storage.save_schema(
+                csv_data,
+                "defog_metadata.csv",
+                api_key=getattr(self, "api_key", None),
+                db_type=getattr(self, "db_type", "bigquery"),
+            )
+            return str(
+                storage.storage_dir
+                / "schemas"
+                / storage._get_project_id(
+                    getattr(self, "api_key", None), getattr(self, "db_type", "bigquery")
+                )
+                / "defog_metadata.csv"
+            )
         else:
             # Return CSV string
             return df.to_csv(index=False)
@@ -833,9 +905,9 @@ def generate_sqlserver_schema(
             "The 'upload' parameter is deprecated and will be removed in a future version. "
             "Schema data is now saved locally by default.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
-    
+
     try:
         import pyodbc
     except:
@@ -927,26 +999,39 @@ def generate_sqlserver_schema(
         flattened_data = []
         for table_name, columns in schemas.items():
             for col in columns:
-                flattened_data.append({
-                    "table_name": table_name,
-                    "column_name": col.get("column_name", ""),
-                    "data_type": col.get("data_type", ""),
-                    "column_description": col.get("column_description", ""),
-                    "table_description": ""
-                })
-        
+                flattened_data.append(
+                    {
+                        "table_name": table_name,
+                        "column_name": col.get("column_name", ""),
+                        "data_type": col.get("data_type", ""),
+                        "column_description": col.get("column_description", ""),
+                        "table_description": "",
+                    }
+                )
+
         df = pd.DataFrame(flattened_data)
-        
+
         # Save using LocalStorage
         storage = LocalStorage()
-        
+
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(csv_data, "defog_metadata.csv", 
-                                       api_key=getattr(self, 'api_key', None),
-                                       db_type=getattr(self, 'db_type', 'sqlserver'))
-            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'sqlserver')) / "defog_metadata.csv")
+            result = storage.save_schema(
+                csv_data,
+                "defog_metadata.csv",
+                api_key=getattr(self, "api_key", None),
+                db_type=getattr(self, "db_type", "sqlserver"),
+            )
+            return str(
+                storage.storage_dir
+                / "schemas"
+                / storage._get_project_id(
+                    getattr(self, "api_key", None),
+                    getattr(self, "db_type", "sqlserver"),
+                )
+                / "defog_metadata.csv"
+            )
         else:
             # Return CSV string
             return df.to_csv(index=False)
@@ -980,9 +1065,9 @@ def generate_sqlite_schema(
             "The 'upload' parameter is deprecated and will be removed in a future version. "
             "Schema data is now saved locally by default.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
-    
+
     try:
         import sqlite3
     except ImportError as e:
@@ -1027,26 +1112,38 @@ def generate_sqlite_schema(
         flattened_data = []
         for table_name, columns in schemas.items():
             for col in columns:
-                flattened_data.append({
-                    "table_name": table_name,
-                    "column_name": col.get("column_name", ""),
-                    "data_type": col.get("data_type", ""),
-                    "column_description": col.get("column_description", ""),
-                    "table_description": ""
-                })
-        
+                flattened_data.append(
+                    {
+                        "table_name": table_name,
+                        "column_name": col.get("column_name", ""),
+                        "data_type": col.get("data_type", ""),
+                        "column_description": col.get("column_description", ""),
+                        "table_description": "",
+                    }
+                )
+
         df = pd.DataFrame(flattened_data)
-        
+
         # Save using LocalStorage
         storage = LocalStorage()
-        
+
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(csv_data, "defog_metadata.csv", 
-                                       api_key=getattr(self, 'api_key', None),
-                                       db_type=getattr(self, 'db_type', 'sqlite'))
-            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'sqlite')) / "defog_metadata.csv")
+            result = storage.save_schema(
+                csv_data,
+                "defog_metadata.csv",
+                api_key=getattr(self, "api_key", None),
+                db_type=getattr(self, "db_type", "sqlite"),
+            )
+            return str(
+                storage.storage_dir
+                / "schemas"
+                / storage._get_project_id(
+                    getattr(self, "api_key", None), getattr(self, "db_type", "sqlite")
+                )
+                / "defog_metadata.csv"
+            )
         else:
             # Return CSV string
             return df.to_csv(index=False)
@@ -1082,9 +1179,9 @@ def generate_duckdb_schema(
             "The 'upload' parameter is deprecated and will be removed in a future version. "
             "Schema data is now saved locally by default.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
-    
+
     try:
         import duckdb
     except ImportError as e:
@@ -1250,26 +1347,38 @@ def generate_duckdb_schema(
         for table_name, table_info in schemas.items():
             table_description = table_info.get("table_description", "")
             for col in table_info.get("columns", []):
-                flattened_data.append({
-                    "table_name": table_name,
-                    "column_name": col.get("column_name", ""),
-                    "data_type": col.get("data_type", ""),
-                    "column_description": col.get("column_description", ""),
-                    "table_description": table_description
-                })
-        
+                flattened_data.append(
+                    {
+                        "table_name": table_name,
+                        "column_name": col.get("column_name", ""),
+                        "data_type": col.get("data_type", ""),
+                        "column_description": col.get("column_description", ""),
+                        "table_description": table_description,
+                    }
+                )
+
         df = pd.DataFrame(flattened_data)
-        
+
         # Save using LocalStorage
         storage = LocalStorage()
-        
+
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(csv_data, "defog_metadata.csv", 
-                                       api_key=getattr(self, 'api_key', None),
-                                       db_type=getattr(self, 'db_type', 'duckdb'))
-            return str(storage.storage_dir / "schemas" / storage._get_project_id(getattr(self, 'api_key', None), getattr(self, 'db_type', 'duckdb')) / "defog_metadata.csv")
+            result = storage.save_schema(
+                csv_data,
+                "defog_metadata.csv",
+                api_key=getattr(self, "api_key", None),
+                db_type=getattr(self, "db_type", "duckdb"),
+            )
+            return str(
+                storage.storage_dir
+                / "schemas"
+                / storage._get_project_id(
+                    getattr(self, "api_key", None), getattr(self, "db_type", "duckdb")
+                )
+                / "defog_metadata.csv"
+            )
         else:
             # Return CSV string
             return df.to_csv(index=False)

@@ -56,7 +56,7 @@ class BaseDefog:
                 "The 'api_key' parameter is deprecated and will be removed in a future version. "
                 "Defog now focuses on local generation and no longer requires an API key.",
                 DeprecationWarning,
-                stacklevel=3
+                stacklevel=3,
             )
         self.check_db_creds(db_type, db_creds)
         self.api_key = api_key

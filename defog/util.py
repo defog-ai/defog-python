@@ -228,7 +228,7 @@ def get_feedback(
         "get_feedback is deprecated and no longer functional. "
         "Feedback collection has been removed.",
         DeprecationWarning,
-        stacklevel=2
+        stacklevel=2,
     )
     return
 
@@ -243,6 +243,6 @@ async def make_async_post_request(
         "make_async_post_request is deprecated and will be removed in a future version. "
         "API calls have been replaced with local operations.",
         DeprecationWarning,
-        stacklevel=2
+        stacklevel=2,
     )
     return {"error": "API calls are no longer supported"}

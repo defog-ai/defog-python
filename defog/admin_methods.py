@@ -29,7 +29,7 @@ def update_db_schema(self, path_to_csv, dev=False, temp=False):
     resp = storage.save_metadata(
         metadata={"table_metadata": schema, "db_type": self.db_type, "dev": dev},
         api_key=self.api_key,
-        db_type=self.db_type
+        db_type=self.db_type,
     )
 
     # Invalidate cache after updating schema
@@ -53,14 +53,12 @@ def update_glossary(
     """
     # Save glossary to local storage
     storage = LocalStorage()
-    
+
     # Save the main glossary
     resp = storage.save_glossary(
-        glossary=glossary,
-        api_key=self.api_key,
-        db_type=self.db_type
+        glossary=glossary, api_key=self.api_key, db_type=self.db_type
     )
-    
+
     # If there's customized glossary, save it as metadata
     if customized_glossary or glossary_compulsory or glossary_prunable_units:
         metadata = storage.get_metadata(self.api_key, self.db_type).get("metadata", {})
@@ -68,7 +66,7 @@ def update_glossary(
         metadata["glossary_compulsory"] = glossary_compulsory
         metadata["glossary_prunable_units"] = glossary_prunable_units
         storage.save_metadata(metadata, self.api_key, self.db_type)
-    
+
     return resp
 
 
@@ -77,10 +75,7 @@ def delete_glossary(self, user_type=None, dev=False):
     Deletes the glossary from local storage.
     """
     storage = LocalStorage()
-    resp = storage.delete_glossary(
-        api_key=self.api_key,
-        db_type=self.db_type
-    )
+    resp = storage.delete_glossary(api_key=self.api_key, db_type=self.db_type)
     print("Glossary deleted successfully.")
     return resp
 
@@ -90,7 +85,7 @@ def get_glossary(self, mode="general", dev=False):
     Gets the glossary from local storage.
     """
     storage = LocalStorage()
-    
+
     if mode == "general":
         return storage.get_glossary(self.api_key, self.db_type)
     elif mode == "customized":
@@ -106,13 +101,13 @@ def get_metadata(self, format="markdown", export_path=None, dev=False):
     resp = storage.get_metadata(self.api_key, self.db_type)
     metadata = resp.get("metadata", {})
     table_metadata = metadata.get("table_metadata", {})
-    
+
     items = []
     for table in table_metadata:
         for item in table_metadata[table]:
             item["table_name"] = table
             items.append(item)
-    
+
     if format == "markdown":
         return pd.DataFrame(items)[
             ["table_name", "column_name", "data_type", "column_description"]
@@ -141,7 +136,9 @@ def get_quota(self) -> Optional[Dict]:
     """
     This method is deprecated as quota management is no longer needed for local generation.
     """
-    print("Warning: get_quota is deprecated. Quota management is not needed for local generation.")
+    print(
+        "Warning: get_quota is deprecated. Quota management is not needed for local generation."
+    )
     return {"quota": "unlimited", "usage": "n/a"}
 
 
@@ -169,14 +166,10 @@ def update_golden_queries(
     # Save to local storage
     storage = LocalStorage()
     resp = storage.save_golden_queries(
-        golden_queries=golden_queries,
-        api_key=self.api_key,
-        db_type=self.db_type
+        golden_queries=golden_queries, api_key=self.api_key, db_type=self.db_type
     )
-    
-    print(
-        "Golden queries have been saved locally and are now available for use."
-    )
+
+    print("Golden queries have been saved locally and are now available for use.")
     return resp
 
 
@@ -199,7 +192,7 @@ def delete_golden_queries(
         )
 
     storage = LocalStorage()
-    
+
     if all:
         # Delete all by removing the file
         storage.delete_golden_queries([], self.api_key, self.db_type)
@@ -210,13 +203,13 @@ def delete_golden_queries(
             golden_queries = (
                 pd.read_csv(golden_queries_path).fillna("").to_dict(orient="records")
             )
-        
+
         # Extract questions to delete
         questions_to_delete = [q["question"] for q in golden_queries]
         resp = storage.delete_golden_queries(
             golden_queries=questions_to_delete,
             api_key=self.api_key,
-            db_type=self.db_type
+            db_type=self.db_type,
         )
         return resp
 
@@ -229,7 +222,7 @@ def get_golden_queries(
     """
     storage = LocalStorage()
     golden_queries = storage.get_golden_queries(self.api_key, self.db_type)
-    
+
     if format == "csv":
         if export_path is None:
             export_path = "golden_queries.csv"

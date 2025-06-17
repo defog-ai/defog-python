@@ -31,7 +31,7 @@ async def update_db_schema(self, path_to_csv, dev=False, temp=False):
         storage.save_metadata,
         metadata={"table_metadata": schema, "db_type": self.db_type, "dev": dev},
         api_key=self.api_key,
-        db_type=self.db_type
+        db_type=self.db_type,
     )
 
     # Invalidate cache after updating schema
@@ -55,15 +55,15 @@ async def update_glossary(
     """
     # Save glossary to local storage
     storage = LocalStorage()
-    
+
     # Save the main glossary
     resp = await asyncio.to_thread(
         storage.save_glossary,
         glossary=glossary,
         api_key=self.api_key,
-        db_type=self.db_type
+        db_type=self.db_type,
     )
-    
+
     # If there's customized glossary, save it as metadata
     if customized_glossary or glossary_compulsory or glossary_prunable_units:
         metadata = storage.get_metadata(self.api_key, self.db_type).get("metadata", {})
@@ -71,12 +71,9 @@ async def update_glossary(
         metadata["glossary_compulsory"] = glossary_compulsory
         metadata["glossary_prunable_units"] = glossary_prunable_units
         await asyncio.to_thread(
-            storage.save_metadata,
-            metadata,
-            self.api_key,
-            self.db_type
+            storage.save_metadata, metadata, self.api_key, self.db_type
         )
-    
+
     return resp
 
 
@@ -86,9 +83,7 @@ async def delete_glossary(self, user_type=None, dev=False):
     """
     storage = LocalStorage()
     resp = await asyncio.to_thread(
-        storage.delete_glossary,
-        api_key=self.api_key,
-        db_type=self.db_type
+        storage.delete_glossary, api_key=self.api_key, db_type=self.db_type
     )
     print("Glossary deleted successfully.")
     return resp
@@ -99,18 +94,12 @@ async def get_glossary(self, mode="general", dev=False):
     Gets the glossary from local storage.
     """
     storage = LocalStorage()
-    
+
     if mode == "general":
-        return await asyncio.to_thread(
-            storage.get_glossary,
-            self.api_key,
-            self.db_type
-        )
+        return await asyncio.to_thread(storage.get_glossary, self.api_key, self.db_type)
     elif mode == "customized":
         metadata = await asyncio.to_thread(
-            storage.get_metadata,
-            self.api_key,
-            self.db_type
+            storage.get_metadata, self.api_key, self.db_type
         )
         return metadata.get("metadata", {}).get("customized_glossary", {})
 
@@ -120,20 +109,16 @@ async def get_metadata(self, format="markdown", export_path=None, dev=False):
     Gets the metadata from local storage.
     """
     storage = LocalStorage()
-    resp = await asyncio.to_thread(
-        storage.get_metadata,
-        self.api_key,
-        self.db_type
-    )
+    resp = await asyncio.to_thread(storage.get_metadata, self.api_key, self.db_type)
     metadata = resp.get("metadata", {})
     table_metadata = metadata.get("table_metadata", {})
-    
+
     items = []
     for table in table_metadata:
         for item in table_metadata[table]:
             item["table_name"] = table
             items.append(item)
-    
+
     if format == "markdown":
         return pd.DataFrame(items)[
             ["table_name", "column_name", "data_type", "column_description"]
@@ -162,7 +147,9 @@ async def get_quota(self) -> Optional[Dict]:
     """
     This method is deprecated as quota management is no longer needed for local generation.
     """
-    print("Warning: get_quota is deprecated. Quota management is not needed for local generation.")
+    print(
+        "Warning: get_quota is deprecated. Quota management is not needed for local generation."
+    )
     return {"quota": "unlimited", "usage": "n/a"}
 
 
@@ -193,12 +180,10 @@ async def update_golden_queries(
         storage.save_golden_queries,
         golden_queries=golden_queries,
         api_key=self.api_key,
-        db_type=self.db_type
+        db_type=self.db_type,
     )
-    
-    print(
-        "Golden queries have been saved locally and are now available for use."
-    )
+
+    print("Golden queries have been saved locally and are now available for use.")
     return resp
 
 
@@ -221,14 +206,11 @@ async def delete_golden_queries(
         )
 
     storage = LocalStorage()
-    
+
     if all:
         # Delete all by removing the file
         resp = await asyncio.to_thread(
-            storage.delete_golden_queries,
-            [],
-            self.api_key,
-            self.db_type
+            storage.delete_golden_queries, [], self.api_key, self.db_type
         )
         print("All golden queries have now been deleted.")
         return {"status": "success", "message": "All golden queries deleted"}
@@ -237,14 +219,14 @@ async def delete_golden_queries(
             golden_queries = (
                 pd.read_csv(golden_queries_path).fillna("").to_dict(orient="records")
             )
-        
+
         # Extract questions to delete
         questions_to_delete = [q["question"] for q in golden_queries]
         resp = await asyncio.to_thread(
             storage.delete_golden_queries,
             golden_queries=questions_to_delete,
             api_key=self.api_key,
-            db_type=self.db_type
+            db_type=self.db_type,
         )
         return resp
 
@@ -257,11 +239,9 @@ async def get_golden_queries(
     """
     storage = LocalStorage()
     golden_queries = await asyncio.to_thread(
-        storage.get_golden_queries,
-        self.api_key,
-        self.db_type
+        storage.get_golden_queries, self.api_key, self.db_type
     )
-    
+
     if format == "csv":
         if export_path is None:
             export_path = "golden_queries.csv"
@@ -354,7 +334,7 @@ async def create_empty_tables(self, dev: bool = False):
                 conn.commit()
                 conn.close()
                 return True
-            
+
             return await asyncio.to_thread(execute_postgres)
 
         elif self.db_type == "mysql":
@@ -368,7 +348,7 @@ async def create_empty_tables(self, dev: bool = False):
                 conn.commit()
                 conn.close()
                 return True
-            
+
             return await asyncio.to_thread(execute_mysql)
 
         elif self.db_type == "databricks":
@@ -380,7 +360,7 @@ async def create_empty_tables(self, dev: bool = False):
                 conn.commit()
                 conn.close()
                 return True
-            
+
             return await asyncio.to_thread(execute_databricks)
 
         elif self.db_type == "snowflake":
@@ -401,7 +381,7 @@ async def create_empty_tables(self, dev: bool = False):
                 conn.commit()
                 conn.close()
                 return True
-            
+
             return await asyncio.to_thread(execute_snowflake)
 
         elif self.db_type == "bigquery":
@@ -414,7 +394,7 @@ async def create_empty_tables(self, dev: bool = False):
                 for statement in ddl.split(";"):
                     client.query(statement)
                 return True
-            
+
             return await asyncio.to_thread(execute_bigquery)
 
         elif self.db_type == "sqlserver":
@@ -432,7 +412,7 @@ async def create_empty_tables(self, dev: bool = False):
                 conn.commit()
                 conn.close()
                 return True
-            
+
             return await asyncio.to_thread(execute_sqlserver)
         else:
             raise ValueError(f"Unsupported DB type: {self.db_type}")

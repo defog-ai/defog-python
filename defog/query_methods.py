@@ -83,10 +83,10 @@ def get_query(
         config=getattr(self, "llm_config", None),
     )
     t_end = datetime.now()
-    
+
     if profile:
         result["time_taken"] = (t_end - t_start).total_seconds()
-    
+
     return result
 
 

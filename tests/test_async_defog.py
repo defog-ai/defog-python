@@ -9,7 +9,7 @@ class TestAsyncDefog(unittest.TestCase):
         self.assertEqual(df.api_key, "test_api_key")
         self.assertEqual(df.db_type, "redis")
         self.assertEqual(df.db_creds, {})
-        
+
         # Test without api_key (preferred)
         df2 = AsyncDefog(db_type="redis")
         self.assertEqual(df2.api_key, None)
