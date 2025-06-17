@@ -12,20 +12,9 @@ extras = {
 }
 
 
-def package_files(directory):
-    paths = []
-    for path, directories, filenames in os.walk(directory):
-        for filename in filenames:
-            paths.append(os.path.join("..", path, filename))
-    return paths
-
-
-next_static_files = package_files("defog/static")
-
 setup(
     name="defog",
     packages=find_packages(),
-    package_data={"defog": next_static_files},
     version="0.72.4",
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
