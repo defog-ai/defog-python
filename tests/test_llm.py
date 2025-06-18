@@ -218,7 +218,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         if AVAILABLE_MODELS.get("openai"):
             test_models.extend(["gpt-4.1-mini", "o4-mini", "o3"])
         if AVAILABLE_MODELS.get("gemini"):
-            test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro-preview-03-25"])
+            test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro"])
         if AVAILABLE_MODELS.get("mistral"):
             test_models.append("mistral-small-latest")
         
@@ -248,7 +248,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         if AVAILABLE_MODELS.get("openai"):
             test_models.extend(["gpt-4o-mini", "o3", "o4-mini", "gpt-4.1-mini", "gpt-4.1-nano"])
         if AVAILABLE_MODELS.get("gemini"):
-            test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro-preview-03-25"])
+            test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro"])
         if AVAILABLE_MODELS.get("mistral"):
             test_models.append("mistral-small-latest")
             
@@ -306,7 +306,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         if AVAILABLE_MODELS.get("openai"):
             test_models.extend(["gpt-4o", "o3", "o4-mini", "gpt-4.1", "gpt-4.1-nano"])
         if AVAILABLE_MODELS.get("gemini"):
-            test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro-preview-03-25"])
+            test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro"])
         if AVAILABLE_MODELS.get("anthropic"):
             test_models.append("claude-3-7-sonnet-latest")
         if AVAILABLE_MODELS.get("mistral"):
