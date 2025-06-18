@@ -14,6 +14,7 @@ from .memory import (
 )
 from .pdf_processor import analyze_pdf, PDFAnalysisInput, ClaudePDFProcessor
 from .pdf_data_extractor import PDFDataExtractor, extract_pdf_data
+from .image_data_extractor import ImageDataExtractor, extract_image_data
 
 # Orchestration components
 from .orchestrator import (
@@ -60,6 +61,9 @@ __all__ = [
     "ClaudePDFProcessor",
     "PDFDataExtractor",
     "extract_pdf_data",
+    # Image processing
+    "ImageDataExtractor",
+    "extract_image_data",
     # Orchestration
     "Orchestrator",
     "AgentOrchestrator",  # Backward compatibility
