@@ -77,7 +77,7 @@ async def analyze_local_image(image_path: str):
     providers = [
         (LLMProvider.ANTHROPIC, "claude-sonnet-4-20250514"),
         (LLMProvider.OPENAI, "gpt-4.1"),
-        (LLMProvider.GEMINI, "gemini-2.5-pro-preview-06-05")
+        (LLMProvider.GEMINI, "gemini-2.5-pro")
     ]
     
     for provider, model in providers:
@@ -120,7 +120,7 @@ async def analyze_image_url(image_url: str):
     providers = [
         (LLMProvider.ANTHROPIC, "claude-sonnet-4-20250514"),
         (LLMProvider.OPENAI, "gpt-4.1"),
-        (LLMProvider.GEMINI, "gemini-2.5-pro-preview-06-05")
+        (LLMProvider.GEMINI, "gemini-2.5-pro")
     ]
     
     for provider, model in providers:
