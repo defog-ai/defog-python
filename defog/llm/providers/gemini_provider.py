@@ -72,19 +72,22 @@ class GeminiProvider(BaseLLMProvider):
 
         Returns:
             Content object in Gemini's format
-            
+
         Raises:
             ValueError: If no valid images are provided or validation fails
         """
-        from ..utils_image_support import validate_and_process_image_data, safe_extract_media_type_and_data
-        
+        from ..utils_image_support import (
+            validate_and_process_image_data,
+            safe_extract_media_type_and_data,
+        )
+
         # Validate and process image data
         valid_images, errors = validate_and_process_image_data(image_base64)
-        
+
         if not valid_images:
             error_summary = "; ".join(errors) if errors else "No valid images provided"
             raise ValueError(f"Cannot create image message: {error_summary}")
-        
+
         if errors:
             # Log warnings for any invalid images but continue with valid ones
             for error in errors:

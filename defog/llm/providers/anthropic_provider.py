@@ -31,7 +31,6 @@ class AnthropicProvider(BaseLLMProvider):
     def get_provider_name(self) -> str:
         return "anthropic"
 
-
     def supports_tools(self, model: str) -> bool:
         return True  # All current Claude models support tools
 
@@ -41,7 +40,7 @@ class AnthropicProvider(BaseLLMProvider):
     def convert_content_to_anthropic(self, content: Any) -> Any:
         """Convert message content to Anthropic format."""
         return convert_to_anthropic_format(content)
-    
+
     def create_image_message(
         self,
         image_base64: Union[str, List[str]],
@@ -49,51 +48,56 @@ class AnthropicProvider(BaseLLMProvider):
         image_detail: str = "low",
     ) -> Dict[str, Any]:
         """Create an image message in Anthropic format with validation.
-        
+
         Args:
             image_base64: Base64 encoded image string or list of strings
             description: Description text for the image(s)
             image_detail: Level of detail (ignored by Anthropic, included for interface consistency)
-            
+
         Returns:
             Dict containing the formatted message with image(s)
-            
+
         Raises:
             ValueError: If no valid images are provided or validation fails
         """
-        from ..utils_image_support import validate_and_process_image_data, safe_extract_media_type_and_data
-        
+        from ..utils_image_support import (
+            validate_and_process_image_data,
+            safe_extract_media_type_and_data,
+        )
+
         # Validate and process image data
         valid_images, errors = validate_and_process_image_data(image_base64)
-        
+
         if not valid_images:
             error_summary = "; ".join(errors) if errors else "No valid images provided"
             raise ValueError(f"Cannot create image message: {error_summary}")
-        
+
         if errors:
             # Log warnings for any invalid images but continue with valid ones
             for error in errors:
                 logger.warning(f"Skipping invalid image: {error}")
-            
+
         content = []
-        
+
         # Add description text first
         if description:
             content.append({"type": "text", "text": description})
-            
+
         # Add each validated image
         for img_data in valid_images:
             media_type, clean_data = safe_extract_media_type_and_data(img_data)
-                
-            content.append({
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": clean_data,
-                },
-            })
-            
+
+            content.append(
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": clean_data,
+                    },
+                }
+            )
+
         return {"role": "user", "content": content}
 
     def build_params(
@@ -443,45 +447,62 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                 tool_results_data = process_tool_results_with_images(
                                     tool_call_blocks, results, image_result_keys
                                 )
-                                
+
                                 # Build tool results content
                                 tool_results_content = []
                                 for tool_data in tool_results_data:
                                     tool_result = {
                                         "type": "tool_result",
                                         "tool_use_id": tool_data.tool_id,
-                                        "content": tool_data.tool_result_text
+                                        "content": tool_data.tool_result_text,
                                     }
-                                    
+
                                     # If there are images, add them to the content
                                     if tool_data.image_data:
                                         tool_result["content"] = []
                                         # Add text content first
-                                        tool_result["content"].append({
-                                            "type": "text",
-                                            "text": tool_data.tool_result_text
-                                        })
+                                        tool_result["content"].append(
+                                            {
+                                                "type": "text",
+                                                "text": tool_data.tool_result_text,
+                                            }
+                                        )
                                         # Add image content - handle both string and list with validation
-                                        from ..utils_image_support import validate_and_process_image_data, safe_extract_media_type_and_data
-                                        
-                                        valid_images, errors = validate_and_process_image_data(tool_data.image_data)
-                                        
+                                        from ..utils_image_support import (
+                                            validate_and_process_image_data,
+                                            safe_extract_media_type_and_data,
+                                        )
+
+                                        valid_images, errors = (
+                                            validate_and_process_image_data(
+                                                tool_data.image_data
+                                            )
+                                        )
+
                                         # Log any validation errors but continue with valid images
                                         for error in errors:
-                                            logger.warning(f"Invalid image in tool result: {error}")
-                                        
+                                            logger.warning(
+                                                f"Invalid image in tool result: {error}"
+                                            )
+
                                         for image_base64 in valid_images:
-                                            media_type, clean_image_data = safe_extract_media_type_and_data(image_base64)
-                                                
-                                            tool_result["content"].append({
-                                                "type": "image",
-                                                "source": {
-                                                    "type": "base64",
-                                                    "media_type": media_type,
-                                                    "data": clean_image_data,
-                                                },
-                                            })
-                                    
+                                            media_type, clean_image_data = (
+                                                safe_extract_media_type_and_data(
+                                                    image_base64
+                                                )
+                                            )
+
+                                            tool_result["content"].append(
+                                                {
+                                                    "type": "image",
+                                                    "source": {
+                                                        "type": "base64",
+                                                        "media_type": media_type,
+                                                        "data": clean_image_data,
+                                                    },
+                                                }
+                                            )
+
                                     tool_results_content.append(tool_result)
 
                                 # Append all tool results in a single user message

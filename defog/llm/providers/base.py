@@ -98,12 +98,10 @@ class BaseLLMProvider(ABC):
         post_tool_function: Optional[Callable] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
         image_result_keys: Optional[List[str]] = None,
-        **kwargs
+        **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with the provider."""
         pass
-
-
 
     @abstractmethod
     def supports_tools(self, model: str) -> bool:
@@ -114,7 +112,7 @@ class BaseLLMProvider(ABC):
     def supports_response_format(self, model: str) -> bool:
         """Check if the model supports structured response formats."""
         pass
-    
+
     @abstractmethod
     def create_image_message(
         self,
@@ -123,12 +121,12 @@ class BaseLLMProvider(ABC):
         image_detail: str = "low",
     ) -> Any:
         """Create an image message in the provider's format.
-        
+
         Args:
             image_base64: Base64 encoded image string or list of strings
             description: Description text for the image(s)
             image_detail: Level of detail for image analysis (provider-specific, default: "low")
-            
+
         Returns:
             Message in the provider's format (dict, object, etc.)
         """

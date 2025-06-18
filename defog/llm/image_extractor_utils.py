@@ -63,10 +63,10 @@ class ImageProcessor:
 
                 # Check content type
                 content_type = response.headers.get("content-type", "").lower()
-                
+
                 # Extract base content type (remove parameters like charset)
                 content_type = content_type.split(";")[0].strip()
-                
+
                 if content_type not in self.SUPPORTED_FORMATS:
                     # Try to infer from URL extension
                     if url.lower().endswith((".jpg", ".jpeg")):
@@ -109,24 +109,24 @@ class ImageProcessor:
         try:
             # Open image with PIL
             img = Image.open(io.BytesIO(image_data))
-            
+
             # Get original dimensions
             original_width, original_height = img.size
             original_format = img.format
-            
+
             # Check if we need to resize
             needs_resize = (
                 original_width > self.MAX_IMAGE_DIMENSION
                 or original_height > self.MAX_IMAGE_DIMENSION
             )
-            
+
             # Check if we need to compress
             needs_compress = len(image_data) > self.MAX_IMAGE_SIZE_BYTES
-            
+
             processed_data = image_data
             processed_width = original_width
             processed_height = original_height
-            
+
             if needs_resize or needs_compress:
                 # Calculate new dimensions if needed
                 if needs_resize:
@@ -143,10 +143,10 @@ class ImageProcessor:
                         f"Resized image from {original_width}x{original_height} "
                         f"to {new_width}x{new_height}"
                     )
-                
+
                 # Convert to appropriate format and compress if needed
                 output = io.BytesIO()
-                
+
                 # Handle different formats
                 if content_type == "image/png" and img.mode in ("RGBA", "LA", "PA"):
                     # Keep PNG for images with transparency
@@ -168,7 +168,7 @@ class ImageProcessor:
                         img = background
                     elif img.mode not in ("RGB", "L"):
                         img = img.convert("RGB")
-                    
+
                     # Start with high quality and reduce if needed
                     quality = 95
                     while quality >= 70:
@@ -178,17 +178,17 @@ class ImageProcessor:
                         if output.tell() <= self.MAX_IMAGE_SIZE_BYTES:
                             break
                         quality -= 5
-                    
+
                     final_content_type = "image/jpeg"
-                
+
                 processed_data = output.getvalue()
-                
+
                 logger.info(
                     f"Processed image: {len(image_data)} bytes -> {len(processed_data)} bytes"
                 )
             else:
                 final_content_type = content_type
-            
+
             return {
                 "success": True,
                 "data": processed_data,
@@ -203,7 +203,7 @@ class ImageProcessor:
                 "was_resized": needs_resize,
                 "was_compressed": len(processed_data) < len(image_data),
             }
-            
+
         except Exception as e:
             logger.error(f"Error processing image: {e}")
             return {
@@ -225,16 +225,16 @@ class ImageProcessor:
         try:
             # Download image
             image_data, content_type = await self.download_image(url)
-            
+
             # Process image
             result = self.process_image(image_data, content_type)
-            
+
             if not result["success"]:
                 return result
-            
+
             # Encode to base64
             base64_data = base64.b64encode(result["data"]).decode("utf-8")
-            
+
             return {
                 "success": True,
                 "base64_data": base64_data,
@@ -247,7 +247,7 @@ class ImageProcessor:
                 "was_resized": result["was_resized"],
                 "was_compressed": result["was_compressed"],
             }
-            
+
         except Exception as e:
             logger.error(f"Error processing image for API: {e}")
             return {
@@ -270,7 +270,7 @@ class ImageProcessor:
             # Read file
             with open(file_path, "rb") as f:
                 image_data = f.read()
-            
+
             # Determine content type from file extension
             file_lower = file_path.lower()
             if file_lower.endswith((".jpg", ".jpeg")):
@@ -291,16 +291,16 @@ class ImageProcessor:
                     "WEBP": "image/webp",
                 }
                 content_type = format_map.get(img.format, "image/jpeg")
-            
+
             # Process image
             result = self.process_image(image_data, content_type)
-            
+
             if not result["success"]:
                 return result
-            
+
             # Encode to base64
             base64_data = base64.b64encode(result["data"]).decode("utf-8")
-            
+
             return {
                 "success": True,
                 "base64_data": base64_data,
@@ -314,7 +314,7 @@ class ImageProcessor:
                 "was_compressed": result["was_compressed"],
                 "file_path": file_path,
             }
-            
+
         except Exception as e:
             logger.error(f"Error encoding local image: {e}")
             return {
