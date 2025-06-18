@@ -273,7 +273,7 @@ from defog.llm.youtube import get_youtube_summary
 # Get transcript with timestamps and speaker identification
 transcript = await get_youtube_summary(
     video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    model="gemini-2.5-pro-preview-05-06",
+    model="gemini-2.5-pro",
     verbose=True,
     system_instructions=[
         "Provide detailed transcript with timestamps (HH:MM:SS)",

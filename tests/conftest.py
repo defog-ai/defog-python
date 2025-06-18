@@ -57,7 +57,7 @@ else:
 
 if os.getenv("GEMINI_API_KEY"):
     AVAILABLE_PROVIDERS["gemini"] = True
-    AVAILABLE_MODELS["gemini"] = ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-pro-preview-03-25"]
+    AVAILABLE_MODELS["gemini"] = ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"]
 else:
     AVAILABLE_PROVIDERS["gemini"] = False
     AVAILABLE_MODELS["gemini"] = []

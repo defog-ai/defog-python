@@ -848,7 +848,7 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         providers_to_test = [
             ("openai", "gpt-4.1"),
             ("anthropic", "claude-sonnet-4-20250514"),
-            ("gemini", "gemini-2.5-pro-preview-05-06"),
+            ("gemini", "gemini-2.5-pro"),
             ("deepseek", "deepseek-chat"),
             ("mistral", "mistral-medium-latest"),
         ]
