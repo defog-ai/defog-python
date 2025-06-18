@@ -156,7 +156,12 @@ class Agent:
 
 
 class Orchestrator:
-    """Orchestrator for managing main agent and subagents with task delegation, enhanced with shared context and exploration capabilities."""
+    """Unified orchestrator for managing main agent and subagents with task delegation.
+
+    This consolidated class supports both basic and enhanced orchestration capabilities,
+    including optional features like shared context, cross-agent memory, and thinking agents.
+    Enhanced features are controlled via the EnhancedOrchestratorConfig parameter.
+    """
 
     def __init__(
         self,
@@ -218,7 +223,7 @@ class Orchestrator:
 
         # Thread safety for counters
         self._counter_lock = threading.Lock()
-        
+
         # Initialize enhanced features
         # Initialize shared context
         self.shared_context = SharedContextStore(
@@ -230,13 +235,16 @@ class Orchestrator:
         if config.enable_exploration:
             # Import here to avoid circular import
             from .exploration_executor import ExplorationExecutor, ExplorationStrategy
+
             self.exploration_executor = ExplorationExecutor(
                 shared_context=self.shared_context,
                 max_parallel_explorations=config.exploration.max_parallel_explorations,
                 exploration_timeout=config.exploration.exploration_timeout,
                 enable_learning=config.exploration.enable_learning,
             )
-            self.ExplorationStrategy = ExplorationStrategy  # Store reference for later use
+            self.ExplorationStrategy = (
+                ExplorationStrategy  # Store reference for later use
+            )
         else:
             self.exploration_executor = None
 
@@ -276,12 +284,12 @@ class Orchestrator:
 
         # Enhance main agent if it's not already enhanced
         self._enhance_main_agent()
-        
+
         # Add delegation tools to main agent
         self._add_delegation_tool()
         if self.available_tools:
             self._add_dynamic_planning_tool()
-            
+
         logger.info(
             f"Orchestrator initialized with shared_context at {config.shared_context.base_path}"
         )
@@ -384,7 +392,7 @@ class Orchestrator:
         if dfs_path(start_task, end_task, path):
             return path
         return [start_task, end_task]  # Fallback minimal path
-        
+
     def _enhance_main_agent(self):
         """Enhance the main agent with shared context and memory."""
         # If main agent is not a ThinkingAgent, we can still enhance its memory
@@ -392,10 +400,12 @@ class Orchestrator:
             # Replace with enhanced memory manager
             old_manager = self.main_agent.memory_manager
             self.main_agent.memory_manager = EnhancedMemoryManager(
-                token_threshold=old_manager.token_threshold,
-                preserve_last_n_messages=old_manager.preserve_last_n_messages,
-                summary_max_tokens=old_manager.summary_max_tokens,
-                enabled=old_manager.enabled,
+                token_threshold=getattr(old_manager, "token_threshold", 50000),
+                preserve_last_n_messages=getattr(
+                    old_manager, "preserve_last_n_messages", 10
+                ),
+                summary_max_tokens=getattr(old_manager, "summary_max_tokens", 1000),
+                enabled=getattr(old_manager, "enabled", True),
                 shared_context_store=self.shared_context,
                 agent_id=self.main_agent.agent_id,
                 cross_agent_sharing=True,
@@ -403,7 +413,7 @@ class Orchestrator:
 
         # Import ThinkingAgent here to avoid circular imports
         from .thinking_agent import ThinkingAgent
-        
+
         # If it's already a ThinkingAgent, ensure it has shared context
         if isinstance(self.main_agent, ThinkingAgent):
             self.main_agent.shared_context = self.shared_context
@@ -418,7 +428,7 @@ class Orchestrator:
         """Create an enhanced subagent with thinking capabilities."""
         # Import ThinkingAgent here to avoid circular imports
         from .thinking_agent import ThinkingAgent
-        
+
         if self.enable_thinking_agents:
             # Create ThinkingAgent
             agent = ThinkingAgent(
@@ -471,8 +481,10 @@ class Orchestrator:
         """Initialize a new agent with parent context."""
         # Import ThinkingAgent here to avoid circular imports
         from .thinking_agent import ThinkingAgent
-        
-        if isinstance(agent, ThinkingAgent) and isinstance(agent.memory_manager, EnhancedMemoryManager):
+
+        if isinstance(agent, ThinkingAgent) and isinstance(
+            agent.memory_manager, EnhancedMemoryManager
+        ):
             # Add parent context as initial memory
             context_message = {
                 "role": "system",
@@ -554,7 +566,7 @@ class Orchestrator:
 
         # Log orchestration start if enhanced features are enabled
         orchestration_id = None
-        if hasattr(self, 'shared_context') and self.shared_context:
+        if hasattr(self, "shared_context") and self.shared_context:
             orchestration_id = f"orch_{datetime.now().isoformat()}"
             await self.shared_context.write_artifact(
                 agent_id=self.main_agent.agent_id,
@@ -609,7 +621,7 @@ class Orchestrator:
                 completed_tasks.add(result.task_id)
 
         # Log orchestration completion if enhanced features are enabled
-        if orchestration_id and hasattr(self, 'shared_context') and self.shared_context:
+        if orchestration_id and hasattr(self, "shared_context") and self.shared_context:
             await self.shared_context.write_artifact(
                 agent_id=self.main_agent.agent_id,
                 key=f"orchestration/{orchestration_id}/complete",
@@ -834,7 +846,7 @@ class Orchestrator:
         """Enhanced task execution with exploration support."""
         # Import ThinkingAgent here to avoid circular imports
         from .thinking_agent import ThinkingAgent
-        
+
         # If exploration is enabled and agent supports it
         if (
             self.enable_exploration
@@ -848,8 +860,10 @@ class Orchestrator:
         else:
             # Fall back to standard execution
             return await self._execute_single_task(task, agent)
-    
-    async def _execute_single_task(self, task: SubAgentTask, agent: Optional[Agent] = None) -> SubAgentResult:
+
+    async def _execute_single_task(
+        self, task: SubAgentTask, agent: Optional[Agent] = None
+    ) -> SubAgentResult:
         """Execute a single subagent task with retry logic and exponential backoff."""
         # Check global timeout
         if self._start_time and (time.time() - self._start_time) > self.global_timeout:
@@ -874,9 +888,9 @@ class Orchestrator:
                     error_type="AGENT_NOT_FOUND",
                 )
             agent = self.subagents[task.agent_id]
-        
+
         # Use enhanced execution if available
-        if hasattr(self, 'enable_exploration') and self.enable_exploration:
+        if hasattr(self, "enable_exploration") and self.enable_exploration:
             return await self._execute_single_task_enhanced(task, agent)
 
         # Use task-specific retry config or fall back to orchestrator defaults
@@ -1273,23 +1287,44 @@ Return a JSON object with this structure:
                     ]
 
                     # Create the subagent (enhanced if enabled)
-                    if hasattr(self, '_create_enhanced_subagent'):
-                        # Get parent context if available
-                        parent_context = None
-                        if hasattr(self, 'enable_cross_agent_memory') and self.enable_cross_agent_memory and isinstance(
-                            self.main_agent.memory_manager, EnhancedMemoryManager
-                        ):
-                            parent_context = await self.main_agent.memory_manager.prepare_context_for_new_agent(
-                                focus=plan.task_description, include_cross_agent=True
+                    try:
+                        if hasattr(self, "_create_enhanced_subagent"):
+                            # Get parent context if available
+                            parent_context = None
+                            if (
+                                hasattr(self, "enable_cross_agent_memory")
+                                and self.enable_cross_agent_memory
+                                and isinstance(
+                                    self.main_agent.memory_manager,
+                                    EnhancedMemoryManager,
+                                )
+                            ):
+                                try:
+                                    parent_context = await self.main_agent.memory_manager.prepare_context_for_new_agent(
+                                        focus=plan.task_description,
+                                        include_cross_agent=True,
+                                    )
+                                except Exception as e:
+                                    self.print_function(
+                                        f"[WARNING] Failed to prepare parent context for subagent: {e}"
+                                    )
+                                    parent_context = None
+
+                            subagent = self._create_enhanced_subagent(
+                                agent_id=agent_id,
+                                system_prompt=plan.system_prompt,
+                                tools=agent_tools,
+                                parent_context=parent_context,
                             )
-                        
-                        subagent = self._create_enhanced_subagent(
-                            agent_id=agent_id,
-                            system_prompt=plan.system_prompt,
-                            tools=agent_tools,
-                            parent_context=parent_context,
+                        else:
+                            raise AttributeError(
+                                "_create_enhanced_subagent not available"
+                            )
+                    except Exception as e:
+                        # Fallback to regular agent creation
+                        self.print_function(
+                            f"[WARNING] Failed to create enhanced subagent, falling back to regular agent: {e}"
                         )
-                    else:
                         subagent = Agent(
                             agent_id=agent_id,
                             provider=self.subagent_provider,
@@ -1549,7 +1584,7 @@ Return a JSON array of subtask descriptions.""",
                 "subtask_results": [r.metadata for r in subtask_results if r.metadata],
             },
         )
-        
+
     async def get_orchestration_insights(self) -> Dict[str, Any]:
         """Get insights about orchestration patterns and performance."""
         insights = {
@@ -1560,7 +1595,7 @@ Return a JSON array of subtask descriptions.""",
         }
 
         # Get shared context statistics
-        if hasattr(self, 'shared_context') and self.shared_context:
+        if hasattr(self, "shared_context") and self.shared_context:
             recent_artifacts = await self.shared_context.get_recent_artifacts(limit=20)
             insights["shared_context_stats"] = {
                 "total_artifacts": len(recent_artifacts),
@@ -1574,7 +1609,7 @@ Return a JSON array of subtask descriptions.""",
                 insights["shared_context_stats"]["artifact_types"][type_name] += 1
 
         # Get exploration patterns if available
-        if hasattr(self, 'exploration_executor') and self.exploration_executor:
+        if hasattr(self, "exploration_executor") and self.exploration_executor:
             insights["exploration_patterns"] = {
                 "successful_patterns": len(
                     self.exploration_executor.successful_patterns
@@ -1583,7 +1618,7 @@ Return a JSON array of subtask descriptions.""",
 
         # Import ThinkingAgent here to avoid circular imports
         from .thinking_agent import ThinkingAgent
-        
+
         # Get cross-agent collaboration info
         for agent_id, agent in self.subagents.items():
             if isinstance(agent, ThinkingAgent):
@@ -1600,7 +1635,7 @@ Return a JSON array of subtask descriptions.""",
 
     async def cleanup_workspace(self, older_than_hours: int = 24):
         """Clean up old artifacts from shared workspace."""
-        if not hasattr(self, 'shared_context') or not self.shared_context:
+        if not hasattr(self, "shared_context") or not self.shared_context:
             return 0
 
         cutoff_time = datetime.now().timestamp() - (older_than_hours * 3600)
