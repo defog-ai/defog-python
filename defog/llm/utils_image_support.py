@@ -28,10 +28,10 @@ logger = logging.getLogger(__name__)
 def validate_base64_image(image_data: str) -> Tuple[bool, Optional[str]]:
     """
     Validate base64 image data for security and format compliance.
-    
+
     Args:
         image_data: Base64-encoded image string (with or without data URI prefix)
-    
+
     Returns:
         Tuple of (is_valid, error_message)
         - is_valid: True if validation passes
@@ -39,40 +39,42 @@ def validate_base64_image(image_data: str) -> Tuple[bool, Optional[str]]:
     """
     if not image_data or not isinstance(image_data, str):
         return False, "Image data must be a non-empty string"
-    
+
     try:
         # Handle data URI prefix
         clean_base64 = image_data
         media_type = None
-        
+
         if image_data.startswith("data:"):
             try:
                 header, clean_base64 = image_data.split(",", 1)
                 media_type = header.split(";")[0].split(":")[1]
             except (ValueError, IndexError):
                 return False, "Malformed data URI prefix"
-        
+
         # Validate base64 format
         try:
             decoded_data = base64.b64decode(clean_base64, validate=True)
         except Exception:
             return False, "Invalid base64 encoding"
-        
+
         # Check size limits
         if len(decoded_data) > MAX_IMAGE_SIZE_BYTES:
             return False, f"Image size exceeds {MAX_IMAGE_SIZE_MB}MB limit"
-        
+
         # Validate image format by checking magic bytes
         detected_format = detect_image_format(decoded_data)
         if not detected_format:
             return False, "Unrecognized image format"
-        
+
         # If media type was specified in data URI, validate consistency
         if media_type and media_type != detected_format:
-            logger.warning(f"Media type mismatch: URI says {media_type}, detected {detected_format}")
-        
+            logger.warning(
+                f"Media type mismatch: URI says {media_type}, detected {detected_format}"
+            )
+
         return True, None
-        
+
     except Exception as e:
         return False, f"Validation error: {str(e)}"
 
@@ -80,61 +82,67 @@ def validate_base64_image(image_data: str) -> Tuple[bool, Optional[str]]:
 def detect_image_format(image_bytes: bytes) -> Optional[str]:
     """
     Detect image format from binary data using magic bytes.
-    
+
     Args:
         image_bytes: Raw image binary data
-        
+
     Returns:
         MIME type string if recognized format, None otherwise
     """
     if len(image_bytes) < 12:
         return None
-    
+
     # Check magic bytes for common formats
-    if image_bytes.startswith(b'\xff\xd8\xff'):
+    if image_bytes.startswith(b"\xff\xd8\xff"):
         return "image/jpeg"
-    elif image_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
+    elif image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
         return "image/png"
-    elif image_bytes.startswith(b'GIF8'):
+    elif image_bytes.startswith(b"GIF8"):
         return "image/gif"
-    elif image_bytes.startswith(b'RIFF') and len(image_bytes) >= 12 and image_bytes[8:12] == b'WEBP':
+    elif (
+        image_bytes.startswith(b"RIFF")
+        and len(image_bytes) >= 12
+        and image_bytes[8:12] == b"WEBP"
+    ):
         return "image/webp"
-    
+
     return None
 
 
 def extract_text_from_result(result: Any, image_found: bool = False) -> str:
     """
     Extract text content from tool result with flexible field detection.
-    
+
     Args:
         result: The tool result to extract text from
         image_found: Whether image data was found (affects extraction strategy)
-        
+
     Returns:
         Extracted text content
     """
     # If result is already a string, return it
     if isinstance(result, str):
         return result
-    
+
     # For object-like results, try multiple approaches
     if hasattr(result, "__dict__") or isinstance(result, dict):
         obj = result.__dict__ if hasattr(result, "__dict__") else result
-        
+
         # If image was found, prioritize extracting clean text fields
         if image_found:
             for field in DEFAULT_TEXT_FIELDS:
                 if field in obj and obj[field] is not None:
                     return str(obj[field])
-        
+
         # Fallback: look for any string-valued field that's not image data
         for key, value in obj.items():
-            if (isinstance(value, str) and 
-                not key.lower().endswith(('_base64', '_image', '_img', '_data')) and
-                len(value) < TEXT_LENGTH_LIMIT):  # Avoid very long strings that might be encoded data
+            if (
+                isinstance(value, str)
+                and not key.lower().endswith(("_base64", "_image", "_img", "_data"))
+                and len(value) < TEXT_LENGTH_LIMIT
+            ):  # Avoid very long strings that might be encoded data
                 return value
-    
+
     # Final fallback: string representation
     return str(result)
 
@@ -169,7 +177,7 @@ def detect_image_in_result(
         for field in image_keys:
             if field in obj and obj[field]:
                 candidate_image = obj[field]
-                
+
                 # Handle list of images
                 if isinstance(candidate_image, list):
                     if len(candidate_image) > 0:
@@ -181,11 +189,11 @@ def detect_image_in_result(
                                     validated_images.append(img)
                                 else:
                                     logger.warning(f"Invalid image in list: {error}")
-                        
+
                         if validated_images:
                             base64_image = validated_images
                             image_found = True
-                
+
                 # Handle single image
                 elif isinstance(candidate_image, str):
                     is_valid, error = validate_base64_image(candidate_image)
@@ -194,13 +202,13 @@ def detect_image_in_result(
                         image_found = True
                     else:
                         logger.warning(f"Invalid image data: {error}")
-                
+
                 if image_found:
                     break
 
     # Extract text using improved logic
     text_result = extract_text_from_result(result, image_found)
-    
+
     return text_result, base64_image
 
 
@@ -253,13 +261,15 @@ def process_tool_results_with_images(
     return processed_tools
 
 
-def validate_and_process_image_data(image_base64: Union[str, List[str]]) -> Tuple[List[str], List[str]]:
+def validate_and_process_image_data(
+    image_base64: Union[str, List[str]]
+) -> Tuple[List[str], List[str]]:
     """
     Validate and process image data for provider use.
-    
+
     Args:
         image_base64: Base64-encoded image data - can be single string or list of strings
-        
+
     Returns:
         Tuple of (valid_images, errors)
         - valid_images: List of validated base64 strings
@@ -269,31 +279,31 @@ def validate_and_process_image_data(image_base64: Union[str, List[str]]) -> Tupl
         image_list = [image_base64]
     else:
         image_list = image_base64
-    
+
     valid_images = []
     errors = []
-    
+
     for img_data in image_list:
         if not isinstance(img_data, str):
             errors.append(f"Image data must be string, got {type(img_data)}")
             continue
-            
+
         is_valid, error = validate_base64_image(img_data)
         if is_valid:
             valid_images.append(img_data)
         else:
             errors.append(error)
-    
+
     return valid_images, errors
 
 
 def safe_extract_media_type_and_data(image_base64: str) -> Tuple[str, str]:
     """
     Safely extract media type and clean base64 data from image string.
-    
+
     Args:
         image_base64: Base64 image string (with or without data URI prefix)
-        
+
     Returns:
         Tuple of (media_type, clean_base64_data)
     """

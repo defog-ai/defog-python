@@ -46,7 +46,7 @@ class DeepSeekProvider(BaseLLMProvider):
     def supports_response_format(self, model: str) -> bool:
         # Both models support JSON response format
         return True
-    
+
     def _get_media_type(self, img_data: str) -> str:
         """Detect media type from base64 image data."""
         try:
@@ -69,7 +69,7 @@ class DeepSeekProvider(BaseLLMProvider):
         image_detail: str = "low",
     ) -> Dict[str, Any]:
         """
-        Create a message with image content. 
+        Create a message with image content.
         Note: DeepSeek's vision models (VL2) are not yet fully integrated into their API.
         This is a placeholder implementation for future support.
 
@@ -80,22 +80,27 @@ class DeepSeekProvider(BaseLLMProvider):
 
         Returns:
             Message dict with text description only (images not yet supported)
-            
+
         Raises:
             ValueError: If image validation fails (for consistency with other providers)
         """
         from ..utils_image_support import validate_and_process_image_data
-        
+
         # Validate image data even though we won't use it
         valid_images, errors = validate_and_process_image_data(image_base64)
-        
+
         if errors:
-            logger.warning(f"DeepSeek provider received invalid images: {'; '.join(errors)}")
-        
+            logger.warning(
+                f"DeepSeek provider received invalid images: {'; '.join(errors)}"
+            )
+
         # For now, just return a text message since DeepSeek API doesn't fully support images yet
         image_count = len(valid_images) if valid_images else 0
         if image_count > 0:
-            return {"role": "user", "content": f"{description} [Note: {image_count} image(s) received but not displayed - DeepSeek API image support is limited]"}
+            return {
+                "role": "user",
+                "content": f"{description} [Note: {image_count} image(s) received but not displayed - DeepSeek API image support is limited]",
+            }
         else:
             return {"role": "user", "content": description}
 

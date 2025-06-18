@@ -16,7 +16,7 @@ warnings.warn(
     "EnhancedAgentOrchestrator functionality has been merged into the main Orchestrator class. "
     "Please import from defog.llm.orchestrator instead.",
     DeprecationWarning,
-    stacklevel=2
+    stacklevel=2,
 )
 
 # For backward compatibility

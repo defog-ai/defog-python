@@ -221,7 +221,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro"])
         if AVAILABLE_MODELS.get("mistral"):
             test_models.append("mistral-small-latest")
-        
+
         models = [m for m in test_models if m in sum(AVAILABLE_MODELS.values(), [])]
         messages = [
             {"role": "user", "content": "Return a greeting in not more than 2 words\n"}
@@ -246,12 +246,14 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         # Use a subset of available models for SQL test
         test_models = []
         if AVAILABLE_MODELS.get("openai"):
-            test_models.extend(["gpt-4o-mini", "o3", "o4-mini", "gpt-4.1-mini", "gpt-4.1-nano"])
+            test_models.extend(
+                ["gpt-4o-mini", "o3", "o4-mini", "gpt-4.1-mini", "gpt-4.1-nano"]
+            )
         if AVAILABLE_MODELS.get("gemini"):
             test_models.extend(["gemini-2.0-flash", "gemini-2.5-pro"])
         if AVAILABLE_MODELS.get("mistral"):
             test_models.append("mistral-small-latest")
-            
+
         models = [m for m in test_models if m in sum(AVAILABLE_MODELS.values(), [])]
         for model in models:
             provider = map_model_to_provider(model)
@@ -274,12 +276,15 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         test_models = []
         if AVAILABLE_MODELS.get("openai") and "o4-mini" in AVAILABLE_MODELS["openai"]:
             test_models.append("o4-mini")
-        if AVAILABLE_MODELS.get("anthropic") and "claude-3-7-sonnet-latest" in AVAILABLE_MODELS["anthropic"]:
+        if (
+            AVAILABLE_MODELS.get("anthropic")
+            and "claude-3-7-sonnet-latest" in AVAILABLE_MODELS["anthropic"]
+        ):
             test_models.append("claude-3-7-sonnet-latest")
-            
+
         if not test_models:
             self.skipTest("No models with reasoning effort support available")
-            
+
         reasoning_effort = ["low", "medium", "high", None]
         for effort in reasoning_effort:
             for model in test_models:
@@ -311,7 +316,7 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             test_models.append("claude-3-7-sonnet-latest")
         if AVAILABLE_MODELS.get("mistral"):
             test_models.append("mistral-small-latest")
-            
+
         models = [m for m in test_models if m in sum(AVAILABLE_MODELS.values(), [])]
         for model in models:
             provider = map_model_to_provider(model)

@@ -38,8 +38,10 @@ class LocalStorage:
             return hashlib.sha256(api_key.encode()).hexdigest()[:16]
         elif db_type:
             # Validate db_type to prevent path traversal
-            if not re.match(r'^[a-zA-Z0-9_-]+$', db_type):
-                raise ValueError(f"Invalid db_type: {db_type}. Only alphanumeric characters, underscores, and hyphens are allowed.")
+            if not re.match(r"^[a-zA-Z0-9_-]+$", db_type):
+                raise ValueError(
+                    f"Invalid db_type: {db_type}. Only alphanumeric characters, underscores, and hyphens are allowed."
+                )
             return db_type
         else:
             return "default"
@@ -52,7 +54,7 @@ class LocalStorage:
         # Validate metadata is a dict
         if not isinstance(metadata, dict):
             raise ValueError("Metadata must be a dictionary")
-        
+
         project_id = self._get_project_id(api_key, db_type)
         file_path = self.storage_dir / "metadata" / f"{project_id}.json"
 
@@ -91,7 +93,7 @@ class LocalStorage:
         # Validate glossary is a string
         if not isinstance(glossary, str):
             raise ValueError("Glossary must be a string")
-        
+
         project_id = self._get_project_id(api_key, db_type)
         file_path = self.storage_dir / "glossary" / f"{project_id}.txt"
 
@@ -140,14 +142,14 @@ class LocalStorage:
         # Validate golden_queries is a list
         if not isinstance(golden_queries, list):
             raise ValueError("Golden queries must be a list")
-        
+
         # Validate each query is a dict with required fields
         for query in golden_queries:
             if not isinstance(query, dict):
                 raise ValueError("Each golden query must be a dictionary")
             if "question" not in query:
                 raise ValueError("Each golden query must have a 'question' field")
-        
+
         project_id = self._get_project_id(api_key, db_type)
         file_path = self.storage_dir / "golden_queries" / f"{project_id}.json"
 
@@ -205,7 +207,7 @@ class LocalStorage:
         for query in golden_queries:
             if not isinstance(query, str):
                 raise ValueError("Each golden query to delete must be a string")
-        
+
         project_id = self._get_project_id(api_key, db_type)
         file_path = self.storage_dir / "golden_queries" / f"{project_id}.json"
 
@@ -249,11 +251,13 @@ class LocalStorage:
             raise ValueError("Schema data must be a string")
         if not isinstance(filename, str) or not filename:
             raise ValueError("Filename must be a non-empty string")
-        
+
         # Validate filename to prevent path traversal
-        if '..' in filename or '/' in filename or '\\' in filename:
-            raise ValueError("Invalid filename: must not contain path separators or '..'")
-        
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise ValueError(
+                "Invalid filename: must not contain path separators or '..'"
+            )
+
         project_id = self._get_project_id(api_key, db_type)
         schema_dir = self.storage_dir / "schemas" / project_id
         schema_dir.mkdir(parents=True, exist_ok=True)

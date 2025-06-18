@@ -7,10 +7,16 @@ import json
 import asyncio
 import warnings
 from typing import List, Dict, Union, Optional
-from defog.schema_documenter import DocumentationConfig, document_schema_for_defog, _validate_sql_identifier
+from defog.schema_documenter import (
+    DocumentationConfig,
+    document_schema_for_defog,
+    _validate_sql_identifier,
+)
 
 
-def _run_async_documentation(db_type: str, db_creds: dict, tables: list, config: DocumentationConfig):
+def _run_async_documentation(
+    db_type: str, db_creds: dict, tables: list, config: DocumentationConfig
+):
     """
     Helper function to run async documentation with proper event loop handling.
     """
@@ -21,10 +27,11 @@ def _run_async_documentation(db_type: str, db_creds: dict, tables: list, config:
         if "asyncio.run() cannot be called from a running event loop" in str(e):
             # We're already in an event loop, use nest_asyncio or run in thread
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(
                     asyncio.run,
-                    document_schema_for_defog(db_type, db_creds, tables, config)
+                    document_schema_for_defog(db_type, db_creds, tables, config),
                 )
                 return future.result()
         else:
@@ -117,7 +124,9 @@ def generate_postgres_schema(
                         setattr(config, key, value)
 
             # Run async documentation with proper async handling
-            documentation = _run_async_documentation("postgres", self.db_creds, tables, config)
+            documentation = _run_async_documentation(
+                "postgres", self.db_creds, tables, config
+            )
             print(f"Schema documentation completed for {len(documentation)} tables.")
         except Exception as e:
             print(f"Warning: Schema documentation failed: {e}")
@@ -499,7 +508,7 @@ def generate_mysql_schema(
         cur = conn.cursor()
     except mysql.connector.Error as e:
         raise ConnectionError(f"Failed to connect to MySQL database: {e}") from e
-    
+
     schemas = {}
 
     if len(tables) == 0:
@@ -507,7 +516,7 @@ def generate_mysql_schema(
         db_name = self.db_creds.get("database", "")
         cur.execute(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
-            (db_name,)
+            (db_name,),
         )
         tables = [row[0] for row in cur.fetchall()]
 
@@ -1253,7 +1262,9 @@ def generate_duckdb_schema(
                         setattr(config, key, value)
 
             # Run async documentation with proper async handling
-            documentation = _run_async_documentation("duckdb", self.db_creds, tables, config)
+            documentation = _run_async_documentation(
+                "duckdb", self.db_creds, tables, config
+            )
             print(f"Schema documentation completed for {len(documentation)} tables.")
         except Exception as e:
             print(f"Warning: Schema documentation failed: {e}")

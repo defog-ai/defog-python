@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class SchemaField(BaseModel):
     """Schema field definition for data extraction."""
-    
+
     name: str = Field(description="Snake_case field name")
     type: str = Field(description="Data type (string, int, float, etc.)")
     description: str = Field(description="What the field contains")
@@ -34,9 +34,7 @@ class DataPointIdentification(BaseModel):
         description="Name of the datapoint (e.g., 'product_inventory_table')"
     )
     description: str = Field(description="Description of what this datapoint contains")
-    data_type: str = Field(
-        description="Type of data: 'table' or 'chart_data' ONLY"
-    )
+    data_type: str = Field(description="Type of data: 'table' or 'chart_data' ONLY")
     location_hint: str = Field(
         description="Hint about where in the image this data is located"
     )
@@ -177,15 +175,9 @@ CRITICAL:
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": image_url}
-                    },
-                    {
-                        "type": "text",
-                        "text": analysis_task
-                    }
-                ]
+                    {"type": "image_url", "image_url": {"url": image_url}},
+                    {"type": "text", "text": analysis_task},
+                ],
             }
         ]
 
@@ -195,7 +187,7 @@ CRITICAL:
             model=self.analysis_model,
             messages=messages,
             temperature=self.temperature,
-            response_format=ImageAnalysisResponse
+            response_format=ImageAnalysisResponse,
         )
 
         # chat_async returns the response directly
@@ -257,7 +249,7 @@ CRITICAL:
                 field_name = field_info.name.replace(" ", "_").lower()
                 if field_name:
                     column_names.append(field_name)
-            
+
             return create_model(
                 datapoint.name,
                 columns=(
@@ -323,7 +315,10 @@ CRITICAL:
         }
 
     async def extract_single_datapoint(
-        self, image_url: str, datapoint: DataPointIdentification, schema: Type[BaseModel]
+        self,
+        image_url: str,
+        datapoint: DataPointIdentification,
+        schema: Type[BaseModel],
     ) -> DataExtractionResult:
         """
         Extract a single datapoint from the image.
@@ -367,15 +362,9 @@ Think of it this way: You're creating the data table that would be used to gener
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": image_url}
-                        },
-                        {
-                            "type": "text",
-                            "text": extraction_task
-                        }
-                    ]
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                        {"type": "text", "text": extraction_task},
+                    ],
                 }
             ]
 
@@ -385,7 +374,7 @@ Think of it this way: You're creating the data table that would be used to gener
                 model=self.extraction_model,
                 messages=messages,
                 temperature=self.temperature,
-                response_format=schema
+                response_format=schema,
             )
 
             # chat_async returns the response directly
@@ -613,7 +602,7 @@ Think of it this way: You're creating the data table that would be used to gener
             if extraction.success and extraction.extracted_data:
                 # Convert Pydantic model to dict if needed
                 data = extraction.extracted_data
-                if hasattr(data, 'model_dump'):
+                if hasattr(data, "model_dump"):
                     data = data.model_dump()
                 extracted_data["data"][extraction.datapoint_name] = data
 

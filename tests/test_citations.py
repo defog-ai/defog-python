@@ -125,7 +125,7 @@ class TestCitations(unittest.IsolatedAsyncioTestCase):
         response_text = " ".join(
             [block.get("text", "") for block in response if block.get("type") == "text"]
         ).lower()
-        
+
         # The model is now better at following instructions to look only at provided documents
         # It should indicate that the information is not available in the documents
         self.assertTrue(
