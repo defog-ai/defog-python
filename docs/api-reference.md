@@ -537,22 +537,128 @@ class SchemaDocumenter:
 class PDFDataExtractor:
     def __init__(
         self,
-        model: str,
-        provider: str,
-        enable_caching: bool = True
+        analysis_provider: Union[str, LLMProvider] = "anthropic",
+        analysis_model: str = "claude-sonnet-4-20250514",
+        extraction_provider: Union[str, LLMProvider] = "anthropic",
+        extraction_model: str = "claude-sonnet-4-20250514",
+        max_parallel_extractions: int = 5,
+        temperature: float = 0.0
     )
     
-    async def extract_data(
+    async def analyze_pdf_structure(
         self,
-        pdf_path: str,
-        instructions: str,
-        response_format: Optional[Type[BaseModel]] = None,
-        confidence_threshold: float = 0.8,
-        include_tables: bool = True,
-        include_charts: bool = True,
-        parallel_extraction: bool = True,
-        max_extraction_cost_cents: int = 500
-    ) -> dict
+        pdf_url: str,
+        focus_areas: Optional[List[str]] = None
+    ) -> tuple[PDFAnalysisResponse, Dict[str, Any]]
+    
+    async def extract_all_data(
+        self,
+        pdf_url: str,
+        focus_areas: Optional[List[str]] = None,
+        datapoint_filter: Optional[List[str]] = None
+    ) -> PDFDataExtractionResult
+    
+    async def extract_as_dict(
+        self,
+        pdf_url: str,
+        focus_areas: Optional[List[str]] = None,
+        datapoint_filter: Optional[List[str]] = None
+    ) -> Dict[str, Any]
+```
+
+### ImageDataExtractor
+
+```python
+class ImageDataExtractor:
+    def __init__(
+        self,
+        analysis_provider: Union[str, LLMProvider] = "anthropic",
+        analysis_model: str = "claude-sonnet-4-20250514",
+        extraction_provider: Union[str, LLMProvider] = "anthropic",
+        extraction_model: str = "claude-sonnet-4-20250514",
+        max_parallel_extractions: int = 5,
+        temperature: float = 0.0
+    )
+    
+    async def analyze_image_structure(
+        self,
+        image_url: str,
+        focus_areas: Optional[List[str]] = None
+    ) -> tuple[ImageAnalysisResponse, Dict[str, Any]]
+    
+    async def extract_all_data(
+        self,
+        image_url: str,
+        focus_areas: Optional[List[str]] = None,
+        datapoint_filter: Optional[List[str]] = None
+    ) -> ImageDataExtractionResult
+    
+    async def extract_as_dict(
+        self,
+        image_url: str,
+        focus_areas: Optional[List[str]] = None,
+        datapoint_filter: Optional[List[str]] = None
+    ) -> Dict[str, Any]
+```
+
+### HTMLDataExtractor
+
+```python
+class HTMLDataExtractor:
+    def __init__(
+        self,
+        analysis_provider: Union[str, LLMProvider] = "anthropic",
+        analysis_model: str = "claude-sonnet-4-20250514",
+        extraction_provider: Union[str, LLMProvider] = "anthropic",
+        extraction_model: str = "claude-sonnet-4-20250514",
+        max_parallel_extractions: int = 5,
+        temperature: float = 0.0
+    )
+    
+    async def analyze_html_structure(
+        self,
+        html_content: str,
+        focus_areas: Optional[List[str]] = None
+    ) -> tuple[HTMLAnalysisResponse, Dict[str, Any]]
+    
+    async def extract_all_data(
+        self,
+        html_content: str,
+        focus_areas: Optional[List[str]] = None,
+        datapoint_filter: Optional[List[str]] = None
+    ) -> HTMLDataExtractionResult
+    
+    async def extract_as_dict(
+        self,
+        html_content: str,
+        focus_areas: Optional[List[str]] = None,
+        datapoint_filter: Optional[List[str]] = None
+    ) -> Dict[str, Any]
+```
+
+### Convenience Functions
+
+```python
+# PDF extraction
+async def extract_pdf_data(
+    pdf_url: str,
+    focus_areas: Optional[List[str]] = None,
+    **kwargs
+) -> Dict[str, Any]
+
+# Image extraction
+async def extract_image_data(
+    image_url: str,
+    focus_areas: Optional[List[str]] = None,
+    **kwargs
+) -> Dict[str, Any]
+
+# HTML extraction
+async def extract_html_data(
+    html_content: str,
+    focus_areas: Optional[List[str]] = None,
+    **kwargs
+) -> Dict[str, Any]
 ```
 
 ## Utility Functions

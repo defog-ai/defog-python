@@ -106,43 +106,189 @@ if result["success"]:
 
 ### PDF Data Extractor
 
-Extract structured data from PDFs with automatic schema generation:
+Extract structured data from PDFs with intelligent analysis and parallel extraction:
 
 ```python
-from defog.llm.pdf_data_extractor import PDFDataExtractor
+from defog.llm import PDFDataExtractor, extract_pdf_data
 
 extractor = PDFDataExtractor(
-    model="claude-3-5-sonnet",
-    provider="anthropic",
-    enable_caching=True
+    analysis_provider="anthropic",
+    analysis_model="claude-sonnet-4-20250514",
+    extraction_provider="anthropic",
+    extraction_model="claude-sonnet-4-20250514",
+    max_parallel_extractions=5,
+    temperature=0.0
 )
 
-# Automatic schema generation
-result = await extractor.extract_data(
-    pdf_path="financial_report.pdf",
-    instructions="Extract all financial metrics, tables, and KPIs",
+# Extract all identified datapoints
+result = await extractor.extract_all_data(
+    pdf_url="https://example.com/financial_report.pdf",
+    focus_areas=["revenue tables", "financial metrics", "KPIs"],
+    datapoint_filter=None  # Extract all identified datapoints
+)
+
+print(f"Document type: {result.document_type}")
+print(f"Identified datapoints: {result.total_datapoints_identified}")
+print(f"Successful extractions: {result.successful_extractions}")
+print(f"Total cost: ${result.total_cost_cents / 100:.4f}")
+
+# Access individual extraction results
+for extraction in result.extraction_results:
+    if extraction.success:
+        print(f"\n{extraction.datapoint_name}:")
+        print(f"  Cost: ${extraction.cost_cents / 100:.4f}")
+        print(f"  Tokens: {extraction.input_tokens + extraction.output_tokens}")
+
+# Get data as dictionary
+data_dict = await extractor.extract_as_dict(
+    pdf_url="https://example.com/report.pdf",
+    focus_areas=["quarterly revenue", "balance sheet"],
+    datapoint_filter=["revenue_by_quarter", "assets_summary"]
+)
+
+# Convenience function
+data = await extract_pdf_data(
+    pdf_url="https://example.com/document.pdf",
+    analysis_provider="openai",
+    analysis_model="gpt-4",
+    extraction_provider="openai",
+    extraction_model="gpt-4"
+)
+```
+
+### Image Data Extractor
+
+Extract structured data from images including charts, tables, and infographics:
+
+```python
+from defog.llm import ImageDataExtractor, extract_image_data
+
+extractor = ImageDataExtractor(
+    analysis_provider="anthropic",
+    analysis_model="claude-sonnet-4-20250514",
+    extraction_provider="anthropic",
+    extraction_model="claude-sonnet-4-20250514",
+    max_parallel_extractions=5
+)
+
+# Extract from various image types
+result = await extractor.extract_all_data(
+    image_url="https://example.com/sales_chart.png",
+    focus_areas=["bar chart data", "axis labels", "legend"],
+    datapoint_filter=None
+)
+
+print(f"Image type: {result.image_type}")
+print(f"Content: {result.metadata['content_description']}")
+
+# Extract specific datapoints
+filtered_result = await extractor.extract_all_data(
+    image_url="https://example.com/dashboard.jpg",
+    datapoint_filter=["revenue_chart", "metrics_table"]
+)
+
+# Get as dictionary for easy access
+data = await extractor.extract_as_dict(
+    image_url="https://example.com/infographic.png"
+)
+
+# Example: Process extracted chart data
+for name, content in data["data"].items():
+    if content.get("chart_type") == "bar":
+        columns = content["columns"]  # e.g., ["category", "value"]
+        data_rows = content["data"]    # e.g., [["Q1", 1500], ["Q2", 1800], ...]
+        
+        # Convert to pandas DataFrame
+        import pandas as pd
+        df = pd.DataFrame(data_rows, columns=columns)
+        print(df.describe())
+
+# Use different providers for analysis and extraction
+mixed_extractor = ImageDataExtractor(
+    analysis_provider="gemini",
+    analysis_model="gemini-2.5-pro",
+    extraction_provider="openai",
+    extraction_model="gpt-4"
+)
+```
+
+### HTML Data Extractor
+
+Extract structured data from HTML content including tables, lists, and repeated patterns:
+
+```python
+from defog.llm import HTMLDataExtractor, extract_html_data
+
+extractor = HTMLDataExtractor(
+    analysis_provider="openai",
+    analysis_model="gpt-4.1",
+    extraction_provider="gemini",
+    extraction_model="gemini-2.5-pro"
+)
+
+# Extract from HTML string
+html_content = """
+<div class="products">
+    <div class="product-card" data-id="1">
+        <h3>Premium Widget</h3>
+        <p class="price">$49.99</p>
+        <span class="stock">In Stock</span>
+    </div>
+    <!-- More products... -->
+</div>
+"""
+
+result = await extractor.extract_all_data(
+    html_content=html_content,
+    focus_areas=["product information", "pricing", "inventory"],
+    datapoint_filter=None
+)
+
+# Extract specific types of data
+table_result = await extractor.extract_all_data(
+    html_content=html_with_tables,
+    datapoint_filter=["financial_table", "inventory_table"]
+)
+
+# Advanced extraction with metadata
+for extraction in result.extraction_results:
+    if extraction.success and extraction.extracted_data:
+        data = extraction.extracted_data
+        if hasattr(data, "source_element"):
+            print(f"Data extracted from: {data.source_element}")
+        if hasattr(data, "row_count"):
+            print(f"Rows extracted: {data.row_count}")
+
+# Quick extraction with convenience function
+data = await extract_html_data(
+    html_content,
+    focus_areas=["e-commerce data", "product listings"],
+    analysis_provider="anthropic",
+    analysis_model="claude-sonnet-4-20250514",
+    temperature=0.1
+)
+
+# Process different HTML structures
+if "product_cards" in data["data"]:
+    products = data["data"]["product_cards"]
+    print(f"Found {len(products['data'])} products")
     
-    # Advanced options
-    confidence_threshold=0.8,         # Minimum confidence for extraction
-    include_tables=True,              # Extract tabular data
-    include_charts=True,              # Attempt chart data extraction
-    parallel_extraction=True,         # Use parallel processing
-    max_extraction_cost_cents=500    # Cost limit
-)
+    # Convert to structured format
+    for row in products["data"]:
+        product_name, price, stock_status = row
+        print(f"{product_name}: {price} ({stock_status})")
 
-# Manual schema specification
-from pydantic import BaseModel
+# Extract from complex HTML with mixed content
+complex_html = """
+<script type="application/ld+json">
+{"@type": "Organization", "revenue": "5M"}
+</script>
+<table class="quarterly-results">...</table>
+<ul class="team-members">...</ul>
+"""
 
-class FinancialMetrics(BaseModel):
-    revenue: float
-    profit_margin: float
-    growth_rate: float
-    
-manual_result = await extractor.extract_data(
-    pdf_path="report.pdf",
-    instructions="Extract financial metrics",
-    response_format=FinancialMetrics
-)
+# Will identify and extract JSON-LD, tables, and lists
+complex_data = await extract_html_data(complex_html)
 ```
 
 ## YouTube Transcription Tool
