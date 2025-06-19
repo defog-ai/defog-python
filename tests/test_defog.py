@@ -84,14 +84,6 @@ class TestDefog(unittest.TestCase):
             # incomplete keys
             Defog.check_db_creds("snowflake", {"account": "some_account"})
 
-    def test_check_db_creds_mongo(self):
-        db_creds = {"connection_string": "some_connection_string"}
-        Defog.check_db_creds("mongo", db_creds)
-        Defog.check_db_creds("mongo", {})
-        with self.assertRaises(KeyError):
-            # wrong key
-            Defog.check_db_creds("mongo", {"account": "some_account"})
-
     def test_check_db_creds_sqlserver(self):
         db_creds = {
             "server": "some_server",

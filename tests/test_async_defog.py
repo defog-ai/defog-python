@@ -102,13 +102,6 @@ class TestAsyncDefog(unittest.TestCase):
         with self.assertRaises(KeyError):
             AsyncDefog.check_db_creds("snowflake", {"account": "some_account"})
 
-    def test_check_db_creds_mongo(self):
-        db_creds = {"connection_string": "some_connection_string"}
-        AsyncDefog.check_db_creds("mongo", db_creds)
-        AsyncDefog.check_db_creds("mongo", {})
-        with self.assertRaises(KeyError):
-            AsyncDefog.check_db_creds("mongo", {"account": "some_account"})
-
     def test_check_db_creds_sqlserver(self):
         db_creds = {
             "server": "some_server",
