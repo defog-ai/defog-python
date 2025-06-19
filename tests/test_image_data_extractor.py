@@ -139,9 +139,9 @@ class TestImageDataExtractorE2E:
         assert len(extracted_dict["data"]) > 0
 
         print(
-            f"\nMixed providers - Analysis cost: ${result.metadata['analysis_cost_cents']/100:.4f}"
+            f"\nMixed providers - Analysis cost: ${result.metadata['analysis_cost_cents'] / 100:.4f}"
         )
-        print(f"Extraction cost: ${result.metadata['extraction_cost_cents']/100:.4f}")
+        print(f"Extraction cost: ${result.metadata['extraction_cost_cents'] / 100:.4f}")
 
     @pytest.mark.asyncio
     async def test_extract_as_dict_format(self):

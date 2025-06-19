@@ -722,7 +722,7 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         print(f"\nOpenAI Timing Results:")
         print(f"  Parallel execution: {parallel_time:.2f}s")
         print(f"  Sequential execution: {sequential_time:.2f}s")
-        print(f"  Speedup: {sequential_time/parallel_time:.2f}x")
+        print(f"  Speedup: {sequential_time / parallel_time:.2f}x")
 
         # Parallel should generally be faster or at least not significantly slower
         # We don't assert exact timing as it depends on API response times
@@ -775,7 +775,7 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         print(f"\nAnthropic Timing Results:")
         print(f"  Parallel execution: {parallel_time:.2f}s")
         print(f"  Sequential execution: {sequential_time:.2f}s")
-        print(f"  Speedup: {sequential_time/parallel_time:.2f}x")
+        print(f"  Speedup: {sequential_time / parallel_time:.2f}x")
 
     @pytest.mark.asyncio
     @skip_if_no_api_key("deepseek")
@@ -831,7 +831,7 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         print(f"\nDeepSeek Timing Results:")
         print(f"  Parallel execution: {parallel_time:.2f}s")
         print(f"  Sequential execution: {sequential_time:.2f}s")
-        print(f"  Speedup: {sequential_time/parallel_time:.2f}x")
+        print(f"  Speedup: {sequential_time / parallel_time:.2f}x")
 
         # Parallel should generally be faster or at least not significantly slower
         # We don't assert exact timing as it depends on API response times

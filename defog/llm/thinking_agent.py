@@ -125,9 +125,9 @@ Be thorough and consider multiple perspectives. This is your space to think deep
         ]
 
         if context:
-            thinking_messages[0][
-                "content"
-            ] += f"\n\nContext:\n{json.dumps(context, indent=2)}"
+            thinking_messages[0]["content"] += (
+                f"\n\nContext:\n{json.dumps(context, indent=2)}"
+            )
 
         try:
             # Use reasoning_effort="medium" for thinking
@@ -280,7 +280,7 @@ For each alternative, provide:
 
             # Return parsed alternatives (simplified for now)
             return [
-                {"approach": f"Alternative {i+1}", "description": alternatives_text}
+                {"approach": f"Alternative {i + 1}", "description": alternatives_text}
                 for i in range(num_alternatives)
             ]
 

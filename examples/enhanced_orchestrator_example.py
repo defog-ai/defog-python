@@ -24,7 +24,7 @@ from defog.llm import (
     SharedContextConfig,
     ExplorationConfig,
     ThinkingConfig,
-    EnhancedMemoryConfig
+    EnhancedMemoryConfig,
 )
 from defog.llm.web_search import web_search_tool
 from defog.llm.code_interp import code_interpreter_tool
@@ -33,8 +33,7 @@ from defog.llm.llm_providers import LLMProvider
 
 # Set up logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -47,10 +46,7 @@ class WebSearchInput(BaseModel):
 async def web_search(input: WebSearchInput) -> Dict[str, Any]:
     """Search the web for information using available search providers."""
     result = await web_search_tool(
-        question=input.query,
-        model="gpt-4.1",
-        provider="openai",
-        verbose=False
+        question=input.query, model="gpt-4.1", provider="openai", verbose=False
     )
     return {
         "content": result.get("content", ""),
@@ -134,13 +130,8 @@ else:
 
 
 class SQLQueryInput(BaseModel):
-    question: str = Field(
-        description="Natural language question to answer using SQL"
-    )
-    db_path: str = Field(
-        default="",
-        description="Path to database file (for DuckDB)"
-    )
+    question: str = Field(description="Natural language question to answer using SQL")
+    db_path: str = Field(default="", description="Path to database file (for DuckDB)")
 
 
 async def sql_query(input: SQLQueryInput) -> Dict[str, Any]:
@@ -150,7 +141,7 @@ async def sql_query(input: SQLQueryInput) -> Dict[str, Any]:
         os.path.dirname(__file__), "cricket_wc2015.duckdb"
     )
     db_creds = {"database": db_path}
-    
+
     try:
         result = await sql_answer_tool(
             question=input.question,
@@ -161,7 +152,7 @@ async def sql_query(input: SQLQueryInput) -> Dict[str, Any]:
             temperature=0.0,
             verbose=False,
         )
-        
+
         if result.get("success"):
             return {
                 "success": True,
@@ -178,17 +169,12 @@ async def sql_query(input: SQLQueryInput) -> Dict[str, Any]:
                 "error": result.get("error"),
             }
     except Exception as e:
-        return {
-            "success": False,
-            "query": None,
-            "results": None,
-            "error": str(e)
-        }
+        return {"success": False, "query": None, "results": None, "error": str(e)}
 
 
 async def enhanced_orchestration_example():
     """Demonstrate enhanced orchestrator capabilities with real tools."""
-    
+
     # Create main orchestrator agent with thinking capabilities
     main_agent = ThinkingAgent(
         agent_id="enhanced_orchestrator",
@@ -214,36 +200,35 @@ You must use plan_and_create_subagents for complex multi-part requests.""",
         memory_config={
             "enabled": True,
             "token_threshold": 50000,
-            "preserve_last_n_messages": 10
-        }
+            "preserve_last_n_messages": 10,
+        },
     )
-    
+
     # Available tools for subagents
     available_tools = [web_search, execute_python, analyze_data, sql_query]
-    
+
     # Create configuration for enhanced orchestrator
     config = EnhancedOrchestratorConfig(
         shared_context=SharedContextConfig(
-            base_path=".enhanced_agent_workspace",
-            cleanup_older_than_days=7
+            base_path=".enhanced_agent_workspace", cleanup_older_than_days=7
         ),
         exploration=ExplorationConfig(
             max_parallel_explorations=3,
             exploration_timeout=300.0,
             enable_learning=True,
-            default_strategy=ExplorationStrategy.ADAPTIVE
+            default_strategy=ExplorationStrategy.ADAPTIVE,
         ),
         memory=EnhancedMemoryConfig(
             max_context_length=128000,
             summarization_threshold=100000,
             summary_model="claude-sonnet-4-20250514",
-            reasoning_effort="medium"
+            reasoning_effort="medium",
         ),
         thinking=ThinkingConfig(
             enable_thinking_mode=True,
             thinking_timeout=120.0,
             thinking_model="claude-sonnet-4-20250514",
-            reasoning_effort="medium"
+            reasoning_effort="medium",
         ),
         enable_thinking_agents=True,
         enable_exploration=True,
@@ -252,9 +237,9 @@ You must use plan_and_create_subagents for complex multi-part requests.""",
         global_timeout=600.0,  # 10 minutes
         max_retries=3,
         retry_delay=1.0,
-        retry_backoff=2.0
+        retry_backoff=2.0,
     )
-    
+
     # Create enhanced orchestrator with configuration
     orchestrator = EnhancedAgentOrchestrator(
         main_agent=main_agent,
@@ -270,33 +255,33 @@ You must use plan_and_create_subagents for complex multi-part requests.""",
         max_total_retries=15,
         max_decomposition_depth=1,
     )
-    
+
     # Example 1: Complex research with exploration
-#     print("\n=== Example 1: Research with Alternative Approaches ===")
-#     research_messages = [
-#         {
-#             "role": "user",
-#             "content": """I need a comprehensive analysis of renewable energy trends:
+    #     print("\n=== Example 1: Research with Alternative Approaches ===")
+    #     research_messages = [
+    #         {
+    #             "role": "user",
+    #             "content": """I need a comprehensive analysis of renewable energy trends:
 
-# 1. Research the current state of solar and wind energy adoption globally
-# 2. Analyze the cost trends over the past 5 years using statistical methods
-# 3. Create Python code to visualize the growth projections
-# 4. Compare different forecasting approaches (linear vs exponential growth)
+    # 1. Research the current state of solar and wind energy adoption globally
+    # 2. Analyze the cost trends over the past 5 years using statistical methods
+    # 3. Create Python code to visualize the growth projections
+    # 4. Compare different forecasting approaches (linear vs exponential growth)
 
-# Explore multiple analytical approaches and share insights between agents."""
-#         }
-#     ]
-    
-#     logger.info("Processing complex research request...")
-#     response1 = await orchestrator.process(research_messages)
-#     print(f"\nResearch Result:\n{response1.content}")
-    
+    # Explore multiple analytical approaches and share insights between agents."""
+    #         }
+    #     ]
+
+    #     logger.info("Processing complex research request...")
+    #     response1 = await orchestrator.process(research_messages)
+    #     print(f"\nResearch Result:\n{response1.content}")
+
     # Example 2: Data analysis with SQL and Python
     print("\n\n=== Example 2: Multi-Tool Data Analysis ===")
-    
+
     # First, let's check if the cricket database exists
     cricket_db_path = os.path.join(os.path.dirname(__file__), "cricket_wc2015.duckdb")
-    
+
     if os.path.exists(cricket_db_path):
         analysis_messages = [
             {
@@ -310,7 +295,7 @@ You must use plan_and_create_subagents for complex multi-part requests.""",
 
 Database path: {cricket_db_path}
 
-Have agents share their findings and build on each other's analysis."""
+Have agents share their findings and build on each other's analysis.""",
             }
         ]
     else:
@@ -327,15 +312,17 @@ Data: [45, 52, 38, 64, 42, 48, 55, 67, 71, 39, 58, 61]
 3. Create Python code for trend analysis
 4. Compare different visualization approaches
 
-Explore at least 2 different analytical methods."""
+Explore at least 2 different analytical methods.""",
             }
         ]
-    
+
     logger.info("Processing data analysis request...")
     response2 = await orchestrator.process(analysis_messages)
     print(f"\nAnalysis Result:\n{response2.content}")
-    
+
     # Example 3: Cross-agent collaboration and learning
+
+
 #     print("\n\n=== Example 3: Cross-Agent Collaboration ===")
 #     collaboration_messages = [
 #         {
@@ -350,31 +337,31 @@ Explore at least 2 different analytical methods."""
 # Show how the shared context enables better collaboration."""
 #         }
 #     ]
-    
+
 #     logger.info("Processing collaboration request...")
 #     response3 = await orchestrator.process(collaboration_messages)
 #     print(f"\nCollaborative Result:\n{response3.content}")
-    
+
 #     # Get orchestration insights
 #     print("\n\n=== Orchestration Insights ===")
 #     insights = await orchestrator.get_orchestration_insights()
-    
+
 #     print(f"\nShared Context Statistics:")
 #     if insights['shared_context_stats']:
 #         print(f"  Total artifacts: {insights['shared_context_stats'].get('total_artifacts', 0)}")
 #         print(f"  Artifact types: {insights['shared_context_stats'].get('artifact_types', {})}")
-    
+
 #     print(f"\nExploration Patterns:")
 #     print(f"  Successful patterns learned: {insights['exploration_patterns'].get('successful_patterns', 0)}")
-    
+
 #     print(f"\nCross-Agent Collaborations:")
 #     for collab in insights['cross_agent_collaborations']:
 #         print(f"  Agent {collab['agent_id']}: {collab['collaborations']} collaborations")
-    
+
 #     # Demonstrate shared context details
 #     print("\n\n=== Shared Context Details ===")
 #     shared_context = orchestrator.shared_context
-    
+
 #     # List thinking artifacts
 #     thinking_artifacts = await shared_context.list_artifacts(
 #         pattern="thinking/*",
@@ -385,7 +372,7 @@ Explore at least 2 different analytical methods."""
 #         print(f"  - {artifact.key}")
 #         print(f"    Agent: {artifact.agent_id}")
 #         print(f"    Created: {artifact.created_at.strftime('%H:%M:%S')}")
-    
+
 #     # List exploration results
 #     exploration_artifacts = await shared_context.list_artifacts(
 #         pattern="exploration_result/*",
@@ -394,13 +381,13 @@ Explore at least 2 different analytical methods."""
 #     print(f"\nExploration Results ({len(exploration_artifacts)} total):")
 #     for artifact in exploration_artifacts[:3]:
 #         print(f"  - {artifact.key} (v{artifact.version})")
-    
+
 #     # List shared memories
 #     memory_artifacts = await shared_context.list_artifacts(
 #         pattern="memory/*"
 #     )
 #     print(f"\nShared Memories ({len(memory_artifacts)} total)")
-    
+
 #     # Show successful patterns if any
 #     pattern_artifacts = await shared_context.list_artifacts(
 #         pattern="successful_pattern/*"
@@ -409,7 +396,7 @@ Explore at least 2 different analytical methods."""
 #         print(f"\nSuccessful Patterns Found ({len(pattern_artifacts)}):")
 #         for artifact in pattern_artifacts[:3]:
 #             print(f"  - {artifact.key}")
-    
+
 #     print("\n" + "="*50)
 #     print("Enhanced orchestration example completed!")
 #     print(f"Workspace location: {orchestrator.shared_context.base_path}")
@@ -418,9 +405,9 @@ Explore at least 2 different analytical methods."""
 
 async def simple_enhanced_example():
     """A simpler example demonstrating key enhanced features."""
-    
+
     logger.info("Creating enhanced orchestrator with thinking agents...")
-    
+
     # Create a thinking main agent
     main_agent = ThinkingAgent(
         agent_id="simple_orchestrator",
@@ -430,20 +417,18 @@ async def simple_enhanced_example():
         Break down tasks using plan_and_create_subagents.
         Encourage agents to explore alternatives when appropriate.""",
         enable_thinking_mode=True,
-        reasoning_effort="medium"
+        reasoning_effort="medium",
     )
-    
+
     # Create simple configuration
     simple_config = EnhancedOrchestratorConfig(
-        shared_context=SharedContextConfig(
-            base_path=".simple_enhanced_workspace"
-        ),
+        shared_context=SharedContextConfig(base_path=".simple_enhanced_workspace"),
         enable_thinking_agents=True,
         enable_exploration=True,
         max_parallel_tasks=2,
         global_timeout=180.0,  # 3 minutes
     )
-    
+
     # Create enhanced orchestrator
     orchestrator = EnhancedAgentOrchestrator(
         main_agent=main_agent,
@@ -456,7 +441,7 @@ async def simple_enhanced_example():
         subagent_model="gpt-4.1",
         max_recursion_depth=1,
     )
-    
+
     # Simple request that benefits from thinking and exploration
     messages = [
         {
@@ -466,14 +451,14 @@ async def simple_enhanced_example():
             2. Find the current temperature in Paris
             3. Create a temperature conversion function
             
-            Think about different approaches and share your reasoning."""
+            Think about different approaches and share your reasoning.""",
         }
     ]
-    
+
     logger.info("Processing request with enhanced features...")
     response = await orchestrator.process(messages)
     print(f"\nResult:\n{response.content}")
-    
+
     # Show thinking artifacts created
     artifacts = await orchestrator.shared_context.list_artifacts(
         artifact_type=ArtifactType.PLAN
@@ -483,7 +468,7 @@ async def simple_enhanced_example():
 
 if __name__ == "__main__":
     import sys
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == "--simple":
         # Run simple example
         asyncio.run(simple_enhanced_example())

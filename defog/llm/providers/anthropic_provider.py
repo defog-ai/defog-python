@@ -342,14 +342,15 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                         # Execute regular tool calls (not MCP tools, which are already executed by the API)
                         results = []
                         if regular_tool_calls:
-                            results, consecutive_exceptions = (
-                                await self.execute_tool_calls_with_retry(
-                                    regular_tool_calls,
-                                    tool_dict,
-                                    request_params["messages"],
-                                    post_tool_function,
-                                    consecutive_exceptions,
-                                )
+                            (
+                                results,
+                                consecutive_exceptions,
+                            ) = await self.execute_tool_calls_with_retry(
+                                regular_tool_calls,
+                                tool_dict,
+                                request_params["messages"],
+                                post_tool_function,
+                                consecutive_exceptions,
                             )
 
                         # For MCP tools, extract results from mcp_tool_result blocks

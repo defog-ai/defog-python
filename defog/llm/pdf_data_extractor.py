@@ -620,9 +620,9 @@ Be precise and include all available data that matches the schema."""
 
         for extraction in result.extraction_results:
             if extraction.success and extraction.extracted_data:
-                extracted_data["data"][
-                    extraction.datapoint_name
-                ] = extraction.extracted_data
+                extracted_data["data"][extraction.datapoint_name] = (
+                    extraction.extracted_data
+                )
 
         return extracted_data
 

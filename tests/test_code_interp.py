@@ -100,7 +100,7 @@ Charlie Wilson,32,48000,Marketing"""
             salary = 40000 + (i * 500)
             experience = max(0, age - 22)
             large_csv_rows.append(
-                f"{i+1},Employee{i+1},{age},{salary},{dept},{experience}"
+                f"{i + 1},Employee{i + 1},{age},{salary},{dept},{experience}"
             )
 
         large_csv = large_csv_header + "\n".join(large_csv_rows)

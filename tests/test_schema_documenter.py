@@ -279,10 +279,13 @@ class TestAsyncOperations:
     @pytest.mark.asyncio
     async def test_document_schema_for_defog(self):
         """Test the utility function for Defog integration."""
-        with patch.object(SchemaDocumenter, "_get_connection"), patch.object(
-            SchemaDocumenter, "_get_all_tables", return_value=["test_table"]
-        ), patch.object(SchemaDocumenter, "_document_single_table") as mock_doc:
-
+        with (
+            patch.object(SchemaDocumenter, "_get_connection"),
+            patch.object(
+                SchemaDocumenter, "_get_all_tables", return_value=["test_table"]
+            ),
+            patch.object(SchemaDocumenter, "_document_single_table") as mock_doc,
+        ):
             mock_doc.return_value = TableDocumentation("test_table")
 
             result = await document_schema_for_defog(

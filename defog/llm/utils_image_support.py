@@ -262,7 +262,7 @@ def process_tool_results_with_images(
 
 
 def validate_and_process_image_data(
-    image_base64: Union[str, List[str]]
+    image_base64: Union[str, List[str]],
 ) -> Tuple[List[str], List[str]]:
     """
     Validate and process image data for provider use.

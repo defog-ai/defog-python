@@ -15,7 +15,6 @@ class TestCitations(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     @skip_if_no_api_key("anthropic")
     async def test_simple_anthropic_citations(self):
-
         question = "What is Rishabh's favourite food?"
         instructions = "Answer the question with high quality citations. If you don't know the answer, say 'I don't know'."
         documents = [
@@ -54,7 +53,6 @@ class TestCitations(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     @skip_if_no_api_key("openai")
     async def test_openai_citations(self):
-
         question = "What are the main benefits of renewable energy?"
         instructions = "Provide a detailed answer with proper citations from the provided documents."
         documents = [
@@ -99,7 +97,6 @@ class TestCitations(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.asyncio
     @skip_if_no_api_key("anthropic")
     async def test_no_relevant_documents_anthropic(self):
-
         question = "What is the capital of Mars?"
         instructions = "Answer the question based only on the provided documents. If the information is not available, say 'I don't know'."
         documents = [

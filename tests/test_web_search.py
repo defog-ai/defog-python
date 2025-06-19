@@ -7,7 +7,6 @@ from tests.conftest import skip_if_no_api_key
 
 
 class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
-
     def setUp(self):
         self.test_question = "What is the capital of France?"
         self.max_tokens = 1024

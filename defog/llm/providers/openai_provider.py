@@ -317,14 +317,15 @@ class OpenAIProvider(BaseLLMProvider):
                             )
 
                         # Use base class method for tool execution with retry
-                        results, consecutive_exceptions = (
-                            await self.execute_tool_calls_with_retry(
-                                tool_calls_batch,
-                                tool_dict,
-                                request_params["messages"],
-                                post_tool_function,
-                                consecutive_exceptions,
-                            )
+                        (
+                            results,
+                            consecutive_exceptions,
+                        ) = await self.execute_tool_calls_with_retry(
+                            tool_calls_batch,
+                            tool_dict,
+                            request_params["messages"],
+                            post_tool_function,
+                            consecutive_exceptions,
                         )
 
                         # Append the tool calls as an assistant response

@@ -174,7 +174,7 @@ class PDFProcessor:
                 chunk_doc.close()
 
                 logger.info(
-                    f"Created chunk {len(chunks)}: pages {start_page+1}-{end_page+1}, {len(chunk_bytes)} bytes"
+                    f"Created chunk {len(chunks)}: pages {start_page + 1}-{end_page + 1}, {len(chunk_bytes)} bytes"
                 )
 
             doc.close()

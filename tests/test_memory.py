@@ -538,12 +538,14 @@ class TestLongConversationWithMemory:
                         ]
                         assert any(
                             word in summary_content for word in relevant_words
-                        ), f"Summary doesn't contain relevant keywords: {summary_content[:200]}"
+                        ), (
+                            f"Summary doesn't contain relevant keywords: {summary_content[:200]}"
+                        )
                         break
 
-                assert (
-                    summary_found
-                ), f"Summary not found after compactification {current_compactifications}"
+                assert summary_found, (
+                    f"Summary not found after compactification {current_compactifications}"
+                )
                 compactification_count = current_compactifications
 
             previous_token_count = current_token_count
@@ -573,7 +575,8 @@ class TestLongConversationWithMemory:
         """Test that memory management can be disabled."""
         # Create manager with memory disabled
         manager = create_memory_manager(
-            token_threshold=100, enabled=False  # Very low threshold  # Disabled
+            token_threshold=100,
+            enabled=False,  # Very low threshold  # Disabled
         )
 
         # Add many messages

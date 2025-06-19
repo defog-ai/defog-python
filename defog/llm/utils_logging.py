@@ -236,7 +236,7 @@ class OrchestrationLogger:
             cost = metadata.get("cost_in_cents", 0) or 0
             if tokens or cost:
                 self.console.print(
-                    f"    [dim]Tokens: {tokens} | Cost: ${cost/100:.4f}[/dim]"
+                    f"    [dim]Tokens: {tokens} | Cost: ${cost / 100:.4f}[/dim]"
                 )
 
     def log_orchestration_complete(self, results: Dict[str, Any]):
@@ -269,7 +269,7 @@ class OrchestrationLogger:
                     total_tokens += result["metadata"].get("total_tokens", 0)
 
             stats_table.add_row("Total Tokens", f"{total_tokens:,}")
-            stats_table.add_row("Total Cost", f"${total_cost/100:.4f}")
+            stats_table.add_row("Total Cost", f"${total_cost / 100:.4f}")
 
             self.console.print(
                 Panel(

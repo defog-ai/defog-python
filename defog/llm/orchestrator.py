@@ -820,7 +820,6 @@ class Orchestrator:
                         original_result.agent_id == failed_task.agent_id
                         and original_result.task_id == failed_task.task_id
                     ):
-
                         if isinstance(retry_result, Exception):
                             # Still failed after retry
                             processed_results[j] = SubAgentResult(
@@ -1516,7 +1515,7 @@ Return a JSON array of subtask descriptions.""",
                     task_description=subtask_desc,
                     context=task.context,
                     execution_mode=ExecutionMode.SEQUENTIAL,
-                    dependencies=[f"{task.task_id}_subtask_{i-1}"] if i > 0 else None,
+                    dependencies=[f"{task.task_id}_subtask_{i - 1}"] if i > 0 else None,
                     max_retries=max(
                         1, task.max_retries // 2
                     ),  # Reduce retries for subtasks

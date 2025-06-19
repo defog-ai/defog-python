@@ -108,7 +108,7 @@ class ExplorationExecutor:
         for i, alt in enumerate(alternatives):
             path = ExplorationPath(
                 path_id=f"{task.agent_id}_path_{i}",
-                description=alt.get("description", f"Alternative approach {i+1}"),
+                description=alt.get("description", f"Alternative approach {i + 1}"),
                 approach=alt.get("approach", ""),
                 confidence=0.5,  # Default confidence
                 estimated_complexity="medium",

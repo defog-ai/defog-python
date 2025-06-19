@@ -277,26 +277,32 @@ FINANCIAL_REPORT_HTML = """
 async def example_basic_extraction():
     """Basic example of extracting all data from HTML"""
     print("\n=== Basic HTML Data Extraction ===")
-    
+
     # Create extractor
     extractor = HTMLDataExtractor()
-    
+
     # Extract all data
     result = await extractor.extract_as_dict(ECOMMERCE_HTML)
-    
+
     print(f"\nPage Type: {result['metadata']['page_type']}")
-    print(f"Identified {result['metadata']['extraction_summary']['total_identified']} datapoints")
-    print(f"Successfully extracted: {result['metadata']['extraction_summary']['successful']}")
-    print(f"Total cost: ${result['metadata']['extraction_summary']['cost_cents'] / 100:.4f}")
-    
+    print(
+        f"Identified {result['metadata']['extraction_summary']['total_identified']} datapoints"
+    )
+    print(
+        f"Successfully extracted: {result['metadata']['extraction_summary']['successful']}"
+    )
+    print(
+        f"Total cost: ${result['metadata']['extraction_summary']['cost_cents'] / 100:.4f}"
+    )
+
     print("\nExtracted Data:")
-    for name, data in result['data'].items():
+    for name, data in result["data"].items():
         print(f"\n{name}:")
         if isinstance(data, dict):
-            if 'columns' in data and 'data' in data:
+            if "columns" in data and "data" in data:
                 print(f"  Columns: {data['columns']}")
                 print(f"  Rows: {len(data['data'])}")
-                if data['data']:
+                if data["data"]:
                     print(f"  Sample row: {data['data'][0]}")
             else:
                 for key, value in list(data.items())[:3]:
@@ -308,61 +314,62 @@ async def example_basic_extraction():
 async def example_focused_extraction():
     """Example of extracting specific types of data"""
     print("\n=== Focused Extraction ===")
-    
+
     extractor = HTMLDataExtractor()
-    
+
     # Focus on specific areas
     result = await extractor.extract_all_data(
         FINANCIAL_REPORT_HTML,
-        focus_areas=["revenue breakdown", "financial metrics", "geographic data"]
+        focus_areas=["revenue breakdown", "financial metrics", "geographic data"],
     )
-    
+
     print(f"\nExtraction Results:")
     print(f"Total datapoints identified: {result.total_datapoints_identified}")
     print(f"Successful extractions: {result.successful_extractions}")
     print(f"Failed extractions: {result.failed_extractions}")
-    
+
     # Get dictionary format for easier access
     dict_result = await extractor.extract_as_dict(FINANCIAL_REPORT_HTML)
-    
+
     print("\nExtracted Financial Data:")
-    for name, data in dict_result['data'].items():
-        if 'revenue' in name.lower() or 'financial' in name.lower():
+    for name, data in dict_result["data"].items():
+        if "revenue" in name.lower() or "financial" in name.lower():
             print(f"\n{name}:")
-            if isinstance(data, dict) and 'data' in data:
+            if isinstance(data, dict) and "data" in data:
                 print(f"  Found {len(data['data'])} rows of financial data")
 
 
 async def example_filtered_extraction():
     """Example of extracting only specific datapoints"""
     print("\n=== Filtered Extraction ===")
-    
+
     extractor = HTMLDataExtractor()
-    
+
     # First, analyze to see what datapoints are available
     initial_result = await extractor.extract_all_data(ECOMMERCE_HTML)
-    
+
     print("\nAvailable datapoints:")
     for extraction in initial_result.extraction_results:
         if extraction.success:
             print(f"  - {extraction.datapoint_name}")
-    
+
     # Extract only specific datapoints
     if initial_result.extraction_results:
         # Get names of product-related datapoints
         product_datapoints = [
-            e.datapoint_name for e in initial_result.extraction_results 
-            if 'product' in e.datapoint_name.lower() and e.success
+            e.datapoint_name
+            for e in initial_result.extraction_results
+            if "product" in e.datapoint_name.lower() and e.success
         ]
-        
+
         if product_datapoints:
             print(f"\nExtracting only: {product_datapoints}")
-            
+
             filtered_result = await extractor.extract_all_data(
                 ECOMMERCE_HTML,
-                datapoint_filter=product_datapoints[:1]  # Just the first one
+                datapoint_filter=product_datapoints[:1],  # Just the first one
             )
-            
+
             print(f"Filtered extraction completed:")
             print(f"  Extracted {filtered_result.successful_extractions} datapoints")
 
@@ -370,16 +377,16 @@ async def example_filtered_extraction():
 async def example_convenience_function():
     """Example using the convenience function"""
     print("\n=== Convenience Function Example ===")
-    
+
     # Simple one-liner extraction
     result = await extract_html_data(
         FINANCIAL_REPORT_HTML,
         focus_areas=["revenue", "financial metrics"],
-        temperature=0.1
+        temperature=0.1,
     )
-    
+
     print(f"\nExtracted {len(result['data'])} datapoints:")
-    for name in result['data'].keys():
+    for name in result["data"].keys():
         print(f"  - {name}")
 
 
@@ -387,12 +394,12 @@ async def main():
     """Run all examples"""
     print("HTML Data Extractor Examples")
     print("=" * 50)
-    
+
     await example_basic_extraction()
     await example_focused_extraction()
     await example_filtered_extraction()
     await example_convenience_function()
-    
+
     print("\n" + "=" * 50)
     print("Examples completed!")
 

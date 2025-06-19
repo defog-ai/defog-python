@@ -2,6 +2,7 @@
 """
 Setup script to download Cricket World Cup 2015 data and create DuckDB database.
 """
+
 import duckdb
 import pandas as pd
 import requests
