@@ -7,6 +7,7 @@ This example shows:
 4. Real tools: web search, code execution, SQL queries, and file processing
 5. How agents collaborate and share insights through the filesystem
 """
+# ruff: noqa: F821
 
 import asyncio
 import logging

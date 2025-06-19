@@ -101,7 +101,7 @@ async def chat_async_with_memory(
         )
 
     # Get current messages from memory manager
-    current_messages = memory_manager.get_current_messages()
+    memory_manager.get_current_messages()
 
     # Add new messages to memory
     token_counter = TokenCounter()

@@ -9,13 +9,13 @@ from defog import (
     health_methods,
     async_health_methods,
 )
-from typing import Dict, List, Optional, Union, Any
+from typing import Optional, Union
 from defog.llm.llm_providers import LLMProvider
 import warnings
 
 try:
     __version__ = version("defog")
-except:
+except Exception:
     pass
 
 SUPPORTED_DB_TYPES = [

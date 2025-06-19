@@ -12,6 +12,7 @@ The Cricket World Cup 2015 database contains ball-by-ball data from all matches,
 including batting/bowling statistics, team performance, and match details.
 Run setup_cricket_db.py first to create the DuckDB database from CSV files.
 """
+# ruff: noqa: F821
 
 import asyncio
 import logging

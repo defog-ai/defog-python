@@ -160,7 +160,6 @@ class GeminiProvider(BaseLLMProvider):
             messages = messages[1:]
 
         # Convert messages to Gemini Content objects
-        gemini_contents = []
 
         # For now, Gemini's conversational model expects a single user prompt
         # We'll combine all messages into a single user message with multimodal parts

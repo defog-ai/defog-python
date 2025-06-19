@@ -357,8 +357,8 @@ async def create_empty_tables(self, dev: bool = False):
             def execute_databricks():
                 con = sql.connect(**self.db_creds)
                 con.execute(ddl)
-                conn.commit()
-                conn.close()
+                con.commit()
+                con.close()
                 return True
 
             return await asyncio.to_thread(execute_databricks)

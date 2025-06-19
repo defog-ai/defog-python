@@ -122,7 +122,7 @@ class TestSharedContextStore:
     async def test_artifact_lineage(self, shared_context):
         """Test artifact lineage tracking."""
         # Create parent artifact
-        parent = await shared_context.write_artifact(
+        await shared_context.write_artifact(
             agent_id="agent1",
             key="parent",
             content="parent content",
@@ -130,7 +130,7 @@ class TestSharedContextStore:
         )
 
         # Create child artifact
-        child = await shared_context.write_artifact(
+        await shared_context.write_artifact(
             agent_id="agent1",
             key="child",
             content="child content",
@@ -139,7 +139,7 @@ class TestSharedContextStore:
         )
 
         # Create grandchild artifact
-        grandchild = await shared_context.write_artifact(
+        await shared_context.write_artifact(
             agent_id="agent1",
             key="grandchild",
             content="grandchild content",
@@ -509,7 +509,7 @@ class TestEnhancedAgentOrchestrator:
         )
 
         # Create recent artifact
-        recent_artifact = await orchestrator.shared_context.write_artifact(
+        await orchestrator.shared_context.write_artifact(
             agent_id="main",
             key="recent/artifact",
             content="recent content",

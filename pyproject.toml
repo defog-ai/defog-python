@@ -1,0 +1,17 @@
+[tool.ruff]
+# Ignore E402 (module import not at top of file)
+lint.ignore = ["E402"]
+
+# Exclude some directories
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "*.egg-info",
+    "build",
+    "dist",
+]
+
+# Python version target
+target-version = "py312"

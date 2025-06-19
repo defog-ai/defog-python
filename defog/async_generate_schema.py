@@ -153,7 +153,7 @@ async def generate_postgres_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 storage.save_schema,
                 csv_data,
                 "defog_metadata.csv",
@@ -263,7 +263,7 @@ async def generate_redshift_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 storage.save_schema,
                 csv_data,
                 "defog_metadata.csv",
@@ -295,7 +295,7 @@ async def generate_mysql_schema(
 ) -> str:
     try:
         import aiomysql
-    except:
+    except ImportError:
         raise Exception("aiomysql not installed.")
 
     db_creds = self.db_creds.copy()
@@ -364,7 +364,7 @@ async def generate_mysql_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 storage.save_schema,
                 csv_data,
                 "defog_metadata.csv",
@@ -405,7 +405,7 @@ async def generate_databricks_schema(
 
     try:
         from databricks import sql
-    except:
+    except ImportError:
         raise Exception("databricks-sql-connector not installed.")
 
     conn = await asyncio.to_thread(sql.connect, **self.db_creds)
@@ -473,7 +473,7 @@ async def generate_databricks_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 storage.save_schema,
                 csv_data,
                 "defog_metadata.csv",
@@ -515,7 +515,7 @@ async def generate_snowflake_schema(
 
     try:
         import snowflake.connector
-    except:
+    except ImportError:
         raise Exception("snowflake-connector not installed.")
 
     conn = snowflake.connector.connect(
@@ -606,7 +606,7 @@ async def generate_snowflake_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 storage.save_schema,
                 csv_data,
                 "defog_metadata.csv",
@@ -648,7 +648,7 @@ async def generate_bigquery_schema(
 
     try:
         from google.cloud import bigquery
-    except:
+    except ImportError:
         raise Exception("google-cloud-bigquery not installed.")
 
     client = await asyncio.to_thread(
@@ -706,7 +706,7 @@ async def generate_bigquery_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 storage.save_schema,
                 csv_data,
                 "defog_metadata.csv",
@@ -812,7 +812,7 @@ async def generate_sqlserver_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 storage.save_schema,
                 csv_data,
                 "defog_metadata.csv",
@@ -922,7 +922,7 @@ async def generate_sqlite_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = await asyncio.to_thread(
+            await asyncio.to_thread(
                 storage.save_schema,
                 csv_data,
                 "defog_metadata.csv",

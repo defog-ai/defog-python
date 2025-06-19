@@ -146,7 +146,7 @@ class ExplorationExecutor:
         Returns:
             SubAgentResult with the best outcome
         """
-        start_time = time.time()
+        time.time()
 
         # First, try the primary approach
         primary_result = await self._execute_primary_approach(agent, task)
