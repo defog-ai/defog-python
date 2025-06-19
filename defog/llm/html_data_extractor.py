@@ -26,20 +26,56 @@ logger = logging.getLogger(__name__)
 MAX_HTML_SIZE_MB = 10  # Maximum HTML size in megabytes
 MAX_HTML_SIZE_BYTES = MAX_HTML_SIZE_MB * 1024 * 1024
 ALLOWED_TAGS = [
-    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
-    'ul', 'ol', 'li', 'dl', 'dt', 'dd',
-    'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    'a', 'img', 'form', 'input', 'select', 'option', 'textarea',
-    'nav', 'section', 'article', 'aside', 'header', 'footer',
-    'strong', 'em', 'b', 'i', 'u', 'code', 'pre',
-    'script'  # Keep script tags to check for JSON-LD
+    "table",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "th",
+    "td",
+    "ul",
+    "ol",
+    "li",
+    "dl",
+    "dt",
+    "dd",
+    "div",
+    "span",
+    "p",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "a",
+    "img",
+    "form",
+    "input",
+    "select",
+    "option",
+    "textarea",
+    "nav",
+    "section",
+    "article",
+    "aside",
+    "header",
+    "footer",
+    "strong",
+    "em",
+    "b",
+    "i",
+    "u",
+    "code",
+    "pre",
+    "script",  # Keep script tags to check for JSON-LD
 ]
 ALLOWED_ATTRIBUTES = {
-    '*': ['id', 'class', 'data-*', 'aria-*'],
-    'a': ['href', 'title'],
-    'img': ['src', 'alt', 'title'],
-    'input': ['type', 'name', 'value', 'placeholder'],
-    'script': ['type']  # For JSON-LD
+    "*": ["id", "class", "data-*", "aria-*"],
+    "a": ["href", "title"],
+    "img": ["src", "alt", "title"],
+    "input": ["type", "name", "value", "placeholder"],
+    "script": ["type"],  # For JSON-LD
 }
 
 
@@ -153,7 +189,7 @@ class HTMLDataExtractor:
         self.enable_caching = enable_caching
         self._analysis_cache = {} if enable_caching else None
         self.enable_image_extraction = enable_image_extraction
-        
+
         # Initialize image extractor if enabled
         if enable_image_extraction:
             self.image_extractor = ImageDataExtractor(
@@ -234,10 +270,10 @@ Extract RAW DATA values, not descriptions. Each datapoint should yield MULTIPLE 
     def _sanitize_and_preprocess_html(self, html_content: str) -> str:
         """
         Sanitize and preprocess HTML to improve security and performance.
-        
+
         Args:
             html_content: Raw HTML string
-            
+
         Returns:
             Sanitized and preprocessed HTML string
         """
@@ -247,65 +283,61 @@ Extract RAW DATA values, not descriptions. Each datapoint should yield MULTIPLE 
             tags=ALLOWED_TAGS,
             attributes=ALLOWED_ATTRIBUTES,
             strip=True,
-            strip_comments=False  # Keep comments as they might contain data
+            strip_comments=False,  # Keep comments as they might contain data
         )
-        
+
         # Second pass: Use BeautifulSoup for preprocessing
-        soup = BeautifulSoup(sanitized, 'html.parser')
-        
+        soup = BeautifulSoup(sanitized, "html.parser")
+
         # Remove script tags except JSON-LD
-        for script in soup.find_all('script'):
-            if script.get('type') != 'application/ld+json':
+        for script in soup.find_all("script"):
+            if script.get("type") != "application/ld+json":
                 script.decompose()
-        
+
         # Remove style tags and inline styles to reduce noise
-        for style in soup.find_all('style'):
+        for style in soup.find_all("style"):
             style.decompose()
         for tag in soup.find_all(style=True):
-            del tag['style']
-            
+            del tag["style"]
+
         # Remove empty tags (except those that might be self-closing)
         for tag in soup.find_all():
-            if tag.name not in ['img', 'input', 'br', 'hr', 'meta', 'link']:
+            if tag.name not in ["img", "input", "br", "hr", "meta", "link"]:
                 if not tag.get_text(strip=True) and not tag.find_all():
                     tag.decompose()
-        
+
         # Normalize whitespace
         for element in soup.find_all(string=True):
             if isinstance(element, NavigableString):
-                cleaned = re.sub(r'\s+', ' ', element.string)
+                cleaned = re.sub(r"\s+", " ", element.string)
                 element.replace_with(cleaned)
-        
+
         return str(soup)
-    
+
     def _extract_image_urls(self, html_content: str) -> Dict[str, str]:
         """
         Extract image URLs from HTML content.
-        
+
         Args:
             html_content: HTML string
-            
+
         Returns:
             Dictionary mapping image src to full URLs
         """
-        soup = BeautifulSoup(html_content, 'html.parser')
+        soup = BeautifulSoup(html_content, "html.parser")
         image_urls = {}
-        
-        for img in soup.find_all('img'):
-            src = img.get('src')
+
+        for img in soup.find_all("img"):
+            src = img.get("src")
             if src:
                 # Store both the src attribute and any alt/title text for context
-                alt_text = img.get('alt', '')
-                title_text = img.get('title', '')
-                context = alt_text or title_text or ''
-                
+                alt_text = img.get("alt", "")
+                title_text = img.get("title", "")
+                context = alt_text or title_text or ""
+
                 # Use src as key for easy lookup
-                image_urls[src] = {
-                    'url': src,
-                    'context': context,
-                    'element': str(img)
-                }
-                
+                image_urls[src] = {"url": src, "context": context, "element": str(img)}
+
         return image_urls
 
     def _generate_pydantic_schema(
@@ -514,17 +546,17 @@ Extract RAW VALUES only. Empty cells = null."""
                 output_tokens=0,
                 cached_tokens=0,
             )
-            
+
     async def _extract_image_data(
         self, image_url: str, datapoint: DataPointIdentification
     ) -> DataExtractionResult:
         """
         Extract data from an image using the image data extractor.
-        
+
         Args:
             image_url: URL of the image
             datapoint: Datapoint identification with expected schema
-            
+
         Returns:
             DataExtractionResult
         """
@@ -533,27 +565,26 @@ Extract RAW VALUES only. Empty cells = null."""
             result = await self.image_extractor.extract_all_data(
                 image_url=image_url,
                 focus_areas=[datapoint.description],
-                datapoint_filter=[datapoint.name]
+                datapoint_filter=[datapoint.name],
             )
-            
+
             # Find the extraction result for our datapoint
             for extraction in result.extraction_results:
                 if extraction.datapoint_name == datapoint.name and extraction.success:
                     return extraction
-                    
+
             # If we didn't find a matching extraction, try without filter
             result = await self.image_extractor.extract_all_data(
-                image_url=image_url,
-                focus_areas=[datapoint.description]
+                image_url=image_url, focus_areas=[datapoint.description]
             )
-            
+
             # Return the first successful extraction
             for extraction in result.extraction_results:
                 if extraction.success:
                     # Update the datapoint name to match what was expected
                     extraction.datapoint_name = datapoint.name
                     return extraction
-                    
+
             # No successful extractions
             return DataExtractionResult(
                 datapoint_name=datapoint.name,
@@ -564,7 +595,7 @@ Extract RAW VALUES only. Empty cells = null."""
                 output_tokens=result.metadata.get("total_output_tokens", 0),
                 cached_tokens=result.metadata.get("total_cached_tokens", 0),
             )
-            
+
         except Exception as e:
             logger.error(f"Error extracting image data for {datapoint.name}: {e}")
             return DataExtractionResult(
@@ -597,7 +628,7 @@ Extract RAW VALUES only. Empty cells = null."""
         start_time = asyncio.get_event_loop().time()
 
         # Validate HTML size
-        html_size = len(html_content.encode('utf-8'))
+        html_size = len(html_content.encode("utf-8"))
         if html_size > self.max_html_size_bytes:
             raise ValueError(
                 f"HTML content exceeds maximum size limit of {self.max_html_size_bytes / (1024 * 1024):.2f} MB. "
@@ -606,7 +637,7 @@ Extract RAW VALUES only. Empty cells = null."""
 
         # Generate a secure hash for the HTML content
         content_hash = hashlib.sha256(html_content.encode()).hexdigest()[:16]
-        
+
         # Sanitize and preprocess HTML
         sanitized_html = self._sanitize_and_preprocess_html(html_content)
 
@@ -657,14 +688,16 @@ Extract RAW VALUES only. Empty cells = null."""
 
         # Extract image URLs if we have image datapoints
         image_urls = {}
-        if self.enable_image_extraction and any(dp.data_type == "image" for dp in datapoints_to_extract):
+        if self.enable_image_extraction and any(
+            dp.data_type == "image" for dp in datapoints_to_extract
+        ):
             image_urls = self._extract_image_urls(sanitized_html)
             logger.info(f"Found {len(image_urls)} images in HTML")
-        
+
         # Step 3: Extract data in parallel
         extraction_tasks = []
         image_extraction_tasks = []
-        
+
         for datapoint in datapoints_to_extract:
             if datapoint.name in schemas:
                 if datapoint.data_type == "image" and self.enable_image_extraction:
@@ -675,14 +708,16 @@ Extract RAW VALUES only. Empty cells = null."""
                         if src in datapoint.location_hint:
                             src_match = src
                             break
-                    
+
                     if src_match:
                         # Create image extraction task
-                        image_url = image_urls[src_match]['url']
+                        image_url = image_urls[src_match]["url"]
                         task = self._extract_image_data(image_url, datapoint)
                         image_extraction_tasks.append((datapoint, task))
                     else:
-                        logger.warning(f"Could not find image URL for datapoint {datapoint.name}")
+                        logger.warning(
+                            f"Could not find image URL for datapoint {datapoint.name}"
+                        )
                 else:
                     # Regular HTML extraction
                     task = self.extract_single_datapoint(
@@ -699,7 +734,7 @@ Extract RAW VALUES only. Empty cells = null."""
 
         # Combine all extraction tasks
         all_tasks = extraction_tasks + [task for _, task in image_extraction_tasks]
-        
+
         logger.info(
             f"Step 2 - Starting parallel extraction of {len(all_tasks)} datapoints "
             f"({len(extraction_tasks)} HTML, {len(image_extraction_tasks)} images)"
@@ -790,11 +825,11 @@ Extract RAW VALUES only. Empty cells = null."""
                 "extraction_cost_cents": cost_metadata["extraction_cost_cents"],
             },
         )
-        
+
         # Cache the result if enabled
         if self.enable_caching:
             self._analysis_cache[cache_key] = result
-            
+
         return result
 
     async def extract_as_dict(
@@ -814,7 +849,9 @@ Extract RAW VALUES only. Empty cells = null."""
         Returns:
             Dictionary with datapoint names as keys and extracted data as values
         """
-        result = await self.extract_all_data(html_content, focus_areas, datapoint_filter)
+        result = await self.extract_all_data(
+            html_content, focus_areas, datapoint_filter
+        )
 
         extracted_data = {
             "metadata": {
