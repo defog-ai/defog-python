@@ -1,0 +1,76 @@
+{
+  "html_content_preview": "\n        <div class=\"product-grid\">\n            <div class=\"product-card\">\n                <h3>Laptop Pro 15</h3>\n                <p class=\"price\">$1,299.99</p>\n                <p class=\"rating\">4.5 stars</p>\n                <p class=\"stock\">In Stock (23 units)</p>\n                <p class=\"category\">Electronics</p>\n            </div>\n            <div class=\"product-card\">\n                <h3>Wireless Headphones</h3>\n                <p class=\"price\">$199.99</p>\n                <p class=\"rating\">...",
+  "html_type": "webpage",
+  "total_datapoints_identified": 1,
+  "successful_extractions": 1,
+  "failed_extractions": 0,
+  "extraction_results": [
+    {
+      "datapoint_name": "product_catalog_cards",
+      "success": true,
+      "extracted_data": {
+        "columns": [
+          "product_name",
+          "price",
+          "rating",
+          "stock_status",
+          "stock_units",
+          "category"
+        ],
+        "data": [
+          [
+            "Laptop Pro 15",
+            1299.99,
+            4.5,
+            "In Stock",
+            23,
+            "Electronics"
+          ],
+          [
+            "Wireless Headphones",
+            199.99,
+            4.2,
+            "Low Stock",
+            5,
+            "Audio"
+          ],
+          [
+            "Smart Watch",
+            299.99,
+            4.7,
+            "In Stock",
+            15,
+            "Wearables"
+          ],
+          [
+            "Gaming Mouse",
+            79.99,
+            4.3,
+            "Out of Stock",
+            null,
+            "Gaming"
+          ]
+        ],
+        "content_type": "structured_text",
+        "row_count": 4
+      },
+      "error": null,
+      "cost_cents": 0.6792,
+      "input_tokens": 1369,
+      "output_tokens": 179,
+      "cached_tokens": 0
+    }
+  ],
+  "total_time_ms": 13427,
+  "total_cost_cents": 1.7975999999999999,
+  "metadata": {
+    "content_description": "Product catalog page displaying multiple product cards with pricing, ratings, stock status, and category information",
+    "filtered_datapoints": 1,
+    "schemas_generated": 1,
+    "total_input_tokens": 3367,
+    "total_output_tokens": 525,
+    "total_cached_tokens": 0,
+    "analysis_cost_cents": 1.1183999999999998,
+    "extraction_cost_cents": 0.6792
+  }
+}

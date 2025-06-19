@@ -1,0 +1,60 @@
+{
+  "html_content_preview": "\n        <form id=\"user-registration\">\n            <h2>User Registration</h2>\n            <div class=\"form-group\">\n                <label for=\"firstName\">First Name:</label>\n                <input type=\"text\" id=\"firstName\" name=\"firstName\" value=\"John\" required>\n            </div>\n            <div class=\"form-group\">\n                <label for=\"lastName\">Last Name:</label>\n                <input type=\"text\" id=\"lastName\" name=\"lastName\" value=\"Doe\" required>\n            </div>\n            <div ...",
+  "html_type": "form",
+  "total_datapoints_identified": 2,
+  "successful_extractions": 1,
+  "failed_extractions": 1,
+  "extraction_results": [
+    {
+      "datapoint_name": "user_registration_form_data",
+      "success": false,
+      "extracted_data": null,
+      "error": "Provider 'anthropic': API call failed: 1 validation error for user_registration_form_data\n  Input should be a valid dictionary or instance of user_registration_form_data [type=model_type, input_value=[{'field_name': 'firstNam..., 'is_required': False}], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.11/v/model_type",
+      "cost_cents": 0.0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cached_tokens": 0
+    },
+    {
+      "datapoint_name": "country_options_list",
+      "success": true,
+      "extracted_data": {
+        "items": [
+          {
+            "value": "us",
+            "text": "United States",
+            "selected": 1
+          },
+          {
+            "value": "ca",
+            "text": "Canada",
+            "selected": 0
+          },
+          {
+            "value": "uk",
+            "text": "United Kingdom",
+            "selected": 0
+          }
+        ],
+        "item_count": 3
+      },
+      "error": null,
+      "cost_cents": 0.5295,
+      "input_tokens": 1215,
+      "output_tokens": 110,
+      "cached_tokens": 0
+    }
+  ],
+  "total_time_ms": 36672,
+  "total_cost_cents": 1.9977,
+  "metadata": {
+    "content_description": "User registration form with personal information fields including name, email, age, country selection, and newsletter subscription",
+    "filtered_datapoints": 2,
+    "schemas_generated": 2,
+    "total_input_tokens": 3154,
+    "total_output_tokens": 701,
+    "total_cached_tokens": 0,
+    "analysis_cost_cents": 1.4682,
+    "extraction_cost_cents": 0.5295000000000001
+  }
+}

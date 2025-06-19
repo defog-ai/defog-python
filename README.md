@@ -515,6 +515,69 @@ if result["success"]:
 else:
     print(f"Error: {result['error']}")
 
+### HTML Data Extraction Tool
+
+Extract structured data from HTML strings using intelligent AI analysis:
+
+```python
+from defog.llm.html_data_extractor import HTMLDataExtractor
+
+# Initialize extractor
+extractor = HTMLDataExtractor(
+    analysis_model="claude-sonnet-4-20250514",
+    extraction_model="claude-sonnet-4-20250514",
+    analysis_provider="anthropic",
+    extraction_provider="anthropic"
+)
+
+# HTML content with tables, lists, and structured data
+html_content = """
+<table>
+    <tr><th>Product</th><th>Price</th><th>Stock</th></tr>
+    <tr><td>Widget A</td><td>$29.99</td><td>100</td></tr>
+    <tr><td>Widget B</td><td>$39.99</td><td>50</td></tr>
+</table>
+<ul class="features">
+    <li>Feature 1: High performance</li>
+    <li>Feature 2: Low power consumption</li>
+    <li>Feature 3: Compact design</li>
+</ul>
+"""
+
+# Extract all data with automatic schema generation
+result = await extractor.extract_all_data(html_content)
+
+print(f"HTML Type: {result.html_type}")
+print(f"Datapoints identified: {result.total_datapoints_identified}")
+print(f"Successful extractions: {result.successful_extractions}")
+print(f"Total cost: ${result.total_cost_cents / 100:.4f}")
+
+# Access extracted data
+for extraction in result.extraction_results:
+    if extraction.success:
+        print(f"✅ {extraction.datapoint_name}: {extraction.extracted_data}")
+
+# Or use the convenience method for dictionary output
+data_dict = await extractor.extract_as_dict(html_content)
+print(f"Extracted data: {data_dict['data']}")
+```
+
+Key features:
+- **HTML Structure Analysis** - Automatically identifies tables, lists, forms, and structured divs
+- **Embedded Image Support** - Extracts and analyzes base64-encoded images within HTML
+- **Parallel Extraction** - Processes multiple datapoints concurrently for faster results
+- **Flexible Schema Generation** - Creates appropriate Pydantic schemas for different HTML structures
+- **Cost Tracking** - Detailed token usage and cost information for each extraction
+- **Error Handling** - Graceful handling of malformed HTML and extraction failures
+
+The tool handles various HTML structures:
+- **HTML Tables** - Extracts headers and data rows in columnar format
+- **Structured Lists** - Identifies patterns in `<ul>` and `<ol>` elements
+- **Repeated Divs** - Extracts data from repeated layouts (cards, profiles, etc.)
+- **Embedded Images** - Analyzes base64 images for visual data extraction
+- **Form Fields** - Extracts field names, types, and default values
+- **Key-Value Pairs** - Processes definition lists and structured spans
+
 ### Database Query Execution
 
 Execute SQL queries directly on local databases without requiring a Defog API key:

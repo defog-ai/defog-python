@@ -1,0 +1,111 @@
+{
+  "html_content_preview": "\n        <html>\n        <head><title>Sales Report</title></head>\n        <body>\n            <h1>Q4 2024 Sales Report</h1>\n            <table border=\"1\">\n                <tr>\n                    <th>Product</th>\n                    <th>Q1 Sales</th>\n                    <th>Q2 Sales</th>\n                    <th>Q3 Sales</th>\n                    <th>Q4 Sales</th>\n                    <th>Total</th>\n                </tr>\n                <tr>\n                    <td>Widget A</td>\n                    <...",
+  "html_type": "report",
+  "total_datapoints_identified": 3,
+  "successful_extractions": 3,
+  "failed_extractions": 0,
+  "extraction_results": [
+    {
+      "datapoint_name": "quarterly_sales_table",
+      "success": true,
+      "extracted_data": {
+        "columns": [
+          "product",
+          "q1_sales",
+          "q2_sales",
+          "q3_sales",
+          "q4_sales",
+          "total"
+        ],
+        "data": [
+          [
+            "Widget A",
+            15000,
+            18000,
+            22000,
+            25000,
+            80000
+          ],
+          [
+            "Widget B",
+            12000,
+            14000,
+            16000,
+            18000,
+            60000
+          ],
+          [
+            "Widget C",
+            8000,
+            9000,
+            11000,
+            13000,
+            41000
+          ]
+        ],
+        "table_name": "quarterly_sales_table",
+        "row_count": 3
+      },
+      "error": null,
+      "cost_cents": 0.7286999999999999,
+      "input_tokens": 1674,
+      "output_tokens": 151,
+      "cached_tokens": 0
+    },
+    {
+      "datapoint_name": "top_performers_list",
+      "success": true,
+      "extracted_data": {
+        "items": [
+          {
+            "name": "John Smith",
+            "sales_amount": 45000
+          },
+          {
+            "name": "Sarah Johnson",
+            "sales_amount": 38000
+          },
+          {
+            "name": "Mike Davis",
+            "sales_amount": 32000
+          },
+          {
+            "name": "Lisa Wilson",
+            "sales_amount": 28000
+          }
+        ],
+        "item_count": 4
+      },
+      "error": null,
+      "cost_cents": 0.6318,
+      "input_tokens": 1486,
+      "output_tokens": 124,
+      "cached_tokens": 0
+    },
+    {
+      "datapoint_name": "key_metrics_data",
+      "success": true,
+      "extracted_data": {
+        "metric_label": "Total Revenue",
+        "metric_value": "$181,000"
+      },
+      "error": null,
+      "cost_cents": 0.4737,
+      "input_tokens": 1434,
+      "output_tokens": 29,
+      "cached_tokens": 0
+    }
+  ],
+  "total_time_ms": 18417,
+  "total_cost_cents": 3.5697,
+  "metadata": {
+    "content_description": "Q4 2024 Sales Report containing quarterly sales data by product, top performing salespeople, and key business metrics",
+    "filtered_datapoints": 3,
+    "schemas_generated": 3,
+    "total_input_tokens": 6949,
+    "total_output_tokens": 990,
+    "total_cached_tokens": 0,
+    "analysis_cost_cents": 1.7355000000000003,
+    "extraction_cost_cents": 1.8341999999999998
+  }
+}

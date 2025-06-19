@@ -28,3 +28,5 @@ black
 pymupdf>=1.23.0
 pytest-dotenv
 aiosqlite
+beautifulsoup4
+lxml
