@@ -16,6 +16,7 @@ from .pdf_processor import analyze_pdf, PDFAnalysisInput, ClaudePDFProcessor
 from .pdf_data_extractor import PDFDataExtractor, extract_pdf_data
 from .image_data_extractor import ImageDataExtractor, extract_image_data
 from .html_data_extractor import HTMLDataExtractor, extract_html_data
+from .text_data_extractor import TextDataExtractor, extract_text_data
 
 # Orchestration components
 from .orchestrator import (
@@ -69,6 +70,9 @@ __all__ = [
     # HTML processing
     "HTMLDataExtractor",
     "extract_html_data",
+    # Text processing
+    "TextDataExtractor",
+    "extract_text_data",
     # Orchestration
     "Orchestrator",
     "AgentOrchestrator",  # Backward compatibility

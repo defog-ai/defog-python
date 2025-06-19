@@ -1,6 +1,6 @@
 # Data Extraction Tools
 
-This document covers the data extraction capabilities of the defog library, including PDF, image, and HTML data extraction using AI.
+This document covers the data extraction capabilities of the defog library, including PDF, image, HTML, and text data extraction using AI.
 
 ## Table of Contents
 
@@ -8,6 +8,7 @@ This document covers the data extraction capabilities of the defog library, incl
 - [PDF Analysis Tool](#pdf-analysis-tool)
 - [Image Data Extraction](#image-data-extraction)
 - [HTML Data Extraction](#html-data-extraction)
+- [Text Data Extraction](#text-data-extraction)
 - [Common Patterns](#common-patterns)
 
 ## PDF Data Extraction
@@ -417,6 +418,107 @@ data_with_base_url = await extract_html_data(
 # - "./images/revenue.png" → "https://example.com/reports/2024/images/revenue.png"
 # - "../data/metrics.png" → "https://example.com/reports/data/metrics.png"
 ```
+
+## Text Data Extraction
+
+Extract structured data from plain text documents (transcripts, speeches, reports) using intelligent AI analysis. The tool automatically identifies patterns like Q&A exchanges, key-value pairs, and structured information.
+
+### Basic Usage
+
+```python
+from defog.llm import TextDataExtractor, extract_text_data
+
+# Quick extraction with convenience function
+text_content = """
+Transcript of Press Conference
+
+REPORTER: What is the current inflation rate?
+SPEAKER: The inflation rate is 2.3%, slightly above our 2% target.
+
+Key Economic Indicators:
+- GDP Growth: 2.5%
+- Unemployment: 4.2%
+"""
+
+data = await extract_text_data(
+    text_content,
+    focus_areas=["Q&A exchanges", "economic indicators"]
+)
+
+for datapoint_name, extracted_data in data["data"].items():
+    print(f"\n{datapoint_name}:")
+    print(extracted_data)
+```
+
+### Advanced Usage with TextDataExtractor
+
+```python
+from defog.llm import TextDataExtractor
+
+# Initialize extractor with specific models
+extractor = TextDataExtractor(
+    analysis_provider="anthropic",
+    analysis_model="claude-sonnet-4-20250514",
+    extraction_provider="openai",
+    extraction_model="gpt-4.1"
+)
+
+# Extract all identified datapoints
+result = await extractor.extract_all_data(
+    text_content,
+    focus_areas=["Q&A exchanges", "policy decisions", "statistics"]
+)
+
+print(f"Document type: {result.document_type}")
+print(f"Identified {result.total_datapoints_identified} datapoints")
+print(f"Successfully extracted: {result.successful_extractions}")
+print(f"Total cost: ${result.total_cost_cents / 100:.4f}")
+
+# Access extracted data
+for extraction in result.extraction_results:
+    if extraction.success:
+        print(f"\n{extraction.datapoint_name}:")
+        print(extraction.extracted_data)
+```
+
+### Processing Large Transcripts
+
+```python
+# Read transcript from file
+with open("fed_speech_transcript.txt", "r") as f:
+    transcript = f.read()
+
+# Extract with specific focus
+result = await extractor.extract_as_dict(
+    transcript,
+    focus_areas=[
+        "monetary policy decisions",
+        "economic forecasts",
+        "Q&A exchanges",
+        "key statistics"
+    ]
+)
+
+# Q&A exchanges will be structured as:
+qa_data = result["data"]["qa_exchanges"]
+for exchange in qa_data["exchanges"]:
+    print(f"\nQ ({exchange['questioner']}): {exchange['question']}")
+    print(f"A: {exchange['answer']}")
+
+# Economic indicators as key-value pairs
+if "economic_indicators" in result["data"]:
+    indicators = result["data"]["economic_indicators"]
+    print(f"\nGDP Growth: {indicators.get('gdp_growth')}%")
+    print(f"Inflation: {indicators.get('inflation_rate')}%")
+```
+
+### Supported Data Types
+
+- **Q&A Pairs**: Extracts question-answer exchanges with speaker identification
+- **Key-Value Pairs**: Metrics, statistics, and labeled values
+- **Lists**: Enumerated items, topics, or recommendations
+- **Tables**: Structured data in columnar format
+- **Statements**: Policy decisions, quotes with attribution
 
 ## Common Patterns
 
