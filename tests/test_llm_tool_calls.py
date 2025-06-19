@@ -653,7 +653,6 @@ class TestParallelToolCallsEndToEnd(unittest.IsolatedAsyncioTestCase):
     """End-to-end tests for parallel tool calls with real API calls."""
 
     def setUp(self):
-
         self.tools = [numsum, numprod]
         # More complex message that requires tool usage
         self.messages = [
