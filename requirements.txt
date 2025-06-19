@@ -30,3 +30,5 @@ pytest-dotenv
 aiosqlite
 bleach>=6.0.0
 beautifulsoup4>=4.12.0
+ruff
+pre-commit
