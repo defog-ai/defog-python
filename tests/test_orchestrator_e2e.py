@@ -5,7 +5,7 @@ import asyncio
 from typing import Dict, Any
 from pydantic import BaseModel, Field
 
-from defog.llm.orchestrator import Agent, AgentOrchestrator, ExecutionMode
+from defog.llm.orchestrator import Agent, AgentOrchestrator
 
 
 # Real tool implementations for testing
@@ -215,7 +215,7 @@ async def test_dynamic_agent_creation():
     assert "9" in content  # word count
     assert "alice" in content or "bob" in content  # JSON data
 
-    print(f"✅ Dynamic agent creation test passed")
+    print("✅ Dynamic agent creation test passed")
     print(f"Response length: {len(response.content)} characters")
     print(f"Response preview: {response.content[:300]}...")
 

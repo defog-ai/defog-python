@@ -425,7 +425,7 @@ Think of it this way: You're creating the data table that would be used to gener
             image_url, focus_areas
         )
 
-        logger.info(f"Step 1 - Image Analysis completed:")
+        logger.info("Step 1 - Image Analysis completed:")
         logger.info(f"  • Identified {len(analysis.identified_datapoints)} datapoints")
         logger.info(
             f"  • Cost: ${analysis_cost_metadata.get('cost_cents', 0.0) / 100:.4f}"
@@ -481,7 +481,7 @@ Think of it this way: You're creating the data table that would be used to gener
             return_exceptions=True,
         )
 
-        logger.info(f"Step 2 - Individual extraction costs:")
+        logger.info("Step 2 - Individual extraction costs:")
 
         # Process results
         final_results = []
@@ -526,7 +526,7 @@ Think of it this way: You're creating the data table that would be used to gener
         end_time = asyncio.get_event_loop().time()
 
         # Log final summary
-        logger.info(f"Image Data Extraction completed:")
+        logger.info("Image Data Extraction completed:")
         logger.info(f"  • Total time: {(end_time - start_time):.2f} seconds")
         logger.info(f"  • Total cost: ${cost_metadata['total_cost_cents'] / 100:.4f}")
         logger.info(

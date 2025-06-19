@@ -323,7 +323,7 @@ async def example_focused_extraction():
         focus_areas=["revenue breakdown", "financial metrics", "geographic data"],
     )
 
-    print(f"\nExtraction Results:")
+    print("\nExtraction Results:")
     print(f"Total datapoints identified: {result.total_datapoints_identified}")
     print(f"Successful extractions: {result.successful_extractions}")
     print(f"Failed extractions: {result.failed_extractions}")
@@ -370,7 +370,7 @@ async def example_filtered_extraction():
                 datapoint_filter=product_datapoints[:1],  # Just the first one
             )
 
-            print(f"Filtered extraction completed:")
+            print("Filtered extraction completed:")
             print(f"  Extracted {filtered_result.successful_extractions} datapoints")
 
 

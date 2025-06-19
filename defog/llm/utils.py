@@ -12,7 +12,7 @@ from .providers import (
     MistralProvider,
 )
 from .providers.base import LLMResponse
-from .exceptions import LLMError, ProviderError, ConfigurationError
+from .exceptions import LLMError, ConfigurationError
 from .config import LLMConfig
 from .llm_providers import LLMProvider
 from copy import deepcopy

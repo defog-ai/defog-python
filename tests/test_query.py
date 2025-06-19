@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 import unittest
@@ -6,7 +5,6 @@ from unittest import mock
 
 from defog.query import (
     is_connection_error,
-    execute_query_once,
     execute_query,
     async_execute_query_once,
     async_execute_query,

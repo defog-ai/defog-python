@@ -1,6 +1,6 @@
 """Message compactification utilities for conversation memory management."""
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Tuple
 from ..utils import chat_async
 from .token_counter import TokenCounter
 

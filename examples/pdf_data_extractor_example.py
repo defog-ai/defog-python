@@ -69,7 +69,7 @@ async def extract(url):
     print(f"Failed extractions: {result.failed_extractions}")
     print(f"Total time: {result.total_time_ms / 1000:.2f} seconds")
 
-    print(f"\n--- Cost Analysis ---")
+    print("\n--- Cost Analysis ---")
     print(f"Total cost: ${result.total_cost_cents / 100:.4f}")
     print(
         f"Analysis cost (Step 1): ${result.metadata.get('analysis_cost_cents', 0.0) / 100:.4f}"
@@ -78,7 +78,7 @@ async def extract(url):
         f"Extraction cost (Step 2+): ${result.metadata.get('extraction_cost_cents', 0.0) / 100:.4f}"
     )
 
-    print(f"\n--- Token Usage ---")
+    print("\n--- Token Usage ---")
     print(f"Total input tokens: {result.metadata.get('total_input_tokens', 0):,}")
     print(f"Total output tokens: {result.metadata.get('total_output_tokens', 0):,}")
     print(f"Total cached tokens: {result.metadata.get('total_cached_tokens', 0):,}")

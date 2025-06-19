@@ -1,6 +1,6 @@
 import unittest
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from defog.local_metadata_extractor import (
     extract_metadata_from_db,
     extract_metadata_from_db_async,

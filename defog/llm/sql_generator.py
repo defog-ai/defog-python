@@ -2,7 +2,6 @@
 Local SQL generation using LLM providers without external API calls.
 """
 
-import json
 from typing import Dict, List, Optional, Any, Union
 from defog.llm.utils import chat_async, LLMProvider
 from defog.llm.config import LLMConfig

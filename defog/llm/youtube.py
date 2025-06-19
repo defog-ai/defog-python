@@ -6,7 +6,6 @@ from defog.llm.utils_logging import (
     NoOpSubTaskLogger,
 )
 import os
-import re
 from urllib.parse import urlparse
 
 

@@ -1,5 +1,4 @@
 import inspect
-import asyncio
 from typing import Dict, List, Callable, Any, Optional
 from ..exceptions import ToolError
 from ..utils_function_calling import (

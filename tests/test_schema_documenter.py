@@ -1,9 +1,7 @@
 """Tests for the schema documenter functionality."""
 
 import pytest
-import asyncio
-import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from defog.schema_documenter import (
     SchemaDocumenter,
     DocumentationConfig,

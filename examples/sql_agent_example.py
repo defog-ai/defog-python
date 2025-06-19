@@ -20,7 +20,7 @@ import tempfile
 import logging
 from typing import Dict, Any
 
-from defog.llm.sql import sql_answer_tool, identify_relevant_tables_tool
+from defog.llm.sql import sql_answer_tool
 from defog.llm.llm_providers import LLMProvider
 
 # Set up logging

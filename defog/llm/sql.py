@@ -2,7 +2,7 @@
 SQL execution tools for local database operations.
 """
 
-from typing import Dict, List, Optional, Any, Union, Tuple
+from typing import Dict, List, Optional, Any
 from defog.llm.llm_providers import LLMProvider
 from defog.llm.utils_logging import (
     ToolProgressTracker,

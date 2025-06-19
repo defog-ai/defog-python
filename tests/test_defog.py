@@ -1,9 +1,5 @@
-import shutil
 import unittest
 from defog import Defog
-from defog.util import parse_update
-import os
-from unittest.mock import patch
 
 
 class TestDefog(unittest.TestCase):

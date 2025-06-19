@@ -3,7 +3,6 @@ Local storage utilities for Defog to replace API-based storage
 """
 
 import json
-import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import datetime

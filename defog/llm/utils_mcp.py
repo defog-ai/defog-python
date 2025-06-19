@@ -764,7 +764,7 @@ class MCPClient:
                 response = await self.process_query(query)
                 return response, self.tool_outputs
 
-            except Exception as e:
+            except Exception:
                 raise
 
     async def _connect_to_mcp_sse_server(self, server_name: str, server_url: str):
@@ -815,7 +815,7 @@ class MCPClient:
             try:
                 response = await asyncio.wait_for(session.list_prompts(), timeout=5.0)
                 prompts = response.prompts
-            except Exception as e:
+            except Exception:
                 # If no prompts are available
                 prompts = []
             for prompt in prompts:
@@ -896,7 +896,7 @@ class MCPClient:
             try:
                 response = await asyncio.wait_for(session.list_prompts(), timeout=5.0)
                 prompts = response.prompts
-            except Exception as e:
+            except Exception:
                 # If no prompts are available
                 prompts = []
             for prompt in prompts:
@@ -1084,7 +1084,7 @@ async def initialize_mcp_client(config, model):
 
         return mcp_client
 
-    except ValueError as e:
+    except ValueError:
         raise
     except Exception as e:
         error_msg = f"Failed to initialize MCP client: {str(e)}"

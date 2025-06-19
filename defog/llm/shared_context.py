@@ -3,16 +3,13 @@
 import asyncio
 import json
 import logging
-import os
-import re
 import fnmatch
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 import aiofiles
 import hashlib
 from dataclasses import dataclass, asdict
-from enum import Enum
 
 logger = logging.getLogger(__name__)
 

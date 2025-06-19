@@ -2,11 +2,9 @@
 End-to-end tests for ImageDataExtractor with multiple providers
 """
 
-import asyncio
 import json
 import pytest
 import os
-from typing import Dict, Any
 
 from defog.llm import ImageDataExtractor
 from defog.llm.image_data_extractor import ImageDataExtractionResult

@@ -10,7 +10,6 @@ This example demonstrates:
 
 import asyncio
 import logging
-from typing import Dict, Any
 from pydantic import BaseModel, Field
 
 from defog.llm.pdf_processor import analyze_pdf, PDFAnalysisInput
@@ -47,7 +46,7 @@ async def simple_pdf_analysis():
         result = await analyze_pdf(pdf_input)
 
         if result["success"]:
-            print(f"✅ Analysis completed successfully!")
+            print("✅ Analysis completed successfully!")
             print(f"📄 Chunks processed: {result['chunks_processed']}")
             print(
                 f"💰 Cost: ${result['metadata'].get('total_cost_in_cents', 0) / 100:.4f}"
@@ -86,8 +85,8 @@ async def test_large_pdf():
         result = await analyze_pdf(pdf_input)
 
         if result["success"]:
-            print(f"✅ Large PDF analysis completed!")
-            print(f"📄 PDF metadata:")
+            print("✅ Large PDF analysis completed!")
+            print("📄 PDF metadata:")
             metadata = result["metadata"]
             print(f"   - Pages: {metadata.get('page_count', 'unknown')}")
             print(f"   - Size: {metadata.get('size_mb', 0):.2f} MB")
@@ -128,7 +127,7 @@ async def test_caching_behavior():
     result1 = await analyze_pdf(pdf_input)
 
     if result1["success"]:
-        print(f"✅ First analysis completed")
+        print("✅ First analysis completed")
         print(f"⚡ Cached tokens: {result1['metadata'].get('cached_tokens', 0)}")
         print(
             f"💰 Cost: ${result1['metadata'].get('total_cost_in_cents', 0) / 100:.4f}"
@@ -138,7 +137,7 @@ async def test_caching_behavior():
     result2 = await analyze_pdf(pdf_input)
 
     if result2["success"]:
-        print(f"✅ Second analysis completed")
+        print("✅ Second analysis completed")
         print(f"⚡ Cached tokens: {result2['metadata'].get('cached_tokens', 0)}")
         print(
             f"💰 Cost: ${result2['metadata'].get('total_cost_in_cents', 0) / 100:.4f}"

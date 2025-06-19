@@ -7,7 +7,6 @@ import traceback
 import threading
 from typing import List, Dict, Any, Optional, Union, Callable, Tuple
 from dataclasses import dataclass, field
-from enum import Enum
 import json
 import inspect
 

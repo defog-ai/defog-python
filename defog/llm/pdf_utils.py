@@ -2,9 +2,7 @@
 PDF utilities for processing PDFs with page-based splitting and metadata extraction.
 """
 
-import asyncio
 import base64
-import io
 import aiohttp
 from typing import List, Tuple, Optional, Dict, Any
 import logging

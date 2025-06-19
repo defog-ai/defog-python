@@ -1,7 +1,5 @@
-import requests
 from defog.util import identify_categorical_columns
 from defog.local_storage import LocalStorage
-from io import StringIO
 import pandas as pd
 import json
 import asyncio

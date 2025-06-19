@@ -2,7 +2,6 @@ import traceback
 import os
 import time
 import json
-import base64
 import logging
 from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 

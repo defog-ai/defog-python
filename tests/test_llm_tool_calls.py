@@ -653,7 +653,6 @@ class TestParallelToolCallsEndToEnd(unittest.IsolatedAsyncioTestCase):
     """End-to-end tests for parallel tool calls with real API calls."""
 
     def setUp(self):
-        import time
 
         self.tools = [numsum, numprod]
         # More complex message that requires tool usage
@@ -719,7 +718,7 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         self.assertEqual(outputs_parallel, outputs_sequential)
 
         # Log timing results
-        print(f"\nOpenAI Timing Results:")
+        print("\nOpenAI Timing Results:")
         print(f"  Parallel execution: {parallel_time:.2f}s")
         print(f"  Sequential execution: {sequential_time:.2f}s")
         print(f"  Speedup: {sequential_time / parallel_time:.2f}x")
@@ -772,7 +771,7 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         self.assertEqual(outputs_parallel["numsum"], 2735586954)
         self.assertEqual(outputs_parallel["numprod"], 287680120)
 
-        print(f"\nAnthropic Timing Results:")
+        print("\nAnthropic Timing Results:")
         print(f"  Parallel execution: {parallel_time:.2f}s")
         print(f"  Sequential execution: {sequential_time:.2f}s")
         print(f"  Speedup: {sequential_time / parallel_time:.2f}x")
@@ -828,7 +827,7 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
         self.assertEqual(outputs_parallel, outputs_sequential)
 
         # Log timing results
-        print(f"\nDeepSeek Timing Results:")
+        print("\nDeepSeek Timing Results:")
         print(f"  Parallel execution: {parallel_time:.2f}s")
         print(f"  Sequential execution: {sequential_time:.2f}s")
         print(f"  Speedup: {sequential_time / parallel_time:.2f}x")

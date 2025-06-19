@@ -62,7 +62,7 @@ class OrchestrationLogger:
     def log_request_start(self, request: str):
         """Log the start of a request with a beautiful header."""
         self.console.print()
-        self.console.rule(f"[bold cyan]🚀 New Request[/bold cyan]", style="cyan")
+        self.console.rule("[bold cyan]🚀 New Request[/bold cyan]", style="cyan")
         self.console.print(
             Panel(
                 f"[bold white]{request}[/bold white]",
@@ -375,7 +375,7 @@ class ToolProgressTracker:
             console=self.console,
         )
         self.progress.start()
-        self.task_id = self.progress.add_task(f"[cyan]Processing...", total=100)
+        self.task_id = self.progress.add_task("[cyan]Processing...", total=100)
 
         return self
 

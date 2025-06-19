@@ -47,7 +47,7 @@ class PodcastAnalyzer:
                 "6. Structure your analysis in a clear, comprehensive markdown format",
                 "7. Always cite your sources when making claims about what was said or discussed.",
             ],
-            task_description=f"""Analyze this podcast and provide a detailed markdown report with these sections:
+            task_description="""Analyze this podcast and provide a detailed markdown report with these sections:
 
 # Content Analysis Report
 

@@ -2,7 +2,6 @@ import os
 from typing import List
 import warnings
 
-from prompt_toolkit import prompt
 import asyncio
 
 
@@ -50,7 +49,7 @@ def write_logs(msg: str) -> None:
             os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
         with open(log_file_path, "a") as file:
             file.write(msg + "\n")
-    except Exception as e:
+    except Exception:
         pass
 
 
@@ -116,7 +115,7 @@ def identify_categorical_columns(
             )
             try:
                 num_distinct_values = cur.fetchone()[0]
-            except Exception as e:
+            except Exception:
                 num_distinct_values = 0
             if num_distinct_values <= distinct_threshold and num_distinct_values > 0:
                 # get the top distinct_threshold distinct values
@@ -203,7 +202,7 @@ async def async_identify_categorical_columns(
             result = await run_query(query)
             try:
                 num_distinct_values = result[0][0]
-            except Exception as e:
+            except Exception:
                 num_distinct_values = 0
             if num_distinct_values <= distinct_threshold and num_distinct_values > 0:
                 # get the top distinct_threshold distinct values

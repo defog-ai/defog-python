@@ -2,7 +2,6 @@ import os
 import tempfile
 import unittest
 import sqlite3
-import asyncio
 
 from defog.query import execute_query_once, async_execute_query_once
 from defog import Defog, AsyncDefog

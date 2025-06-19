@@ -312,7 +312,7 @@ def create_cricket_database(csv_files, db_path="cricket_wc2015.duckdb"):
     conn.commit()
     conn.close()
 
-    print(f"\n✓ Database created successfully!")
+    print("\n✓ Database created successfully!")
     print(f"  - Total records: {total_records}")
     print(f"  - Matches processed: {matches_processed}")
     print(f"  - Database file: {db_path}")
@@ -351,7 +351,7 @@ def main():
         "SELECT COUNT(DISTINCT bowler_name) FROM ball_by_ball WHERE bowler_name IS NOT NULL"
     ).fetchone()[0]
 
-    print(f"Database Statistics:")
+    print("Database Statistics:")
     print(f"  Total balls: {total_balls}")
     print(f"  Total matches: {total_matches}")
     print(f"  Unique batsmen: {unique_batsmen}")

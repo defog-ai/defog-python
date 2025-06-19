@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock, MagicMock, patch
-from defog.util import identify_categorical_columns, parse_update, get_feedback
+from defog.util import identify_categorical_columns, get_feedback
 
 
 class TestIdentifyCategoricalColumns(unittest.TestCase):

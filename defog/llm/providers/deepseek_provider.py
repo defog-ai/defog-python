@@ -3,7 +3,6 @@ import time
 import json
 import base64
 import logging
-from copy import deepcopy
 from typing import Dict, List, Any, Optional, Callable, Tuple, Union
 
 from .base import BaseLLMProvider, LLMResponse

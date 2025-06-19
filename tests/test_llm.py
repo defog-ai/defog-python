@@ -17,7 +17,7 @@ messages_sql = [
     },
     {
         "role": "user",
-        "content": f"""Question: What is the total number of orders?
+        "content": """Question: What is the total number of orders?
 Schema:
 ```sql
 CREATE TABLE orders (
@@ -51,7 +51,7 @@ messages_sql_structured = [
     },
     {
         "role": "user",
-        "content": f"""Question: What is the total number of orders?
+        "content": """Question: What is the total number of orders?
 Schema:
 ```sql
 CREATE TABLE orders (

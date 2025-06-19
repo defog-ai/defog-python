@@ -6,10 +6,8 @@ image data and convert them to appropriate message formats for LLM providers.
 """
 
 import base64
-import re
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable, NamedTuple
-from pathlib import Path
+from typing import Any, List, Optional, Tuple, Union, NamedTuple
 
 # Constants for image validation
 MAX_IMAGE_SIZE_MB = 20  # Maximum image size in MB

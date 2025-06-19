@@ -447,7 +447,7 @@ Be precise and include all available data that matches the schema."""
             pdf_url, focus_areas
         )
 
-        logger.info(f"Step 1 - PDF Analysis completed:")
+        logger.info("Step 1 - PDF Analysis completed:")
         logger.info(f"  • Identified {len(analysis.identified_datapoints)} datapoints")
         logger.info(
             f"  • Cost: ${analysis_cost_metadata.get('cost_cents', 0.0) / 100:.4f}"
@@ -503,7 +503,7 @@ Be precise and include all available data that matches the schema."""
             return_exceptions=True,
         )
 
-        logger.info(f"Step 2 - Individual extraction costs:")
+        logger.info("Step 2 - Individual extraction costs:")
 
         # Process results
         final_results = []
@@ -548,7 +548,7 @@ Be precise and include all available data that matches the schema."""
         end_time = asyncio.get_event_loop().time()
 
         # Log final summary
-        logger.info(f"PDF Data Extraction completed:")
+        logger.info("PDF Data Extraction completed:")
         logger.info(f"  • Total time: {(end_time - start_time):.2f} seconds")
         logger.info(f"  • Total cost: ${cost_metadata['total_cost_cents'] / 100:.4f}")
         logger.info(

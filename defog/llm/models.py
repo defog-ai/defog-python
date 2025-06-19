@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field
-from enum import Enum
-from typing import Optional, Union, Dict, Any, Literal
+from pydantic import BaseModel
+from typing import Optional, Union, Dict, Any
 
 
 class OpenAIFunctionSpecs(BaseModel):

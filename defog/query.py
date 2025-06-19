@@ -1,8 +1,5 @@
-import json
 import re
-from defog.util import write_logs
 import asyncio
-import os
 
 
 # execute query for given db_type and return column names and data

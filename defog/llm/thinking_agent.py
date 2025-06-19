@@ -1,6 +1,5 @@
 """Agent with enhanced thinking and reasoning capabilities."""
 
-import asyncio
 import json
 import logging
 from typing import Dict, List, Optional, Any, Union, Callable

@@ -5,7 +5,6 @@ Tests for HTMLDataExtractor
 import asyncio
 import pytest
 import os
-from typing import Dict, Any
 
 from defog.llm import HTMLDataExtractor, extract_html_data
 from defog.llm.html_data_extractor import HTMLDataExtractionResult
@@ -775,7 +774,7 @@ class TestHTMLDataExtractorWithImages:
         )
 
         # Print summary for debugging
-        print(f"\nMixed extraction results:")
+        print("\nMixed extraction results:")
         print(f"  Total identified: {result.total_datapoints_identified}")
         print(f"  Successful: {result.successful_extractions}")
         print(f"  Failed: {result.failed_extractions}")

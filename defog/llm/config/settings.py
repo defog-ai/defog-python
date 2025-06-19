@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 from .constants import (
     DEFAULT_TIMEOUT,
     MAX_RETRIES,

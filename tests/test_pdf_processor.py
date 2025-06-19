@@ -4,7 +4,7 @@ Tests for PDF processing functionality.
 
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 import base64
 
 from defog.llm.pdf_processor import PDFAnalysisInput, ClaudePDFProcessor, analyze_pdf

@@ -1,9 +1,8 @@
 import unittest
 import tempfile
 import time
-import json
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 from defog.metadata_cache import MetadataCache, get_global_cache
 
 

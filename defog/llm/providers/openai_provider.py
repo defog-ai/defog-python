@@ -1,7 +1,6 @@
 import os
 import time
 import json
-import re
 import base64
 import logging
 from copy import deepcopy

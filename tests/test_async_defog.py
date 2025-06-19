@@ -136,7 +136,6 @@ class TestAsyncDefog(unittest.TestCase):
 
     def test_api_key_not_saved_when_none(self):
         # Test that connection.json doesn't include api_key when it's None
-        import json
 
         df = AsyncDefog(db_type="postgres", db_creds={})
         self.assertIsNone(df.api_key)

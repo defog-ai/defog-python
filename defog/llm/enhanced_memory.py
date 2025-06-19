@@ -1,13 +1,12 @@
 """Enhanced memory management with cross-agent sharing and context summarization."""
 
 import asyncio
-import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass, field
 
-from .memory.history_manager import MemoryManager, ConversationHistory
+from .memory.history_manager import MemoryManager
 from .shared_context import SharedContextStore, ArtifactType
 from .utils import chat_async
 

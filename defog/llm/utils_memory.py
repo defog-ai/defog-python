@@ -1,6 +1,6 @@
 """Chat utilities with memory management support."""
 
-from typing import Dict, List, Optional, Any, Union, Callable
+from typing import Dict, List, Optional, Union, Callable
 from dataclasses import dataclass
 
 from .utils import chat_async

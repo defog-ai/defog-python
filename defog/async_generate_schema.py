@@ -4,11 +4,10 @@ from defog.util import (
 )
 from defog.local_storage import LocalStorage
 import asyncio
-from io import StringIO
 import pandas as pd
 import json
 import warnings
-from typing import List, Dict, Union, Optional
+from typing import List, Dict, Union
 
 
 async def generate_postgres_schema(
@@ -747,7 +746,7 @@ async def generate_sqlserver_schema(
 
     try:
         import aioodbc
-    except Exception as e:
+    except Exception:
         raise Exception(
             "aioodbc not installed. Please install it with `pip install aioodbc`."
         )

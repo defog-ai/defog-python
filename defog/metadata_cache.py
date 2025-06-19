@@ -3,7 +3,6 @@ Metadata caching for database schemas to avoid repeated queries.
 """
 
 import json
-import os
 import time
 from typing import Dict, List, Optional, Any
 from pathlib import Path

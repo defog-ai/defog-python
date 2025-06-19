@@ -1,5 +1,4 @@
 import inspect
-import json
 import jsonref
 import asyncio
 from typing import Callable, List, Dict, Any, Union

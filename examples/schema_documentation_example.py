@@ -6,7 +6,6 @@ to automatically generate table and column descriptions using LLMs.
 """
 
 import asyncio
-import os
 from defog.schema_documenter import SchemaDocumenter, DocumentationConfig
 from defog import Defog
 

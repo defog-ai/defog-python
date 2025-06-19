@@ -3,7 +3,7 @@ Utilities for handling images across different LLM providers.
 """
 
 import base64
-from typing import Dict, Any, List, Tuple, Union, Optional
+from typing import Dict, Any, List, Tuple
 import httpx
 from .exceptions import ProviderError
 
