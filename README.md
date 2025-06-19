@@ -6,7 +6,7 @@ A comprehensive Python toolkit for AI-powered data operations - from natural lan
 
 - 🤖 **Cross-provider LLM operations** - Unified interface for OpenAI, Anthropic, Gemini, and Together AI
 - 📊 **SQL Agent** - Convert natural language to SQL with automatic table filtering for large databases
-- 🔍 **Data extraction** - Extract structured data from PDFs, images, and HTML
+- 🔍 **Data extraction** - Extract structured data from PDFs, images, HTML, and even images embedded in HTML
 - 🛠️ **Advanced AI tools** - Code interpreter, web search, YouTube transcription, document citations
 - 🎭 **Agent orchestration** - Hierarchical task delegation and multi-agent coordination
 - 💾 **Memory management** - Automatic conversation compactification for long contexts
