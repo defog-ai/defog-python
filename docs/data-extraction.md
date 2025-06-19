@@ -396,6 +396,26 @@ data_with_images = await extract_html_data(
 
 # The extractor will identify images as potential data sources
 # and extract structured data from charts, graphs, and image-based tables
+
+# Handle relative image URLs with base_url parameter
+html_with_relative_images = """
+<div class="dashboard">
+    <img src="/charts/sales-2024.png" alt="Sales chart">
+    <img src="./images/revenue.png" alt="Revenue graph">
+    <img src="../data/metrics.png" alt="Key metrics">
+</div>
+"""
+
+data_with_base_url = await extract_html_data(
+    html_with_relative_images,
+    base_url="https://example.com/reports/2024/",  # Base URL for resolving relative paths
+    focus_areas=["charts", "metrics"]
+)
+
+# The extractor will resolve:
+# - "/charts/sales-2024.png" → "https://example.com/charts/sales-2024.png"
+# - "./images/revenue.png" → "https://example.com/reports/2024/images/revenue.png"
+# - "../data/metrics.png" → "https://example.com/reports/data/metrics.png"
 ```
 
 ## Common Patterns
