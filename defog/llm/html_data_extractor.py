@@ -19,6 +19,7 @@ import re
 from .utils import chat_async
 from .llm_providers import LLMProvider
 from .image_data_extractor import ImageDataExtractor
+from urllib.parse import urljoin, urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -314,15 +315,16 @@ Extract RAW DATA values, not descriptions. Each datapoint should yield MULTIPLE 
 
         return str(soup)
 
-    def _extract_image_urls(self, html_content: str) -> Dict[str, str]:
+    def _extract_image_urls(self, html_content: str, base_url: Optional[str] = None) -> Dict[str, str]:
         """
-        Extract image URLs from HTML content.
+        Extract image URLs from HTML content, resolving relative URLs if base_url is provided.
 
         Args:
             html_content: HTML string
+            base_url: Optional base URL for resolving relative image paths
 
         Returns:
-            Dictionary mapping image src to full URLs
+            Dictionary mapping original src to full URLs
         """
         soup = BeautifulSoup(html_content, "html.parser")
         image_urls = {}
@@ -335,8 +337,14 @@ Extract RAW DATA values, not descriptions. Each datapoint should yield MULTIPLE 
                 title_text = img.get("title", "")
                 context = alt_text or title_text or ""
 
-                # Use src as key for easy lookup
-                image_urls[src] = {"url": src, "context": context, "element": str(img)}
+                # Resolve relative URLs if base_url is provided
+                resolved_url = src
+                if base_url and not urlparse(src).scheme:
+                    # Handle relative URLs
+                    resolved_url = urljoin(base_url, src)
+
+                # Use original src as key for easy lookup in location hints
+                image_urls[src] = {"url": resolved_url, "context": context, "element": str(img)}
 
         return image_urls
 
@@ -613,6 +621,7 @@ Extract RAW VALUES only. Empty cells = null."""
         html_content: str,
         focus_areas: Optional[List[str]] = None,
         datapoint_filter: Optional[List[str]] = None,
+        base_url: Optional[str] = None,
     ) -> HTMLDataExtractionResult:
         """
         Extract all identified datapoints from HTML in parallel.
@@ -621,6 +630,7 @@ Extract RAW VALUES only. Empty cells = null."""
             html_content: HTML string to process
             focus_areas: Optional areas to focus analysis on
             datapoint_filter: Optional list of datapoint names to extract
+            base_url: Optional base URL for resolving relative image paths
 
         Returns:
             HTMLDataExtractionResult with all extracted data
@@ -691,7 +701,7 @@ Extract RAW VALUES only. Empty cells = null."""
         if self.enable_image_extraction and any(
             dp.data_type == "image" for dp in datapoints_to_extract
         ):
-            image_urls = self._extract_image_urls(sanitized_html)
+            image_urls = self._extract_image_urls(sanitized_html, base_url)
             logger.info(f"Found {len(image_urls)} images in HTML")
 
         # Step 3: Extract data in parallel
@@ -837,6 +847,7 @@ Extract RAW VALUES only. Empty cells = null."""
         html_content: str,
         focus_areas: Optional[List[str]] = None,
         datapoint_filter: Optional[List[str]] = None,
+        base_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Extract all data and return as a dictionary for easy access.
@@ -845,12 +856,13 @@ Extract RAW VALUES only. Empty cells = null."""
             html_content: HTML string to process
             focus_areas: Optional areas to focus analysis on
             datapoint_filter: Optional list of datapoint names to extract
+            base_url: Optional base URL for resolving relative image paths
 
         Returns:
             Dictionary with datapoint names as keys and extracted data as values
         """
         result = await self.extract_all_data(
-            html_content, focus_areas, datapoint_filter
+            html_content, focus_areas, datapoint_filter, base_url
         )
 
         extracted_data = {
