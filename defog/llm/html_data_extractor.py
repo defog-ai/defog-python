@@ -161,46 +161,26 @@ class HTMLDataExtractor:
         Returns:
             Tuple of (HTMLAnalysisResponse with identified datapoints, cost metadata dict)
         """
-        analysis_task = f"""Analyze this HTML content to identify all data that can be extracted and converted to tabular format suitable for SQL databases.
+        analysis_task = f"""Analyze HTML to identify extractable tabular data.
 
-This tool is designed to extract STRUCTURED DATA from HTML content. Every datapoint should represent multiple rows of data that can be stored in a database table.
+Find all structured data that can be stored in SQL tables:
+- Tables (<table>)
+- Lists with repeated patterns (<ul>, <ol>, <dl>)
+- Repeated elements (product cards, profiles)
+- Key-value pairs (metadata, specs)
+- Structured text (FAQs, features)
+- Forms and navigation menus
+- JSON-LD/microdata
 
-Focus on identifying:
-1. Tables - Extract data from <table> elements with proper headers and rows
-2. Lists - Extract structured lists (<ul>, <ol>, <dl>) that contain repeated data patterns
-3. Product grids/cards - Extract data from repeated elements (e.g., product cards, team member profiles)
-4. Key-value pairs - Extract metadata, specifications, or properties displayed as label-value pairs
-5. Structured text sections - Extract data from sections with consistent patterns (e.g., FAQ sections, feature lists)
-6. Form data - Extract structured information from forms or form-like displays
-7. Navigation menus - Extract hierarchical menu structures if they contain meaningful data
-8. Embedded data - Look for JSON-LD, microdata, or other structured data formats
+{f"Focus on: {', '.join(focus_areas)}" if focus_areas else ""}
 
-{f"Specifically focus on: {', '.join(focus_areas)}" if focus_areas else ""}
+For each datapoint provide:
+- name: snake_case (e.g., 'product_inventory')
+- data_type: 'table', 'list', 'key_value_pairs', or 'structured_text'
+- location_hint: CSS selector or description
+- schema_fields: [{{name, type, description, optional: true}}]
 
-DATA TYPE RULES (use only these):
-- Use 'table' for: Any data already in HTML tables or that naturally fits a tabular structure
-- Use 'list' for: Repeated items with the same structure (products, articles, team members)
-- Use 'key_value_pairs' for: Metadata, specifications, properties, or any label-value pairs
-- Use 'structured_text' for: Text content with extractable patterns (FAQs, definitions, etc.)
-
-For each identified datapoint:
-- Provide a descriptive name using snake_case (e.g., 'product_inventory_table')
-- Use ONLY the data types listed above
-- Provide a location hint (CSS selector, section name, or description of where it's found)
-- Define schema_fields as a list where each field has:
-  * name: snake_case field name (e.g., 'product_name', 'price_usd')
-  * type: data type ('string', 'int', 'float', etc.)
-  * description: what the field contains
-  * optional: true (always set to true for flexibility)
-- Examples:
-  * Product table: [{{name: 'product_name', type: 'string', description: 'Product name', optional: true}}, {{name: 'price', type: 'float', description: 'Price in USD', optional: true}}, {{name: 'in_stock', type: 'bool', description: 'Whether product is in stock', optional: true}}]
-  * Navigation menu: [{{name: 'menu_item', type: 'string', description: 'Menu item text', optional: true}}, {{name: 'url', type: 'string', description: 'Link URL', optional: true}}, {{name: 'parent_item', type: 'string', description: 'Parent menu item if nested', optional: true}}]
-
-CRITICAL: 
-- We want the RAW DATA from the HTML, not descriptions
-- Each datapoint should result in MULTIPLE ROWS when extracted
-- Look for both visible content and structured data (JSON-LD, microdata)
-- Consider data that might be dynamically loaded but present in the HTML"""
+Extract RAW DATA values, not descriptions. Each datapoint should yield MULTIPLE ROWS."""
 
         # Prepare message with HTML content
         messages = [
@@ -232,6 +212,53 @@ CRITICAL:
         }
 
         return result.content, cost_metadata
+
+    def _sanitize_and_preprocess_html(self, html_content: str) -> str:
+        """
+        Sanitize and preprocess HTML to improve security and performance.
+        
+        Args:
+            html_content: Raw HTML string
+            
+        Returns:
+            Sanitized and preprocessed HTML string
+        """
+        # First pass: Use bleach for security sanitization
+        sanitized = bleach.clean(
+            html_content,
+            tags=ALLOWED_TAGS,
+            attributes=ALLOWED_ATTRIBUTES,
+            strip=True,
+            strip_comments=False  # Keep comments as they might contain data
+        )
+        
+        # Second pass: Use BeautifulSoup for preprocessing
+        soup = BeautifulSoup(sanitized, 'html.parser')
+        
+        # Remove script tags except JSON-LD
+        for script in soup.find_all('script'):
+            if script.get('type') != 'application/ld+json':
+                script.decompose()
+        
+        # Remove style tags and inline styles to reduce noise
+        for style in soup.find_all('style'):
+            style.decompose()
+        for tag in soup.find_all(style=True):
+            del tag['style']
+            
+        # Remove empty tags (except those that might be self-closing)
+        for tag in soup.find_all():
+            if tag.name not in ['img', 'input', 'br', 'hr', 'meta', 'link']:
+                if not tag.get_text(strip=True) and not tag.find_all():
+                    tag.decompose()
+        
+        # Normalize whitespace
+        for element in soup.find_all(string=True):
+            if isinstance(element, NavigableString):
+                cleaned = re.sub(r'\s+', ' ', element.string)
+                element.replace_with(cleaned)
+        
+        return str(soup)
 
     def _generate_pydantic_schema(
         self, datapoint: DataPointIdentification
@@ -391,35 +418,13 @@ CRITICAL:
         Returns:
             DataExtractionResult
         """
-        extraction_task = f"""Extract the following data from this HTML content:
+        extraction_task = f"""Extract: {datapoint.name} ({datapoint.data_type})
+Location: {datapoint.location_hint}
 
-Datapoint: {datapoint.name}
-Description: {datapoint.description}
-Type: {datapoint.data_type}
-Location hint: {datapoint.location_hint}
+For tables/lists: Use columnar format with 'columns' and 'data' arrays.
+For key-value pairs: Extract fields with proper types (numbers without symbols).
 
-IMPORTANT EXTRACTION GUIDELINES:
-For tables and lists, extract data in COLUMNAR FORMAT for efficiency:
-- 'columns' field: array of column names
-- 'data' field: array of arrays, where each inner array is a row
-- The order of values in each row MUST match the order of columns
-
-For example, a product table:
-- columns: ["product_name", "price", "in_stock"]
-- data: [["Widget A", 19.99, true], ["Widget B", 29.99, false]]
-
-For key-value pairs:
-- Extract each field directly with its appropriate type
-- Convert prices to numbers (remove currency symbols)
-- Convert booleans to true/false
-
-CRITICAL:
-- Extract the RAW DATA VALUES from the HTML, not descriptions
-- Numbers should be pure numeric values (no currency symbols or commas)
-- Empty cells should be null
-- For nested structures, flatten them appropriately
-- Look for both visible text and data attributes (data-*, aria-*, etc.)
-- Consider microdata and JSON-LD structured data if present"""
+Extract RAW VALUES only. Empty cells = null."""
 
         try:
             # Prepare message with HTML
