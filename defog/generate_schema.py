@@ -251,7 +251,7 @@ def generate_postgres_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(
+            storage.save_schema(
                 csv_data,
                 "defog_metadata.csv",
                 api_key=getattr(self, "api_key", None),
@@ -456,7 +456,7 @@ def generate_redshift_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(
+            storage.save_schema(
                 csv_data,
                 "defog_metadata.csv",
                 api_key=getattr(self, "api_key", None),
@@ -565,7 +565,7 @@ def generate_mysql_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(
+            storage.save_schema(
                 csv_data,
                 "defog_metadata.csv",
                 api_key=getattr(self, "api_key", None),
@@ -668,7 +668,7 @@ def generate_databricks_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(
+            storage.save_schema(
                 csv_data,
                 "defog_metadata.csv",
                 api_key=getattr(self, "api_key", None),
@@ -794,7 +794,7 @@ def generate_snowflake_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(
+            storage.save_schema(
                 csv_data,
                 "defog_metadata.csv",
                 api_key=getattr(self, "api_key", None),
@@ -892,7 +892,7 @@ def generate_bigquery_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(
+            storage.save_schema(
                 csv_data,
                 "defog_metadata.csv",
                 api_key=getattr(self, "api_key", None),
@@ -1040,7 +1040,7 @@ def generate_sqlserver_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(
+            storage.save_schema(
                 csv_data,
                 "defog_metadata.csv",
                 api_key=getattr(self, "api_key", None),
@@ -1159,7 +1159,7 @@ def generate_sqlite_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(
+            storage.save_schema(
                 csv_data,
                 "defog_metadata.csv",
                 api_key=getattr(self, "api_key", None),
@@ -1274,7 +1274,7 @@ def generate_duckdb_schema(
         try:
             # Validate table name for safety
             try:
-                validated_table = _validate_sql_identifier(table_name)
+                _validate_sql_identifier(table_name)
             except ValueError as e:
                 print(f"Warning: Skipping table {table_name}: {e}")
                 continue
@@ -1363,7 +1363,7 @@ def generate_duckdb_schema(
         if return_format == "csv":
             # Save as CSV
             csv_data = df.to_csv(index=False)
-            result = storage.save_schema(
+            storage.save_schema(
                 csv_data,
                 "defog_metadata.csv",
                 api_key=getattr(self, "api_key", None),

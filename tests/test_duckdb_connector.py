@@ -281,9 +281,7 @@ class DuckDBConnectorTestCase(unittest.TestCase):
         # Note: In-memory databases are connection-specific in DuckDB
         # So we'll test the credentials validation instead
         try:
-            defog = Defog(
-                api_key="test_key", db_type="duckdb", db_creds=memory_db_creds
-            )
+            Defog(api_key="test_key", db_type="duckdb", db_creds=memory_db_creds)
             # If no exception is raised, credentials are valid
             self.assertTrue(True)
         except Exception as e:
@@ -297,9 +295,7 @@ class DuckDBConnectorTestCase(unittest.TestCase):
 
         # This should work for file paths that don't exist yet (DuckDB creates them)
         try:
-            defog = Defog(
-                api_key="test_key", db_type="duckdb", db_creds=invalid_db_creds
-            )
+            Defog(api_key="test_key", db_type="duckdb", db_creds=invalid_db_creds)
             # Should not raise exception as DuckDB can create new files
             self.assertTrue(True)
         except Exception as e:

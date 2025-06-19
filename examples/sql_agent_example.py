@@ -389,7 +389,7 @@ async def main():
         try:
             os.unlink(db_path)
             print(f"\n🧹 Cleaned up database file: {db_path}")
-        except:
+        except Exception:
             pass
 
 

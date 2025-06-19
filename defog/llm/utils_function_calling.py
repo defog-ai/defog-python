@@ -34,7 +34,7 @@ def cleanup_obj(obj: dict, model: str):
         del new_obj["$ref"]
 
     for k in keys:
-        if type(new_obj[k]) == dict:
+        if isinstance(new_obj[k], dict):
             new_obj[k] = cleanup_obj(new_obj[k], model)
 
     return new_obj

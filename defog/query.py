@@ -10,7 +10,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
     if db_type == "postgres":
         try:
             import psycopg2
-        except:
+        except ImportError:
             raise Exception("psycopg2 not installed.")
         with psycopg2.connect(**db_creds) as conn:
             with conn.cursor() as cur:
@@ -22,7 +22,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "redshift":
         try:
             import psycopg2
-        except:
+        except ImportError:
             raise Exception("redshift_connector not installed.")
 
         if "schema" not in db_creds:
@@ -53,7 +53,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "mysql":
         try:
             import mysql.connector
-        except:
+        except ImportError:
             raise Exception("mysql.connector not installed.")
         with mysql.connector.connect(**db_creds) as conn:
             with conn.cursor() as cur:
@@ -65,7 +65,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "bigquery":
         try:
             from google.cloud import bigquery
-        except:
+        except ImportError:
             raise Exception("google.cloud.bigquery not installed.")
 
         json_key = db_creds["json_key_path"]
@@ -81,7 +81,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "snowflake":
         try:
             import snowflake.connector
-        except:
+        except ImportError:
             raise Exception("snowflake.connector not installed.")
         with snowflake.connector.connect(
             user=db_creds["user"],
@@ -102,7 +102,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "databricks":
         try:
             from databricks import sql
-        except:
+        except ImportError:
             raise Exception("databricks-sql-connector not installed.")
         with sql.connect(**db_creds) as conn:
             with conn.cursor() as cursor:
@@ -114,7 +114,7 @@ def execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "sqlserver":
         try:
             import pyodbc
-        except:
+        except ImportError:
             raise Exception("pyodbc not installed.")
 
         if "database" in db_creds and db_creds["database"] != "":
@@ -181,7 +181,7 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
     if db_type == "postgres":
         try:
             import asyncpg
-        except:
+        except ImportError:
             raise Exception("asyncpg not installed.")
 
         conn = await asyncpg.connect(**db_creds)
@@ -202,7 +202,7 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "redshift":
         try:
             import asyncpg
-        except:
+        except ImportError:
             raise Exception("asyncpg not installed.")
 
         if "schema" not in db_creds:
@@ -238,7 +238,7 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "mysql":
         try:
             import aiomysql
-        except:
+        except ImportError:
             raise Exception("aiomysql not installed.")
         db_creds = db_creds.copy()
         db_creds["db"] = db_creds["database"]
@@ -253,7 +253,7 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "bigquery":
         try:
             from google.cloud import bigquery
-        except:
+        except ImportError:
             raise Exception("google.cloud.bigquery not installed.")
         # using asynico.to_thread since google-cloud-bigquery is synchronous
         json_key = db_creds["json_key_path"]
@@ -271,7 +271,7 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "snowflake":
         try:
             import snowflake.connector
-        except:
+        except ImportError:
             raise Exception("snowflake.connector not installed.")
         with snowflake.connector.connect(
             user=db_creds["user"],
@@ -300,7 +300,7 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "databricks":
         try:
             from databricks import sql
-        except:
+        except ImportError:
             raise Exception("databricks-sql-connector not installed.")
         conn = await asyncio.to_thread(sql.connect, **db_creds)
         try:
@@ -318,7 +318,7 @@ async def async_execute_query_once(db_type: str, db_creds, query: str):
     elif db_type == "sqlserver":
         try:
             import aioodbc
-        except:
+        except ImportError:
             raise Exception("aioodbc not installed.")
 
         if "database" in db_creds and db_creds["database"] != "":

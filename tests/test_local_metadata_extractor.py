@@ -113,9 +113,7 @@ class TestLocalMetadataExtractor(unittest.TestCase):
         mock_defog.generate_db_schema.return_value = self.sample_schema_result
         mock_defog_class.return_value = mock_defog
 
-        result = extract_metadata_from_db(
-            db_type="postgres", db_creds=self.sample_db_creds
-        )
+        extract_metadata_from_db(db_type="postgres", db_creds=self.sample_db_creds)
 
         mock_defog_class.assert_called_once_with(
             api_key=None, db_type="postgres", db_creds=self.sample_db_creds

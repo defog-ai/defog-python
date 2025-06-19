@@ -124,7 +124,7 @@ def main():
             return documentation
 
         # Run the async function
-        documentation = asyncio.run(run_documentation())
+        asyncio.run(run_documentation())
 
     except Exception as e:
         print(f"Note: This example requires a real database connection: {e}")
@@ -132,8 +132,6 @@ def main():
     # Example 3: DuckDB usage
     print("\n3. DuckDB usage:")
     print("-" * 50)
-
-    duckdb_creds = {"database": ":memory:"}  # or path to .duckdb file
 
     try:
         # For demonstration purposes, let's show what the call would look like

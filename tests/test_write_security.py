@@ -303,7 +303,7 @@ class TestParameterizedQueries:
 
         columns_info = [{"name": "id"}, {"name": "email"}]
 
-        result = documenter._get_sample_data(mock_cursor, "users", columns_info)
+        documenter._get_sample_data(mock_cursor, "users", columns_info)
 
         # Should have called execute with parameterized query
         mock_cursor.execute.assert_called_once()
@@ -324,7 +324,7 @@ class TestParameterizedQueries:
         mock_cursor = Mock()
         mock_cursor.fetchall.return_value = [("id", "INTEGER", "NO", None)]
 
-        result = documenter._get_duckdb_columns(mock_cursor, "users")
+        documenter._get_duckdb_columns(mock_cursor, "users")
 
         # Should have called execute with parameterized query
         mock_cursor.execute.assert_called_once()

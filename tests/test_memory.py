@@ -483,7 +483,6 @@ class TestLongConversationWithMemory:
         ]
 
         compactification_count = 0
-        previous_token_count = 0
 
         for i, question in enumerate(conversation_topics):
             print(f"Question {i}: {question}")
@@ -501,7 +500,6 @@ class TestLongConversationWithMemory:
 
             # Check memory state
             current_messages = manager.history.get_messages()
-            current_token_count = manager.history.total_tokens
             current_compactifications = manager.history.compactification_count
 
             # Verify system message is always preserved first
@@ -547,8 +545,6 @@ class TestLongConversationWithMemory:
                     f"Summary not found after compactification {current_compactifications}"
                 )
                 compactification_count = current_compactifications
-
-            previous_token_count = current_token_count
 
         # Final assertions
         assert (
