@@ -9,13 +9,37 @@ This module provides intelligent HTML analysis to:
 
 import asyncio
 import logging
+import hashlib
 from typing import Dict, List, Any, Optional, Type, Union
 from pydantic import BaseModel, Field, create_model
+import bleach
+from bs4 import BeautifulSoup, NavigableString
+import re
 
 from .utils import chat_async
 from .llm_providers import LLMProvider
 
 logger = logging.getLogger(__name__)
+
+# Constants for security and performance
+MAX_HTML_SIZE_MB = 10  # Maximum HTML size in megabytes
+MAX_HTML_SIZE_BYTES = MAX_HTML_SIZE_MB * 1024 * 1024
+ALLOWED_TAGS = [
+    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+    'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+    'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'a', 'img', 'form', 'input', 'select', 'option', 'textarea',
+    'nav', 'section', 'article', 'aside', 'header', 'footer',
+    'strong', 'em', 'b', 'i', 'u', 'code', 'pre',
+    'script'  # Keep script tags to check for JSON-LD
+]
+ALLOWED_ATTRIBUTES = {
+    '*': ['id', 'class', 'data-*', 'aria-*'],
+    'a': ['href', 'title'],
+    'img': ['src', 'alt', 'title'],
+    'input': ['type', 'name', 'value', 'placeholder'],
+    'script': ['type']  # For JSON-LD
+}
 
 
 class SchemaField(BaseModel):
@@ -100,6 +124,8 @@ class HTMLDataExtractor:
         extraction_model: str = "claude-sonnet-4-20250514",
         max_parallel_extractions: int = 5,
         temperature: float = 0.0,
+        max_html_size_mb: int = MAX_HTML_SIZE_MB,
+        enable_caching: bool = True,
     ):
         """
         Initialize HTML Data Extractor.
@@ -118,6 +144,9 @@ class HTMLDataExtractor:
         self.extraction_model = extraction_model
         self.max_parallel_extractions = max_parallel_extractions
         self.temperature = temperature
+        self.max_html_size_bytes = max_html_size_mb * 1024 * 1024
+        self.enable_caching = enable_caching
+        self._analysis_cache = {} if enable_caching else None
 
     async def analyze_html_structure(
         self, html_content: str, focus_areas: Optional[List[str]] = None
@@ -452,15 +481,31 @@ CRITICAL:
         """
         start_time = asyncio.get_event_loop().time()
 
-        # Generate a simple hash for the HTML content
-        import hashlib
+        # Validate HTML size
+        html_size = len(html_content.encode('utf-8'))
+        if html_size > self.max_html_size_bytes:
+            raise ValueError(
+                f"HTML content exceeds maximum size limit of {self.max_html_size_bytes / (1024 * 1024):.2f} MB. "
+                f"Actual size: {html_size / (1024 * 1024):.2f} MB"
+            )
 
-        content_hash = hashlib.md5(html_content.encode()).hexdigest()[:8]
+        # Generate a secure hash for the HTML content
+        content_hash = hashlib.sha256(html_content.encode()).hexdigest()[:16]
+        
+        # Sanitize and preprocess HTML
+        sanitized_html = self._sanitize_and_preprocess_html(html_content)
+
+        # Check cache if enabled
+        cache_key = f"{content_hash}:{','.join(focus_areas or [])}:{','.join(datapoint_filter or [])}"
+        if self.enable_caching and cache_key in self._analysis_cache:
+            logger.info(f"Using cached analysis for hash: {content_hash}")
+            cached_result = self._analysis_cache[cache_key]
+            return cached_result
 
         # Step 1: Analyze HTML structure
         logger.info(f"Analyzing HTML structure (hash: {content_hash})")
         analysis, analysis_cost_metadata = await self.analyze_html_structure(
-            html_content, focus_areas
+            sanitized_html, focus_areas
         )
 
         logger.info("Step 1 - HTML Analysis completed:")
@@ -500,7 +545,7 @@ CRITICAL:
         for datapoint in datapoints_to_extract:
             if datapoint.name in schemas:
                 task = self.extract_single_datapoint(
-                    html_content, datapoint, schemas[datapoint.name]
+                    sanitized_html, datapoint, schemas[datapoint.name]
                 )
                 extraction_tasks.append(task)
 
@@ -580,7 +625,7 @@ CRITICAL:
             f"  • Success rate: {successful}/{successful + failed} ({100 * successful / (successful + failed) if (successful + failed) > 0 else 0:.1f}%)"
         )
 
-        return HTMLDataExtractionResult(
+        result = HTMLDataExtractionResult(
             html_content_hash=content_hash,
             page_type=analysis.page_type,
             total_datapoints_identified=len(analysis.identified_datapoints),
@@ -600,6 +645,12 @@ CRITICAL:
                 "extraction_cost_cents": cost_metadata["extraction_cost_cents"],
             },
         )
+        
+        # Cache the result if enabled
+        if self.enable_caching:
+            self._analysis_cache[cache_key] = result
+            
+        return result
 
     async def extract_as_dict(
         self,

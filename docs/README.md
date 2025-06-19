@@ -1,60 +1,150 @@
-# Defog Python Library - Comprehensive Documentation
+# Defog Documentation Hub
 
-This documentation provides detailed information about all features and capabilities of the defog-python library, including advanced features not covered in the main README.
+Welcome to the comprehensive documentation for the defog Python library. This hub provides detailed guides, API references, and examples for all features.
 
-## Table of Contents
+## 📚 Documentation Overview
 
-1. [Database Operations](database-operations.md)
-2. [LLM Utilities and Tools](llm-utilities.md)
-3. [Agent Orchestration](agent-orchestration.md)
-4. [Metadata Management](metadata-management.md)
-5. [CLI Reference](cli-reference.md)
-6. [Advanced Configuration](advanced-configuration.md)
-7. [API Reference](api-reference.md)
+### Core Features
 
-## Quick Links
+#### [LLM Utilities and Tools](llm-utilities.md)
+Comprehensive guide to LLM operations including:
+- **Chat Functions** - Unified interface for OpenAI, Anthropic, Gemini, and Together AI
+- **Multimodal Support** - Image inputs across all providers
+- **Function Calling** - Define tools for LLMs with automatic schema generation
+- **Structured Output** - Get validated responses using Pydantic models
+- **Memory Management** - Handle long conversations with automatic summarization
+- **Specialized Tools** - Code interpreter, web search, YouTube transcription, citations
 
-- **Getting Started**: See the main [README.md](../README.md)
-- **Examples**: Check the [examples directory](../examples/)
-- **Tests**: Review [test cases](../tests/) for usage patterns
+#### [Database Operations](database-operations.md)
+Everything related to databases and SQL:
+- **SQL Agent** - Natural language to SQL conversion with automatic table filtering
+- **Query Execution** - Direct SQL execution across 11 database types
+- **Schema Documentation** - AI-powered automatic schema documentation
+- **Metadata Management** - Extraction and caching for performance
+- **Local SQL Generation** - Use LLMs directly without API calls
+- **Health Checks** - Validate configurations and data quality
 
-## Overview
+#### [Data Extraction Tools](data-extraction.md)
+Extract structured data from various sources:
+- **PDF Analysis** - Extract tables, charts, and data from PDFs with caching
+- **Image Analysis** - Extract data from charts, graphs, and infographics
+- **HTML Parsing** - Extract structured data from web content
+- **Cost Optimization** - Strategies for efficient extraction
 
-The defog-python library has evolved from a simple SDK for text-to-SQL services into a comprehensive AI toolkit. This documentation covers:
+### Advanced Features
 
-- **Undocumented features** not mentioned in the main README
-- **Advanced usage patterns** for complex scenarios
-- **Configuration options** for fine-tuning behavior
-- **Internal utilities** that can be leveraged for custom implementations
+#### [Agent Orchestration](agent-orchestration.md)
+Multi-agent coordination and task delegation:
+- **Hierarchical Orchestration** - Coordinate multiple AI agents
+- **Task Dependencies** - Define complex workflows with dependencies
+- **Shared Context** - Cross-agent memory and context sharing
+- **Thinking Agents** - Extended reasoning capabilities
 
-## Key Capabilities
+#### [Metadata Management](metadata-management.md)
+Advanced metadata handling:
+- **Caching Strategies** - Improve performance with intelligent caching
+- **Schema Evolution** - Track and manage schema changes
+- **Optimization Techniques** - Best practices for large databases
 
-### 1. Database Intelligence
-- Automatic schema documentation with AI
-- Intelligent table filtering for large databases
-- Metadata caching for improved performance
-- Support for 11+ database types including MongoDB and Elasticsearch
+#### [Advanced Configuration](advanced-configuration.md)
+Fine-tune the library for your needs:
+- **Environment Variables** - Configure API keys and endpoints
+- **Custom Providers** - Add support for new LLM providers
+- **Performance Tuning** - Optimize for speed and cost
+- **Security Settings** - Configure authentication and access controls
 
-### 2. Advanced AI Features
-- Multi-agent orchestration with shared context
-- Thinking agents for complex reasoning tasks
-- PDF data extraction with automatic schema generation
-- Enhanced memory management for long conversations
+### Developer Resources
 
-### 3. Development Tools
-- Local FastAPI server for integration testing
-- CLI tools for metadata optimization
-- Comprehensive logging and debugging utilities
-- Cost tracking across all operations
+#### [API Reference](api-reference.md)
+Complete API documentation:
+- **Function Signatures** - Detailed parameter descriptions
+- **Return Types** - Response formats and structures
+- **Error Handling** - Exception types and handling
+- **Code Examples** - Practical usage examples
 
-### 4. Enterprise Features
-- Metadata versioning and lineage tracking
-- Cross-agent collaboration and memory sharing
-- Intelligent caching with TTL support
-- Production-ready error handling
+#### [CLI Reference](cli-reference.md)
+Command-line interface documentation:
+- **Available Commands** - List of all CLI commands
+- **Usage Examples** - Common CLI workflows
+- **Configuration** - CLI-specific settings
 
-## Getting Help
+## 🚀 Quick Navigation
 
-- **Issues**: Report bugs at [GitHub Issues](https://github.com/defog-ai/defog-python/issues)
-- **Examples**: See working examples in the repository
-- **Tests**: Review test cases for usage patterns
+### By Use Case
+
+**"I want to..."**
+
+- **Chat with LLMs** → [LLM Utilities](llm-utilities.md#core-chat-functions)
+- **Convert questions to SQL** → [SQL Agent](database-operations.md#sql-agent-tools)
+- **Extract data from PDFs** → [PDF Extraction](data-extraction.md#pdf-data-extraction)
+- **Analyze images/charts** → [Image Extraction](data-extraction.md#image-data-extraction)
+- **Document my database** → [Schema Documentation](database-operations.md#schema-documentation)
+- **Manage long conversations** → [Memory Management](llm-utilities.md#memory-management)
+- **Coordinate multiple agents** → [Agent Orchestration](agent-orchestration.md)
+- **Search the web with AI** → [Web Search](llm-utilities.md#web-search)
+- **Execute Python code** → [Code Interpreter](llm-utilities.md#code-interpreter)
+
+### By Database Type
+
+- **PostgreSQL/MySQL** → [Database Operations](database-operations.md#supported-databases)
+- **BigQuery/Snowflake** → [Cloud Databases](database-operations.md#database-specific-examples)
+- **MongoDB/Elasticsearch** → [NoSQL Support](database-operations.md#supported-databases)
+- **SQLite/DuckDB** → [Local Databases](database-operations.md#supported-databases)
+
+### By Provider
+
+- **OpenAI (GPT-4)** → [Provider Examples](llm-utilities.md#provider-specific-examples)
+- **Anthropic (Claude)** → [Provider Examples](llm-utilities.md#provider-specific-examples)
+- **Google (Gemini)** → [Provider Examples](llm-utilities.md#provider-specific-examples)
+- **Together AI** → [Provider Examples](llm-utilities.md#provider-specific-examples)
+
+## 📖 Getting Started
+
+New to defog? Start here:
+
+1. **[Installation](../README.md#installation)** - Install the library
+2. **[Quick Start](../README.md#quick-start)** - Basic examples to get you going
+3. **[Environment Setup](advanced-configuration.md#environment-variables)** - Configure API keys
+4. **[First Query](database-operations.md#basic-sql-generation-and-execution)** - Run your first SQL query
+
+## 💡 Common Workflows
+
+### Data Analysis Pipeline
+1. [Extract data from PDFs](data-extraction.md#pdf-data-extraction)
+2. [Store in database](database-operations.md#query-execution)
+3. [Query with natural language](database-operations.md#sql-agent-tools)
+4. [Visualize with code interpreter](llm-utilities.md#code-interpreter)
+
+### Document Processing
+1. [Analyze PDFs with AI](data-extraction.md#pdf-analysis-tool)
+2. [Extract specific tables](data-extraction.md#filtering-specific-datapoints)
+3. [Generate citations](llm-utilities.md#citations-tool)
+
+### Database Documentation
+1. [Extract metadata](database-operations.md#extract-metadata)
+2. [Generate documentation](database-operations.md#schema-documentation)
+3. [Export to markdown](database-operations.md#export-documentation)
+
+## 🔧 Advanced Topics
+
+- **[Cost Optimization](llm-utilities.md#cost-tracking)** - Track and reduce API costs
+- **[Error Handling](api-reference.md#error-handling)** - Handle exceptions gracefully
+- **[Performance Tuning](database-operations.md#performance-optimization)** - Optimize for speed
+- **[Security Best Practices](database-operations.md#security-considerations)** - Secure your deployment
+
+## 📚 Additional Resources
+
+- **[Examples Directory](../examples/)** - Complete working examples
+- **[Test Cases](../tests/)** - Learn from test implementations
+- **[GitHub Issues](https://github.com/defog-ai/defog-python/issues)** - Report bugs or request features
+
+## 🤝 Contributing
+
+Want to contribute? Check out:
+- [Contributing Guidelines](../CONTRIBUTING.md)
+- [Development Setup](advanced-configuration.md#development-setup)
+- [Testing Guide](../tests/README.md)
+
+---
+
+**Need help?** Can't find what you're looking for? [Open an issue](https://github.com/defog-ai/defog-python/issues) and we'll help you out!
