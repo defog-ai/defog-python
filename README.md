@@ -8,6 +8,7 @@ This library used to be an SDK for accessing Defog's cloud hosted text-to-SQL se
 4. **SQL Agent capabilities** - Natural language to SQL conversion with automatic table filtering for large databases
 5. **Agent orchestration** - Hierarchical task delegation and multi-agent coordination
 6. **Memory management** - Automatic conversation compactification for long-context scenarios
+7. **Data extraction** - Extract structured data from PDFs, images, and HTML using intelligent AI analysis
 
 If you are looking for deep-research like capabilities, check out [introspect](https://github.com/defog-ai/introspect), our open-source, MIT licensed repo that uses this library as a dependency.
 
@@ -495,25 +496,120 @@ for table_doc in documented_tables:
 Extract structured data from PDFs using intelligent AI analysis:
 
 ```python
-from defog.llm.pdf_data_extractor import PDFDataExtractor
+from defog.llm import PDFDataExtractor, extract_pdf_data
 
 # Initialize extractor
 extractor = PDFDataExtractor(
-    model="claude-3-5-sonnet",
-    provider="anthropic"
+    analysis_provider="anthropic",
+    analysis_model="claude-sonnet-4-20250514",
+    extraction_provider="anthropic",
+    extraction_model="claude-sonnet-4-20250514"
 )
 
-# Extract data with automatic schema generation
-result = await extractor.extract_data(
-    pdf_path="financial_report.pdf",
-    instructions="Extract all financial metrics, key performance indicators, and revenue breakdowns"
+# Extract all identified datapoints
+result = await extractor.extract_all_data(
+    pdf_url="https://example.com/financial_report.pdf",
+    focus_areas=["revenue", "financial metrics"]
 )
 
-if result["success"]:
-    print(f"Extracted data: {result['extracted_data']}")
-    print(f"Extraction cost: ${result['total_cost_in_cents'] / 100:.4f}")
-else:
-    print(f"Error: {result['error']}")
+print(f"Identified {result.total_datapoints_identified} datapoints")
+print(f"Successfully extracted: {result.successful_extractions}")
+print(f"Total cost: ${result.total_cost_cents / 100:.4f}")
+
+# Or use the convenience function
+data = await extract_pdf_data(
+    pdf_url="https://example.com/report.pdf",
+    focus_areas=["tables", "key metrics"]
+)
+
+for datapoint_name, extracted_data in data["data"].items():
+    print(f"\n{datapoint_name}:")
+    print(extracted_data)
+```
+
+### Image Data Extraction Tool
+
+Extract structured data from images (charts, tables, infographics) using AI:
+
+```python
+from defog.llm import ImageDataExtractor, extract_image_data
+
+# Initialize extractor
+extractor = ImageDataExtractor(
+    analysis_provider="anthropic",
+    analysis_model="claude-sonnet-4-20250514",
+    extraction_provider="anthropic",
+    extraction_model="claude-sonnet-4-20250514"
+)
+
+# Extract data from charts, tables, or infographics
+result = await extractor.extract_all_data(
+    image_url="https://example.com/sales_chart.png",
+    focus_areas=["sales data", "trend analysis"]
+)
+
+print(f"Image type: {result.image_type}")
+print(f"Identified {result.total_datapoints_identified} datapoints")
+print(f"Successfully extracted: {result.successful_extractions}")
+
+# Get extracted data as dictionary
+data = await extractor.extract_as_dict(image_url)
+
+# Example: Extract data from a bar chart
+if "sales_by_region" in data["data"]:
+    sales_data = data["data"]["sales_by_region"]
+    print(f"Columns: {sales_data['columns']}")  # ['region', 'sales_amount']
+    print(f"Data: {sales_data['data']}")        # [['North', 150000], ['South', 120000], ...]
+```
+
+### HTML Data Extraction Tool
+
+Extract structured data from HTML content (tables, lists, product cards, etc.):
+
+```python
+from defog.llm import HTMLDataExtractor, extract_html_data
+
+# Initialize extractor with different providers
+extractor = HTMLDataExtractor(
+    analysis_provider="openai",
+    analysis_model="gpt-4",
+    extraction_provider="gemini",
+    extraction_model="gemini-2.5-pro"
+)
+
+# Extract from HTML content
+html_content = """
+<table>
+    <tr><th>Product</th><th>Price</th><th>Stock</th></tr>
+    <tr><td>Widget A</td><td>$19.99</td><td>150</td></tr>
+    <tr><td>Widget B</td><td>$29.99</td><td>75</td></tr>
+</table>
+"""
+
+result = await extractor.extract_all_data(
+    html_content=html_content,
+    focus_areas=["product inventory", "pricing data"]
+)
+
+# Extract specific datapoints only
+filtered_result = await extractor.extract_all_data(
+    html_content=html_content,
+    datapoint_filter=["product_inventory_table"]
+)
+
+# Use convenience function for quick extraction
+data = await extract_html_data(
+    html_content,
+    analysis_provider="gemini",
+    analysis_model="gemini-2.5-pro"
+)
+
+# Access extracted data
+for name, content in data["data"].items():
+    if "columns" in content and "data" in content:
+        print(f"{name}: {len(content['data'])} rows")
+        print(f"Columns: {content['columns']}")
+```
 
 ### Database Query Execution
 
