@@ -18,6 +18,7 @@ import re
 
 from .utils import chat_async
 from .llm_providers import LLMProvider
+from .image_data_extractor import ImageDataExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ class DataPointIdentification(BaseModel):
     )
     description: str = Field(description="Description of what this datapoint contains")
     data_type: str = Field(
-        description="Type of data: 'table', 'list', 'key_value_pairs', 'structured_text'"
+        description="Type of data: 'table', 'list', 'key_value_pairs', 'structured_text', 'image'"
     )
     location_hint: str = Field(
         description="Hint about where in the HTML this data is located (e.g., CSS selector, section name)"
@@ -126,6 +127,7 @@ class HTMLDataExtractor:
         temperature: float = 0.0,
         max_html_size_mb: int = MAX_HTML_SIZE_MB,
         enable_caching: bool = True,
+        enable_image_extraction: bool = True,
     ):
         """
         Initialize HTML Data Extractor.
@@ -137,6 +139,9 @@ class HTMLDataExtractor:
             extraction_model: Model for data extraction
             max_parallel_extractions: Maximum parallel extraction tasks
             temperature: Sampling temperature
+            max_html_size_mb: Maximum HTML size in megabytes
+            enable_caching: Whether to enable caching of analysis results
+            enable_image_extraction: Whether to extract data from images in HTML
         """
         self.analysis_provider = analysis_provider
         self.analysis_model = analysis_model
@@ -147,6 +152,18 @@ class HTMLDataExtractor:
         self.max_html_size_bytes = max_html_size_mb * 1024 * 1024
         self.enable_caching = enable_caching
         self._analysis_cache = {} if enable_caching else None
+        self.enable_image_extraction = enable_image_extraction
+        
+        # Initialize image extractor if enabled
+        if enable_image_extraction:
+            self.image_extractor = ImageDataExtractor(
+                analysis_provider=analysis_provider,
+                analysis_model=analysis_model,
+                extraction_provider=extraction_provider,
+                extraction_model=extraction_model,
+                max_parallel_extractions=max_parallel_extractions,
+                temperature=temperature,
+            )
 
     async def analyze_html_structure(
         self, html_content: str, focus_areas: Optional[List[str]] = None
@@ -171,14 +188,15 @@ Find all structured data that can be stored in SQL tables:
 - Structured text (FAQs, features)
 - Forms and navigation menus
 - JSON-LD/microdata
+{"- Images (<img>) that contain data (charts, tables, diagrams)" if self.enable_image_extraction else ""}
 
 {f"Focus on: {', '.join(focus_areas)}" if focus_areas else ""}
 
 For each datapoint provide:
 - name: snake_case (e.g., 'product_inventory')
-- data_type: 'table', 'list', 'key_value_pairs', or 'structured_text'
-- location_hint: CSS selector or description
-- schema_fields: [{{name, type, description, optional: true}}]
+- data_type: 'table', 'list', 'key_value_pairs', {"'structured_text', or 'image'" if self.enable_image_extraction else "or 'structured_text'"}
+- location_hint: CSS selector or description{" (for images, include src attribute)" if self.enable_image_extraction else ""}
+- schema_fields: [{{name, type, description, optional: true}}]{" (for images, describe expected data columns)" if self.enable_image_extraction else ""}
 
 Extract RAW DATA values, not descriptions. Each datapoint should yield MULTIPLE ROWS."""
 
@@ -259,6 +277,36 @@ Extract RAW DATA values, not descriptions. Each datapoint should yield MULTIPLE 
                 element.replace_with(cleaned)
         
         return str(soup)
+    
+    def _extract_image_urls(self, html_content: str) -> Dict[str, str]:
+        """
+        Extract image URLs from HTML content.
+        
+        Args:
+            html_content: HTML string
+            
+        Returns:
+            Dictionary mapping image src to full URLs
+        """
+        soup = BeautifulSoup(html_content, 'html.parser')
+        image_urls = {}
+        
+        for img in soup.find_all('img'):
+            src = img.get('src')
+            if src:
+                # Store both the src attribute and any alt/title text for context
+                alt_text = img.get('alt', '')
+                title_text = img.get('title', '')
+                context = alt_text or title_text or ''
+                
+                # Use src as key for easy lookup
+                image_urls[src] = {
+                    'url': src,
+                    'context': context,
+                    'element': str(img)
+                }
+                
+        return image_urls
 
     def _generate_pydantic_schema(
         self, datapoint: DataPointIdentification
@@ -466,6 +514,68 @@ Extract RAW VALUES only. Empty cells = null."""
                 output_tokens=0,
                 cached_tokens=0,
             )
+            
+    async def _extract_image_data(
+        self, image_url: str, datapoint: DataPointIdentification
+    ) -> DataExtractionResult:
+        """
+        Extract data from an image using the image data extractor.
+        
+        Args:
+            image_url: URL of the image
+            datapoint: Datapoint identification with expected schema
+            
+        Returns:
+            DataExtractionResult
+        """
+        try:
+            # Use the image extractor to analyze and extract data
+            result = await self.image_extractor.extract_all_data(
+                image_url=image_url,
+                focus_areas=[datapoint.description],
+                datapoint_filter=[datapoint.name]
+            )
+            
+            # Find the extraction result for our datapoint
+            for extraction in result.extraction_results:
+                if extraction.datapoint_name == datapoint.name and extraction.success:
+                    return extraction
+                    
+            # If we didn't find a matching extraction, try without filter
+            result = await self.image_extractor.extract_all_data(
+                image_url=image_url,
+                focus_areas=[datapoint.description]
+            )
+            
+            # Return the first successful extraction
+            for extraction in result.extraction_results:
+                if extraction.success:
+                    # Update the datapoint name to match what was expected
+                    extraction.datapoint_name = datapoint.name
+                    return extraction
+                    
+            # No successful extractions
+            return DataExtractionResult(
+                datapoint_name=datapoint.name,
+                success=False,
+                error="No data could be extracted from the image",
+                cost_cents=result.total_cost_cents,
+                input_tokens=result.metadata.get("total_input_tokens", 0),
+                output_tokens=result.metadata.get("total_output_tokens", 0),
+                cached_tokens=result.metadata.get("total_cached_tokens", 0),
+            )
+            
+        except Exception as e:
+            logger.error(f"Error extracting image data for {datapoint.name}: {e}")
+            return DataExtractionResult(
+                datapoint_name=datapoint.name,
+                success=False,
+                error=str(e),
+                cost_cents=0.0,
+                input_tokens=0,
+                output_tokens=0,
+                cached_tokens=0,
+            )
 
     async def extract_all_data(
         self,
@@ -545,14 +655,40 @@ Extract RAW VALUES only. Empty cells = null."""
             except Exception as e:
                 logger.error(f"Failed to generate schema for {datapoint.name}: {e}")
 
+        # Extract image URLs if we have image datapoints
+        image_urls = {}
+        if self.enable_image_extraction and any(dp.data_type == "image" for dp in datapoints_to_extract):
+            image_urls = self._extract_image_urls(sanitized_html)
+            logger.info(f"Found {len(image_urls)} images in HTML")
+        
         # Step 3: Extract data in parallel
         extraction_tasks = []
+        image_extraction_tasks = []
+        
         for datapoint in datapoints_to_extract:
             if datapoint.name in schemas:
-                task = self.extract_single_datapoint(
-                    sanitized_html, datapoint, schemas[datapoint.name]
-                )
-                extraction_tasks.append(task)
+                if datapoint.data_type == "image" and self.enable_image_extraction:
+                    # Extract image URL from location hint
+                    # The location hint should contain the src attribute
+                    src_match = None
+                    for src, img_info in image_urls.items():
+                        if src in datapoint.location_hint:
+                            src_match = src
+                            break
+                    
+                    if src_match:
+                        # Create image extraction task
+                        image_url = image_urls[src_match]['url']
+                        task = self._extract_image_data(image_url, datapoint)
+                        image_extraction_tasks.append((datapoint, task))
+                    else:
+                        logger.warning(f"Could not find image URL for datapoint {datapoint.name}")
+                else:
+                    # Regular HTML extraction
+                    task = self.extract_single_datapoint(
+                        sanitized_html, datapoint, schemas[datapoint.name]
+                    )
+                    extraction_tasks.append(task)
 
         # Limit concurrency
         semaphore = asyncio.Semaphore(self.max_parallel_extractions)
@@ -561,11 +697,15 @@ Extract RAW VALUES only. Empty cells = null."""
             async with semaphore:
                 return await task
 
+        # Combine all extraction tasks
+        all_tasks = extraction_tasks + [task for _, task in image_extraction_tasks]
+        
         logger.info(
-            f"Step 2 - Starting parallel extraction of {len(extraction_tasks)} datapoints"
+            f"Step 2 - Starting parallel extraction of {len(all_tasks)} datapoints "
+            f"({len(extraction_tasks)} HTML, {len(image_extraction_tasks)} images)"
         )
         extraction_results = await asyncio.gather(
-            *[extract_with_limit(task) for task in extraction_tasks],
+            *[extract_with_limit(task) for task in all_tasks],
             return_exceptions=True,
         )
 

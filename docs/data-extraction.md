@@ -263,7 +263,7 @@ dashboard_data = await extract_image_data(
 
 ## HTML Data Extraction
 
-Extract structured data from HTML content including tables, lists, product information, and more.
+Extract structured data from HTML content including tables, lists, product information, and even data from images embedded in the HTML.
 
 ### Basic Usage
 
@@ -301,7 +301,8 @@ extractor = HTMLDataExtractor(
     analysis_provider="openai",
     analysis_model="gpt-4",
     extraction_provider="gemini",
-    extraction_model="gemini-2.5-pro"
+    extraction_model="gemini-2.5-pro",
+    enable_image_extraction=True  # Enable extraction from images in HTML
 )
 
 # Extract from complex e-commerce page
@@ -371,6 +372,30 @@ form_html = """
 </form>
 """
 survey_data = await extract_html_data(form_html, focus_areas=["survey results"])
+
+# HTML with embedded images (charts, graphs, tables as images)
+html_with_images = """
+<div class="report">
+    <h2>Sales Analysis</h2>
+    <img src="https://example.com/sales-chart.png" 
+         alt="Bar chart showing monthly sales data">
+    <p>Sales increased by 25% this quarter.</p>
+    
+    <h2>Regional Distribution</h2>
+    <img src="https://example.com/regional-pie-chart.png"
+         alt="Pie chart showing sales by region">
+</div>
+"""
+
+# Extract data from both HTML content and embedded images
+data_with_images = await extract_html_data(
+    html_with_images, 
+    focus_areas=["sales data", "regional distribution"],
+    enable_image_extraction=True  # This is True by default
+)
+
+# The extractor will identify images as potential data sources
+# and extract structured data from charts, graphs, and image-based tables
 ```
 
 ## Common Patterns
