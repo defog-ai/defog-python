@@ -315,7 +315,9 @@ Extract RAW DATA values, not descriptions. Each datapoint should yield MULTIPLE 
 
         return str(soup)
 
-    def _extract_image_urls(self, html_content: str, base_url: Optional[str] = None) -> Dict[str, str]:
+    def _extract_image_urls(
+        self, html_content: str, base_url: Optional[str] = None
+    ) -> Dict[str, str]:
         """
         Extract image URLs from HTML content, resolving relative URLs if base_url is provided.
 
@@ -344,7 +346,11 @@ Extract RAW DATA values, not descriptions. Each datapoint should yield MULTIPLE 
                     resolved_url = urljoin(base_url, src)
 
                 # Use original src as key for easy lookup in location hints
-                image_urls[src] = {"url": resolved_url, "context": context, "element": str(img)}
+                image_urls[src] = {
+                    "url": resolved_url,
+                    "context": context,
+                    "element": str(img),
+                }
 
         return image_urls
 

@@ -810,14 +810,14 @@ class TestHTMLDataExtractorWithImages:
             assert image_urls[url]["url"] == url
             assert "context" in image_urls[url]
             assert "element" in image_urls[url]
-            
+
     async def test_relative_url_resolution(self):
         """Test that relative image URLs are resolved correctly"""
         if not os.getenv("ANTHROPIC_API_KEY"):
             pytest.skip("ANTHROPIC_API_KEY not set")
-            
+
         extractor = HTMLDataExtractor(enable_image_extraction=True)
-        
+
         # HTML with relative image URLs
         html_with_relative_urls = """
         <html>
@@ -829,19 +829,31 @@ class TestHTMLDataExtractorWithImages:
         </body>
         </html>
         """
-        
+
         base_url = "https://example.com/reports/2024/"
-        
+
         # Test URL extraction with base_url
         image_urls = extractor._extract_image_urls(html_with_relative_urls, base_url)
-        
+
         # Check that relative URLs are resolved correctly
-        assert image_urls["/images/chart1.png"]["url"] == "https://example.com/images/chart1.png"
-        assert image_urls["./images/chart2.png"]["url"] == "https://example.com/reports/2024/images/chart2.png"
-        assert image_urls["../data/chart3.png"]["url"] == "https://example.com/reports/data/chart3.png"
-        
+        assert (
+            image_urls["/images/chart1.png"]["url"]
+            == "https://example.com/images/chart1.png"
+        )
+        assert (
+            image_urls["./images/chart2.png"]["url"]
+            == "https://example.com/reports/2024/images/chart2.png"
+        )
+        assert (
+            image_urls["../data/chart3.png"]["url"]
+            == "https://example.com/reports/data/chart3.png"
+        )
+
         # Absolute URLs should remain unchanged
-        assert image_urls["https://example.com/absolute-chart.png"]["url"] == "https://example.com/absolute-chart.png"
+        assert (
+            image_urls["https://example.com/absolute-chart.png"]["url"]
+            == "https://example.com/absolute-chart.png"
+        )
 
 
 if __name__ == "__main__":
