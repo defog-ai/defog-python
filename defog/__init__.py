@@ -114,17 +114,9 @@ class BaseDefog:
                 raise KeyError("db_creds must contain a 'user' key.")
             if "password" not in db_creds:
                 raise KeyError("db_creds must contain a 'password' key.")
-        elif db_type == "mongo":
-            if "connection_string" not in db_creds:
-                raise KeyError("db_creds must contain a 'connection_string' key.")
         elif db_type == "bigquery":
             if "json_key_path" not in db_creds:
                 raise KeyError("db_creds must contain a 'json_key_path' key.")
-        elif db_type == "elastic":
-            if "host" not in db_creds:
-                raise KeyError("db_creds must contain a 'host' key.")
-            if "api_key" not in db_creds:
-                raise KeyError("db_creds must contain a 'api_key' key.")
         elif db_type == "sqlite":
             if "database" not in db_creds:
                 raise KeyError("db_creds must contain a 'database' key.")

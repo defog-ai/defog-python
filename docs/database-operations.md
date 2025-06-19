@@ -29,8 +29,6 @@ The library supports 11 database types:
 | Redshift | `redshift` | host, port, database, user, password |
 | SQLite | `sqlite` | database (file path) |
 | DuckDB | `duckdb` | database (file path) |
-| MongoDB | `mongo` | connection_string, database |
-| Elasticsearch | `elastic` | host, port, user, password, use_ssl |
 
 ## SQL Agent Tools
 
@@ -236,25 +234,6 @@ colnames, results = await async_execute_query(
     db_type="snowflake",
     db_creds=snow_creds
 )
-
-# MongoDB (aggregation pipeline)
-mongo_creds = {
-    "connection_string": "mongodb://localhost:27017/",
-    "database": "mydb"
-}
-
-pipeline = [
-    {"$match": {"status": "active"}},
-    {"$group": {"_id": "$category", "count": {"$sum": 1}}},
-    {"$limit": 10}
-]
-
-colnames, results = await async_execute_query(
-    query=json.dumps(pipeline),
-    db_type="mongo",
-    db_creds=mongo_creds
-)
-```
 
 ## Schema Documentation
 

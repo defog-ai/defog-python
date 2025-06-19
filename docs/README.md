@@ -88,7 +88,6 @@ Command-line interface documentation:
 
 - **PostgreSQL/MySQL** → [Database Operations](database-operations.md#supported-databases)
 - **BigQuery/Snowflake** → [Cloud Databases](database-operations.md#database-specific-examples)
-- **MongoDB/Elasticsearch** → [NoSQL Support](database-operations.md#supported-databases)
 - **SQLite/DuckDB** → [Local Databases](database-operations.md#supported-databases)
 
 ### By Provider

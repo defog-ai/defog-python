@@ -768,7 +768,7 @@ class LLMProvider(Enum):
 DBType = Literal[
     "postgres", "mysql", "bigquery", "snowflake",
     "databricks", "sqlserver", "redshift", "sqlite",
-    "duckdb", "mongo", "elastic"
+    "duckdb"
 ]
 
 class DBCredentials(TypedDict):
