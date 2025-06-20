@@ -182,8 +182,8 @@ async def chat_async_with_memory(
 # Convenience function for creating a memory manager
 def create_memory_manager(
     token_threshold: int = 100000,
-    preserve_last_n_messages: int = 10,
-    summary_max_tokens: int = 2000,
+    preserve_last_n_messages: int = 20,
+    summary_max_tokens: int = 10000,
     enabled: bool = True,
 ) -> MemoryManager:
     """
