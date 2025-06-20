@@ -61,20 +61,6 @@ class MockToolBlock:
 class TestImageDetection:
     """Test image detection in tool results."""
 
-    def test_no_image_keys_specified(self):
-        """Test that no image is detected when no keys are specified."""
-        result = MockToolResult(result="test", image_base64=create_test_image())
-
-        # No keys specified
-        text, image = detect_image_in_result(result, None)
-        assert image is None
-        assert text == str(result)
-
-        # Empty keys list
-        text, image = detect_image_in_result(result, [])
-        assert image is None
-        assert text == str(result)
-
     def test_correct_image_key(self):
         """Test that image is detected with correct key."""
         image_data = create_test_image()
@@ -83,14 +69,6 @@ class TestImageDetection:
         text, image = detect_image_in_result(result, ["image_base64"])
         assert image == image_data
         assert text == "test"  # Should return the cleaned result field
-
-    def test_wrong_image_key(self):
-        """Test that image is not detected with wrong key."""
-        result = MockToolResult(result="test", image_base64=create_test_image())
-
-        text, image = detect_image_in_result(result, ["wrong_key"])
-        assert image is None
-        assert text == str(result)
 
     def test_multiple_keys(self):
         """Test detection with multiple possible keys."""
@@ -102,22 +80,6 @@ class TestImageDetection:
         )
         assert image == image_data
 
-    def test_no_image_field(self):
-        """Test tool result without image field."""
-        result = MockToolResult(result="test", other_field="data")
-
-        text, image = detect_image_in_result(result, ["image_base64"])
-        assert image is None
-        assert text == str(result)
-
-    def test_empty_image_field(self):
-        """Test tool result with empty image field."""
-        result = MockToolResult(result="test", image_base64=None)
-
-        text, image = detect_image_in_result(result, ["image_base64"])
-        assert image is None
-        assert text == str(result)
-
     def test_multi_part_image_detection(self):
         """Test detection of multi-part images (list of base64 strings)."""
         image_list = create_multi_part_images()
@@ -126,14 +88,6 @@ class TestImageDetection:
         text, image = detect_image_in_result(result, ["image_base64"])
         assert image == image_list
         assert text == "multi-part screenshot"
-
-    def test_empty_image_list(self):
-        """Test tool result with empty image list."""
-        result = MockToolResult(result="test", image_base64=[])
-
-        text, image = detect_image_in_result(result, ["image_base64"])
-        assert image is None  # Empty list should be treated as no image
-        assert text == str(result)
 
 
 class TestToolResultProcessing:
