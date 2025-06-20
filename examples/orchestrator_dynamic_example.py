@@ -184,6 +184,9 @@ async def dynamic_orchestration_example():
     trace = generate_detailed_tool_trace(response.tool_outputs)
     print(trace)
 
+    print("\n=== Additional final answer generation cost ===")
+    print(f"${response.cost_in_cents / 100:.4f}")
+
 
 async def simple_dynamic_example():
     """A simpler example showing dynamic agent creation."""
