@@ -65,8 +65,8 @@ orchestrator = AgentOrchestrator(
     available_tools=[calculator_tool, text_processor_tool, data_formatter_tool],
     subagent_provider="anthropic",
     subagent_model="claude-3-5-haiku",
-    subagent_designer_provider="anthropic",
-    subagent_designer_model="claude-3-5-sonnet"
+    subagent_designer_provider="anthropic",  # LLM provider for designing subagents
+    subagent_designer_model="claude-3-5-sonnet"  # Model for analyzing tasks and creating subagents
 )
 
 # The orchestrator will automatically create subagents as needed
@@ -150,10 +150,12 @@ agent = Agent(
     provider="anthropic",
     model="claude-3-5-sonnet",
     memory_config={
-        "enabled": True,
         "token_threshold": 50000,
         "preserve_last_n_messages": 10,
-        "summary_max_tokens": 1000
+        "preserve_first_n_messages": 2,
+        "strategy": "similarity",  # similarity, recency, importance
+        "min_messages_to_keep": 5,
+        "grace_period_messages": 2
     }
 )
 
@@ -197,7 +199,9 @@ async def main():
         main_agent=main_agent,
         available_tools=[web_search_tool, summarize_tool],
         subagent_provider="anthropic",
-        subagent_model="claude-3-5-haiku"
+        subagent_model="claude-3-5-haiku",
+        subagent_designer_provider="anthropic",
+        subagent_designer_model="claude-3-5-sonnet"
     )
     
     # Process complex request
