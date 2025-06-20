@@ -99,7 +99,9 @@ class OrchestrationLogger:
                         )
                     )
 
-    def log_llm_call(self, provider: str, model: str, purpose: str = "Planning"):
+    def log_llm_call(
+        self, provider: str, model: str, purpose: str = "Subagent Designer"
+    ):
         """Log LLM API calls."""
         self.console.print()
         self.console.print(
