@@ -1,6 +1,7 @@
 import unittest
 import pytest
 import os
+import asyncio
 from defog.llm.web_search import web_search_tool
 from defog.llm.llm_providers import LLMProvider
 from tests.conftest import skip_if_no_api_key
@@ -132,18 +133,29 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         if not available_providers:
             self.skipTest("No API keys set for testing")
 
+        async def test_provider_question(provider, model, question):
+            result = await web_search_tool(
+                question=question,
+                model=model,
+                provider=provider,
+                max_tokens=1024,
+            )
+            return provider, question, result
+
+        # Create all test combinations
+        test_tasks = []
         for provider, model in available_providers:
             for question in questions:
-                with self.subTest(provider=provider.value, question=question):
-                    result = await web_search_tool(
-                        question=question,
-                        model=model,
-                        provider=provider,
-                        max_tokens=1024,
-                    )
+                test_tasks.append(test_provider_question(provider, model, question))
 
-                    self._validate_basic_structure(result)
-                    self._validate_search_results(result["search_results"], provider)
+        # Run all tests in parallel
+        results = await asyncio.gather(*test_tasks)
+
+        # Validate all results
+        for provider, question, result in results:
+            with self.subTest(provider=provider.value, question=question):
+                self._validate_basic_structure(result)
+                self._validate_search_results(result["search_results"], provider)
 
     @pytest.mark.asyncio
     async def test_web_search_custom_max_tokens(self):
@@ -162,15 +174,24 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         if not available_providers:
             self.skipTest("No API keys set for testing")
 
-        for provider, model in available_providers:
-            with self.subTest(provider=provider.value):
-                result = await web_search_tool(
-                    question="Brief summary of Python programming language",
-                    model=model,
-                    provider=provider,
-                    max_tokens=1024,
-                )
+        async def test_provider(provider, model):
+            result = await web_search_tool(
+                question="Brief summary of Python programming language",
+                model=model,
+                provider=provider,
+                max_tokens=1024,
+            )
+            return provider, result
 
+        # Run all provider tests in parallel
+        test_tasks = [
+            test_provider(provider, model) for provider, model in available_providers
+        ]
+        results = await asyncio.gather(*test_tasks)
+
+        # Validate all results
+        for provider, result in results:
+            with self.subTest(provider=provider.value):
                 self._validate_basic_structure(result)
 
 
