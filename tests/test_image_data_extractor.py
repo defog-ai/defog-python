@@ -53,8 +53,6 @@ class TestImageDataExtractorE2E:
 
                 # Should have columns and data for tabular format
                 assert "columns" in data or "data" in data
-                print(f"\nExtracted {extraction.datapoint_name}:")
-                print(json.dumps(data, indent=2)[:500])
 
     @pytest.mark.asyncio
     async def test_openai_full_extraction(self):
@@ -172,9 +170,6 @@ class TestImageDataExtractorE2E:
 
         # Verify we got actual data
         assert len(result["data"]) > 0
-        for datapoint_name, data in result["data"].items():
-            print(f"\nDatapoint: {datapoint_name}")
-            print(json.dumps(data, indent=2)[:300])
 
     @pytest.mark.asyncio
     async def test_focus_areas(self):
@@ -192,12 +187,6 @@ class TestImageDataExtractorE2E:
 
         assert result.successful_extractions > 0
 
-        # The focused extraction should find relevant data
-        for extraction in result.extraction_results:
-            if extraction.success:
-                print(f"\nFocused extraction found: {extraction.datapoint_name}")
-                print(f"Description: {extraction.datapoint_name}")
-
     @pytest.mark.asyncio
     async def test_datapoint_filtering(self):
         """Test filtering specific datapoints"""
@@ -208,10 +197,6 @@ class TestImageDataExtractorE2E:
 
         # First, analyze to see what datapoints are available
         analysis, _ = await extractor.analyze_image_structure(TEST_IMAGES["chart"])
-
-        print(f"\nFound {len(analysis.identified_datapoints)} datapoints:")
-        for dp in analysis.identified_datapoints:
-            print(f"  - {dp.name}: {dp.description}")
 
         if len(analysis.identified_datapoints) > 0:
             # Extract only the first datapoint
