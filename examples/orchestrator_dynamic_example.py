@@ -105,20 +105,28 @@ async def cricket_sql_query(input: SQLQueryInput) -> Dict[str, Any]:
         )
 
         if result.get("success"):
-            return {
+            response = {
                 "success": True,
                 "query": result.get("query"),
                 "columns": result.get("columns"),
                 "results": result.get("results"),
                 "error": None,
             }
+            # Pass through cost if available
+            if result.get("cost_in_cents") is not None:
+                response["cost_in_cents"] = result["cost_in_cents"]
+            return response
         else:
-            return {
+            response = {
                 "success": False,
                 "query": result.get("query"),
                 "results": None,
                 "error": result.get("error"),
             }
+            # Pass through cost even on failure if available
+            if result.get("cost_in_cents") is not None:
+                response["cost_in_cents"] = result["cost_in_cents"]
+            return response
     except Exception as e:
         return {"success": False, "query": None, "results": None, "error": str(e)}
 
@@ -225,6 +233,9 @@ async def simple_dynamic_example():
         print("\n=== Detailed Tool Trace ===")
         trace = generate_detailed_tool_trace(response.tool_outputs)
         print(trace)
+
+        print("\n=== Additional final answer generation cost ===")
+        print(f"${response.cost_in_cents / 100:.4f}")
     except Exception as e:
         logger.error(f"Error during processing: {e}", exc_info=True)
         print(f"Error: {e}")
