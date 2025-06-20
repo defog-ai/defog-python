@@ -607,7 +607,6 @@ class SchemaDocumenter:
                 messages=[{"role": "user", "content": prompt}],
                 provider=self.config.provider,
                 model=self.config.model,
-                max_completion_tokens=2000,
                 temperature=0.1,
                 response_format=SchemaDocumentationResponse,
             )

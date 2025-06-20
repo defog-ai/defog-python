@@ -86,7 +86,6 @@ async def analyze_local_image(image_path: str):
                 provider=provider,
                 model=model,
                 messages=messages,
-                max_completion_tokens=2000,
             )
             print(f"Response: {response.content}...")
             print(f"Cost: ${response.cost_in_cents / 100:.4f}")
@@ -124,7 +123,6 @@ async def analyze_image_url(image_url: str):
                 provider=provider,
                 model=model,
                 messages=messages,
-                max_completion_tokens=2000,
             )
             print(f"Response: {response.content}...")
             print(f"Cost: ${response.cost_in_cents / 100:.4f}")
@@ -156,7 +154,6 @@ async def structured_image_analysis(image_url: str):
         model="claude-sonnet-4-20250514",
         messages=messages,
         response_format=ImageAnalysis,
-        max_completion_tokens=2000,
     )
 
     print(f"Description: {response.content.description}")
@@ -202,7 +199,6 @@ async def multi_image_conversation():
         provider=LLMProvider.ANTHROPIC,
         model="claude-sonnet-4-20250514",
         messages=messages,
-        max_completion_tokens=2000,
     )
 
     print(f"Comparison: {response.content}")

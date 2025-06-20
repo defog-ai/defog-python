@@ -302,7 +302,6 @@ Return only the JSON response."""
                 model=model,
                 messages=analysis_messages,
                 temperature=temperature,
-                max_completion_tokens=2000,
                 config=config,
             )
 

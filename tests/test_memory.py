@@ -293,7 +293,6 @@ class TestChatAsyncWithMemoryReal:
             model="gpt-4.1-nano",
             messages=[{"role": "user", "content": "What is 2+2?"}],
             memory_manager=manager,
-            max_completion_tokens=50,
         )
 
         assert response1.content is not None
@@ -310,7 +309,6 @@ class TestChatAsyncWithMemoryReal:
             model="gpt-4.1-nano",
             messages=[{"role": "user", "content": "What about 3+3?"}],
             memory_manager=manager,
-            max_completion_tokens=50,
         )
 
         assert response2.content is not None
@@ -360,7 +358,6 @@ class TestChatAsyncWithMemoryReal:
             model="gpt-4.1-nano",
             messages=[{"role": "user", "content": "What's the latest version?"}],
             memory_manager=manager,
-            max_completion_tokens=100,
         )
 
         assert response.content is not None
@@ -584,7 +581,6 @@ class TestLongConversationWithMemory:
                     {"role": "user", "content": f"Question {i}: What is {i} + {i}?"}
                 ],
                 memory_manager=manager,
-                max_completion_tokens=50,
             )
 
             assert response.content is not None
