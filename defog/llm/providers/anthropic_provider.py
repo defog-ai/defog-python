@@ -120,18 +120,22 @@ class AnthropicProvider(BaseLLMProvider):
         """Create the parameter dict for Anthropic's .messages.create()."""
         # Convert messages to support multimodal content
         converted_messages = []
-        sys_msg = ""
+        system_messages = []
 
-        for i, msg in enumerate(messages):
-            if i == 0 and msg.get("role") == "system":
+        for msg in messages:
+            if msg.get("role") == "system":
                 # Extract system message content (always text)
-                sys_msg = msg["content"] if isinstance(msg["content"], str) else ""
+                content = msg["content"] if isinstance(msg["content"], str) else ""
+                system_messages.append(content)
                 continue
 
             # Convert message content to Anthropic format
             converted_msg = msg.copy()
             converted_msg["content"] = self.convert_content_to_anthropic(msg["content"])
             converted_messages.append(converted_msg)
+
+        # Concatenate all system messages into a single string
+        sys_msg = "\n\n".join(system_messages) if system_messages else ""
 
         messages = converted_messages
 
