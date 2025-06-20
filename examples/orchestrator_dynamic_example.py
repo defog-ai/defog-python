@@ -76,7 +76,7 @@ class DataAnalysisInput(BaseModel):
 
 
 async def analyze_data(input: DataAnalysisInput) -> Dict[str, Any]:
-    """Analyze data using statistical or visualization methods."""
+    """Analyze data using statistical methods."""
     code = f"""
 import json
 import statistics
