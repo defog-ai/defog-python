@@ -2,7 +2,6 @@
 End-to-end tests for ImageDataExtractor with multiple providers
 """
 
-import json
 import pytest
 import os
 
