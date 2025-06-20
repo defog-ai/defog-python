@@ -14,7 +14,7 @@ A comprehensive Python toolkit for AI-powered data operations - from natural lan
 ## Installation
 
 ```bash
-pip install defog
+pip install --upgrade defog
 ```
 
 ## Quick Start
