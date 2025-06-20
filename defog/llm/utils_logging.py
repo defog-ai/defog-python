@@ -234,7 +234,17 @@ class OrchestrationLogger:
         if metadata:
             tokens = metadata.get("total_tokens", 0)
             cost = metadata.get("cost_in_cents", 0) or 0
-            if tokens or cost:
+
+            # Check for detailed cost breakdown
+            if "cost_breakdown" in metadata:
+                breakdown = metadata["cost_breakdown"]
+                self.console.print(
+                    f"    [dim]Tokens: {tokens} | "
+                    f"LLM: ${breakdown['llm_cost'] / 100:.4f} | "
+                    f"Tools: ${breakdown['tool_cost'] / 100:.4f} | "
+                    f"Total: ${breakdown['total_cost'] / 100:.4f}[/dim]"
+                )
+            elif tokens or cost:
                 self.console.print(
                     f"    [dim]Tokens: {tokens} | Cost: ${cost / 100:.4f}[/dim]"
                 )
@@ -263,13 +273,57 @@ class OrchestrationLogger:
             # Calculate total cost and tokens
             total_cost = 0
             total_tokens = 0
+            total_llm_cost = 0
+            total_tool_cost = 0
+
             for result in task_results.values():
                 if result.get("metadata"):
-                    total_cost += result["metadata"].get("cost_in_cents", 0) or 0
-                    total_tokens += result["metadata"].get("total_tokens", 0)
+                    metadata = result["metadata"]
+                    total_tokens += metadata.get("total_tokens", 0)
+
+                    # Use detailed cost breakdown if available
+                    if "total_cost_in_cents" in metadata:
+                        total_cost += metadata.get("total_cost_in_cents", 0) or 0
+                        total_llm_cost += metadata.get("cost_in_cents", 0) or 0
+                        total_tool_cost += metadata.get("tool_costs_in_cents", 0) or 0
+                    else:
+                        # Fallback to simple cost
+                        cost = metadata.get("cost_in_cents", 0) or 0
+                        total_cost += cost
+                        total_llm_cost += cost
 
             stats_table.add_row("Total Tokens", f"{total_tokens:,}")
-            stats_table.add_row("Total Cost", f"${total_cost / 100:.4f}")
+
+            # Show cost breakdown if we have tool costs
+            if total_tool_cost > 0:
+                stats_table.add_row("LLM Cost", f"${total_llm_cost / 100:.4f}")
+                stats_table.add_row("Tool Cost", f"${total_tool_cost / 100:.4f}")
+                stats_table.add_row(
+                    "[bold]Total Cost[/bold]", f"[bold]${total_cost / 100:.4f}[/bold]"
+                )
+            else:
+                stats_table.add_row("Total Cost", f"${total_cost / 100:.4f}")
+
+            # Add overall cost breakdown if available in results
+            if "total_cost_breakdown" in results:
+                breakdown = results["total_cost_breakdown"]
+                stats_table.add_row("", "")  # Empty row for spacing
+                stats_table.add_row(
+                    "[dim]Planning Cost[/dim]",
+                    f"[dim]${breakdown.get('planning_cost_in_cents', 0) / 100:.4f}[/dim]",
+                )
+                stats_table.add_row(
+                    "[dim]Subagent Cost[/dim]",
+                    f"[dim]${breakdown.get('subagent_costs_in_cents', 0) / 100:.4f}[/dim]",
+                )
+                stats_table.add_row(
+                    "[dim]Tool Cost[/dim]",
+                    f"[dim]${breakdown.get('tool_costs_in_cents', 0) / 100:.4f}[/dim]",
+                )
+                stats_table.add_row(
+                    "[bold]Grand Total[/bold]",
+                    f"[bold green]${breakdown.get('total_cost_in_cents', 0) / 100:.4f}[/bold green]",
+                )
 
             self.console.print(
                 Panel(
