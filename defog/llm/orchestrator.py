@@ -4,25 +4,25 @@ import asyncio
 import logging
 import time
 import traceback
-import threading
-from typing import List, Dict, Any, Optional, Union, Callable, Tuple
+from typing import List, Dict, Any, Optional, Union, Callable
 from dataclasses import dataclass, field
+from enum import Enum
 import json
 import inspect
+
+logger = logging.getLogger(__name__)
 
 from .utils import chat_async
 from .utils_memory import chat_async_with_memory, create_memory_manager
 from .providers.base import BaseLLMProvider, LLMResponse
 from .utils_logging import orch_logger
-from .shared_context import SharedContextStore, ArtifactType
-from .enhanced_memory import EnhancedMemoryManager
-from .config import EnhancedOrchestratorConfig
-from datetime import datetime
-
-logger = logging.getLogger(__name__)
 
 
-from .config.enums import ExecutionMode
+class ExecutionMode(Enum):
+    """Execution mode for subagent tasks."""
+
+    SEQUENTIAL = "sequential"
+    PARALLEL = "parallel"
 
 
 @dataclass
@@ -32,7 +32,7 @@ class SubAgentTask:
     agent_id: str
     task_description: str
     context: Optional[Dict[str, Any]] = None
-    execution_mode: ExecutionMode = ExecutionMode.PARALLEL
+    execution_mode: ExecutionMode = ExecutionMode.SEQUENTIAL
     dependencies: Optional[List[str]] = None  # IDs of tasks that must complete first
     max_retries: int = 3
     retry_delay: float = 1.0
@@ -48,7 +48,7 @@ class SubAgentPlan:
     system_prompt: str
     task_description: str
     tools: List[str]  # Tool names from available tools
-    execution_mode: ExecutionMode = ExecutionMode.PARALLEL
+    execution_mode: ExecutionMode = ExecutionMode.SEQUENTIAL
     dependencies: Optional[List[str]] = None
 
 
@@ -80,7 +80,6 @@ class Agent:
         system_prompt: Optional[str] = None,
         tools: Optional[List[Callable]] = None,
         memory_config: Optional[Dict[str, Any]] = None,
-        reasoning_effort: Optional[str] = "medium",
         **kwargs,
     ):
         self.agent_id = agent_id
@@ -88,7 +87,6 @@ class Agent:
         self.model = model
         self.system_prompt = system_prompt
         self.tools = tools or []
-        self.reasoning_effort = reasoning_effort
         self.kwargs = kwargs  # Additional params for chat_async
 
         # Initialize memory if configured
@@ -128,10 +126,6 @@ class Agent:
         # Merge kwargs
         call_kwargs = {**self.kwargs, **kwargs}
 
-        # Add reasoning_effort if not already specified in kwargs
-        if "reasoning_effort" not in call_kwargs and self.reasoning_effort:
-            call_kwargs["reasoning_effort"] = self.reasoning_effort
-
         # Use memory-enabled chat if memory manager exists
         if self.memory_manager:
             response = await chat_async_with_memory(
@@ -153,14 +147,14 @@ class Agent:
 
         return response
 
+    def clear_memory(self):
+        """Clear agent's memory if it exists."""
+        if self.memory_manager:
+            self.memory_manager.clear()
 
-class Orchestrator:
-    """Unified orchestrator for managing main agent and subagents with task delegation.
 
-    This consolidated class supports both basic and enhanced orchestration capabilities,
-    including optional features like shared context, cross-agent memory, and thinking agents.
-    Enhanced features are controlled via the EnhancedOrchestratorConfig parameter.
-    """
+class AgentOrchestrator:
+    """Orchestrator for managing main agent and subagents with task delegation."""
 
     def __init__(
         self,
@@ -171,87 +165,23 @@ class Orchestrator:
         subagent_model: Optional[str] = None,
         planning_provider: str = "anthropic",
         planning_model: str = "claude-opus-4-20250514",
-        reasoning_effort: Optional[str] = "medium",
         max_retries: int = 3,
         retry_delay: float = 1.0,
         retry_backoff: float = 2.0,
         retry_timeout: Optional[float] = None,
         fallback_model: Optional[str] = None,
-        max_recursion_depth: int = 3,
-        max_total_retries: int = 10,
-        max_decomposition_depth: int = 2,
-        global_timeout: float = 1200.0,  # 20 minutes default
-        config: Optional[EnhancedOrchestratorConfig] = None,
-        # Legacy parameters for backward compatibility
-        shared_context_path: str = ".agent_workspace",
-        **kwargs,  # Capture any other legacy parameters
     ):
-        # Use provided config or create default with legacy parameters
-        if config is None:
-            config = EnhancedOrchestratorConfig()
-            # Only override essential legacy parameters
-            config.shared_context.base_path = shared_context_path
-            config.max_parallel_tasks = max_parallel_tasks
-            config.global_timeout = global_timeout
-            config.max_retries = max_retries
-            config.retry_delay = retry_delay
-            config.retry_backoff = retry_backoff
-
-        self.config = config
         self.main_agent = main_agent
         self.subagents = {}
-        self.max_parallel_tasks = config.max_parallel_tasks
+        self.max_parallel_tasks = max_parallel_tasks
         self.task_results: Dict[str, SubAgentResult] = {}
 
         # Retry configuration
-        self.max_retries = config.max_retries
-        self.retry_delay = config.retry_delay
-        self.retry_backoff = config.retry_backoff
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.retry_backoff = retry_backoff
         self.retry_timeout = retry_timeout
         self.fallback_model = fallback_model
-
-        # Infinite loop prevention
-        self.max_recursion_depth = max_recursion_depth
-        self.max_total_retries = max_total_retries
-        self.max_decomposition_depth = max_decomposition_depth
-        self.global_timeout = config.global_timeout
-        self._recursion_depth = 0
-        self._total_retries = 0
-        self._decomposition_depth = 0
-        self._start_time = None
-
-        # Thread safety for counters
-        self._counter_lock = threading.Lock()
-
-        # Initialize enhanced features
-        # Initialize shared context
-        self.shared_context = SharedContextStore(
-            base_path=config.shared_context.base_path,
-            max_file_size_mb=config.shared_context.max_file_size_mb,
-        )
-
-        # Initialize exploration executor
-        if config.enable_exploration:
-            # Import here to avoid circular import
-            from .exploration_executor import ExplorationExecutor, ExplorationStrategy
-
-            self.exploration_executor = ExplorationExecutor(
-                shared_context=self.shared_context,
-                max_parallel_explorations=config.exploration.max_parallel_explorations,
-                exploration_timeout=config.exploration.exploration_timeout,
-                enable_learning=config.exploration.enable_learning,
-            )
-            self.ExplorationStrategy = (
-                ExplorationStrategy  # Store reference for later use
-            )
-        else:
-            self.exploration_executor = None
-
-        # Configuration
-        self.enable_thinking_agents = config.enable_thinking_agents
-        self.enable_exploration = config.enable_exploration
-        self.exploration_strategy = config.exploration.default_strategy
-        self.enable_cross_agent_memory = config.enable_cross_agent_memory
 
         # For dynamic subagent creation
         self.available_tools = available_tools or []
@@ -262,239 +192,16 @@ class Orchestrator:
         self.subagent_model = subagent_model or main_agent.model
         self.planning_provider = planning_provider
         self.planning_model = planning_model
-        self.reasoning_effort = reasoning_effort
 
         # Circuit breaker state
         self.failure_count = 0
         self.circuit_breaker_threshold = 5
         self.circuit_breaker_timeout = 60
 
-        # Validate configuration parameters
-        self._validate_config(
-            max_recursion_depth,
-            max_total_retries,
-            max_decomposition_depth,
-            global_timeout,
-            max_parallel_tasks,
-            max_retries,
-            retry_delay,
-            retry_backoff,
-        )
-
-        # Enhance main agent if it's not already enhanced
-        self._enhance_main_agent()
-
         # Add delegation tools to main agent
         self._add_delegation_tool()
         if self.available_tools:
             self._add_dynamic_planning_tool()
-
-        logger.info(
-            f"Orchestrator initialized with shared_context at {config.shared_context.base_path}"
-        )
-
-    def _validate_config(
-        self,
-        max_recursion_depth: int,
-        max_total_retries: int,
-        max_decomposition_depth: int,
-        global_timeout: float,
-        max_parallel_tasks: int,
-        max_retries: int,
-        retry_delay: float,
-        retry_backoff: float,
-    ) -> None:
-        """Validate configuration parameters."""
-        if max_recursion_depth < 1:
-            raise ValueError("max_recursion_depth must be >= 1")
-        if max_total_retries < 1:
-            raise ValueError("max_total_retries must be >= 1")
-        if max_decomposition_depth < 1:
-            raise ValueError("max_decomposition_depth must be >= 1")
-        if global_timeout <= 0:
-            raise ValueError("global_timeout must be > 0")
-        if max_parallel_tasks < 1:
-            raise ValueError("max_parallel_tasks must be >= 1")
-        if max_retries < 0:
-            raise ValueError("max_retries must be >= 0")
-        if retry_delay < 0:
-            raise ValueError("retry_delay must be >= 0")
-        if retry_backoff <= 0:
-            raise ValueError("retry_backoff must be > 0")
-
-        logger.info(
-            f"Orchestrator initialized with limits: recursion_depth={max_recursion_depth}, total_retries={max_total_retries}, decomposition_depth={max_decomposition_depth}, timeout={global_timeout}s"
-        )
-
-    def _increment_total_retries(self) -> None:
-        """Thread-safe increment of total retries counter."""
-        with self._counter_lock:
-            self._total_retries += 1
-
-    def _increment_recursion_depth(self) -> None:
-        """Thread-safe increment of recursion depth counter."""
-        with self._counter_lock:
-            self._recursion_depth += 1
-
-    def _decrement_recursion_depth(self) -> None:
-        """Thread-safe decrement of recursion depth counter."""
-        with self._counter_lock:
-            self._recursion_depth -= 1
-
-    def _increment_decomposition_depth(self) -> None:
-        """Thread-safe increment of decomposition depth counter."""
-        with self._counter_lock:
-            self._decomposition_depth += 1
-
-    def _decrement_decomposition_depth(self) -> None:
-        """Thread-safe decrement of decomposition depth counter."""
-        with self._counter_lock:
-            self._decomposition_depth -= 1
-
-    def _get_counter_values(self) -> Tuple[int, int, int]:
-        """Thread-safe getter for all counter values."""
-        with self._counter_lock:
-            return (
-                self._total_retries,
-                self._recursion_depth,
-                self._decomposition_depth,
-            )
-
-    def _get_cycle_path(
-        self, task_map: Dict[str, Any], start_task: str, end_task: str
-    ) -> List[str]:
-        """Get the path of a circular dependency for better error messages."""
-        visited = set()
-        path = []
-
-        def dfs_path(
-            current_task: str, target_task: str, current_path: List[str]
-        ) -> bool:
-            if current_task in visited:
-                return False
-
-            visited.add(current_task)
-            current_path.append(current_task)
-
-            if current_task == target_task and len(current_path) > 1:
-                return True
-
-            task = task_map.get(current_task)
-            if task and task.dependencies:
-                for dep in task.dependencies:
-                    if dfs_path(dep, target_task, current_path):
-                        return True
-
-            current_path.pop()
-            return False
-
-        if dfs_path(start_task, end_task, path):
-            return path
-        return [start_task, end_task]  # Fallback minimal path
-
-    def _enhance_main_agent(self):
-        """Enhance the main agent with shared context and memory."""
-        # If main agent is not a ThinkingAgent, we can still enhance its memory
-        if self.enable_cross_agent_memory and self.main_agent.memory_manager:
-            # Replace with enhanced memory manager
-            old_manager = self.main_agent.memory_manager
-            self.main_agent.memory_manager = EnhancedMemoryManager(
-                token_threshold=getattr(old_manager, "token_threshold", 50000),
-                preserve_last_n_messages=getattr(
-                    old_manager, "preserve_last_n_messages", 10
-                ),
-                summary_max_tokens=getattr(old_manager, "summary_max_tokens", 1000),
-                enabled=getattr(old_manager, "enabled", True),
-                shared_context_store=self.shared_context,
-                agent_id=self.main_agent.agent_id,
-                cross_agent_sharing=True,
-            )
-
-        # Import ThinkingAgent here to avoid circular imports
-        from .thinking_agent import ThinkingAgent
-
-        # If it's already a ThinkingAgent, ensure it has shared context
-        if isinstance(self.main_agent, ThinkingAgent):
-            self.main_agent.shared_context = self.shared_context
-
-    def _create_enhanced_subagent(
-        self,
-        agent_id: str,
-        system_prompt: str,
-        tools: List[Callable],
-        parent_context: Optional[Dict[str, Any]] = None,
-    ) -> Agent:
-        """Create an enhanced subagent with thinking capabilities."""
-        # Import ThinkingAgent here to avoid circular imports
-        from .thinking_agent import ThinkingAgent
-
-        if self.enable_thinking_agents:
-            # Create ThinkingAgent
-            agent = ThinkingAgent(
-                agent_id=agent_id,
-                provider=self.subagent_provider,
-                model=self.subagent_model,
-                system_prompt=system_prompt,
-                tools=tools,
-                reasoning_effort=self.reasoning_effort,
-                shared_context_store=self.shared_context,
-                enable_thinking_mode=True,
-                memory_config={
-                    "enabled": self.enable_cross_agent_memory,
-                    "token_threshold": 50000,
-                    "preserve_last_n_messages": 10,
-                    "summary_max_tokens": 4000,
-                },
-            )
-
-            # If parent context is available, initialize with it
-            if parent_context and hasattr(agent, "memory_manager"):
-                asyncio.create_task(
-                    self._initialize_agent_with_context(agent, parent_context)
-                )
-        else:
-            # Create regular agent but with enhanced memory
-            memory_config = None
-            if self.enable_cross_agent_memory:
-                memory_config = {
-                    "enabled": True,
-                    "shared_context_store": self.shared_context,
-                    "agent_id": agent_id,
-                }
-
-            agent = Agent(
-                agent_id=agent_id,
-                provider=self.subagent_provider,
-                model=self.subagent_model,
-                system_prompt=system_prompt,
-                tools=tools,
-                memory_config=memory_config,
-                reasoning_effort=self.reasoning_effort,
-            )
-
-        return agent
-
-    async def _initialize_agent_with_context(
-        self, agent: Agent, parent_context: Dict[str, Any]
-    ):
-        """Initialize a new agent with parent context."""
-        # Import ThinkingAgent here to avoid circular imports
-        from .thinking_agent import ThinkingAgent
-
-        if isinstance(agent, ThinkingAgent) and isinstance(
-            agent.memory_manager, EnhancedMemoryManager
-        ):
-            # Add parent context as initial memory
-            context_message = {
-                "role": "system",
-                "content": f"Context from parent agent:\n{parent_context}",
-            }
-            await agent.memory_manager.add_messages_with_sharing(
-                [context_message],
-                tokens=len(str(parent_context)) // 4,
-                tags=["parent_context", "initialization"],
-                share=True,
-            )
 
     def _add_delegation_tool(self):
         """Add delegation tool to main agent's toolset."""
@@ -558,37 +265,6 @@ class Orchestrator:
         self, tasks: List[SubAgentTask]
     ) -> List[SubAgentResult]:
         """Execute subagent tasks with dependency and parallelism management."""
-        logger.info(f"Executing {len(tasks)} subagent tasks")
-        logger.debug(
-            f"Current recursion depth: {self._recursion_depth}, Total retries: {self._total_retries}"
-        )
-
-        # Log orchestration start if enhanced features are enabled
-        orchestration_id = None
-        if hasattr(self, "shared_context") and self.shared_context:
-            orchestration_id = f"orch_{datetime.now().isoformat()}"
-            await self.shared_context.write_artifact(
-                agent_id=self.main_agent.agent_id,
-                key=f"orchestration/{orchestration_id}/start",
-                content={
-                    "tasks": [
-                        {
-                            "agent_id": t.agent_id,
-                            "task_id": getattr(t, "task_id", t.agent_id),
-                            "task_description": t.task_description,
-                            "execution_mode": t.execution_mode.value,
-                            "max_retries": t.max_retries,
-                            "retry_delay": t.retry_delay,
-                            "retry_backoff": t.retry_backoff,
-                            "dependencies": t.dependencies,
-                        }
-                        for t in tasks
-                    ],
-                    "timestamp": datetime.now().isoformat(),
-                },
-                artifact_type=ArtifactType.PLAN,
-            )
-
         results = []
         completed_tasks = set()
 
@@ -619,112 +295,21 @@ class Orchestrator:
                 results.append(result)
                 completed_tasks.add(result.task_id)
 
-        # Log orchestration completion if enhanced features are enabled
-        if orchestration_id and hasattr(self, "shared_context") and self.shared_context:
-            await self.shared_context.write_artifact(
-                agent_id=self.main_agent.agent_id,
-                key=f"orchestration/{orchestration_id}/complete",
-                content={
-                    "results": [
-                        {
-                            "agent_id": r.agent_id,
-                            "task_id": r.task_id,
-                            "success": r.success,
-                            "result": (
-                                str(r.result)[:500] if r.result else None
-                            ),  # Truncate long results
-                            "error": r.error,
-                            "error_type": r.error_type,
-                            "retry_count": r.retry_count,
-                            "execution_time": r.execution_time,
-                            "metadata": r.metadata,
-                        }
-                        for r in results
-                    ],
-                    "timestamp": datetime.now().isoformat(),
-                    "success_count": sum(1 for r in results if r.success),
-                },
-                artifact_type=ArtifactType.RESULT,
-            )
-
         return results
 
     def _group_tasks_by_dependencies(
         self, tasks: List[SubAgentTask]
     ) -> List[List[SubAgentTask]]:
-        """Group tasks by dependency order with cycle detection."""
-        # Create mapping from agent_id to task_id
-        agent_to_task_id = {}
-        task_map = {}
-
-        for i, task in enumerate(tasks):
-            task_id = f"task_{i}"
+        """Group tasks by dependency order."""
+        # Simple topological sort
+        task_map = {f"task_{i}": task for i, task in enumerate(tasks)}
+        for task_id, task in task_map.items():
             task.task_id = task_id
-            task_map[task_id] = task
-            agent_to_task_id[task.agent_id] = task_id
-
-        # Convert agent_id dependencies to task_id dependencies
-        for task in tasks:
-            if task.dependencies:
-                task_dependencies = []
-                for dep in task.dependencies:
-                    if dep in agent_to_task_id:
-                        task_dependencies.append(agent_to_task_id[dep])
-                    else:
-                        # If dependency is already a task_id, keep it
-                        if dep.startswith("task_"):
-                            task_dependencies.append(dep)
-                        else:
-                            logger.warning(
-                                f"Unknown dependency '{dep}' for task {task.task_id}"
-                            )
-                task.dependencies = task_dependencies
-
-        # Detect cycles using DFS
-        def has_cycle(
-            task_id: str, visited: set, rec_stack: set
-        ) -> Tuple[bool, str, str]:
-            visited.add(task_id)
-            rec_stack.add(task_id)
-
-            task = task_map.get(task_id)
-            if task and task.dependencies:
-                for dep in task.dependencies:
-                    if dep not in visited:
-                        result = has_cycle(dep, visited, rec_stack)
-                        if result[0]:  # Cycle found
-                            return result
-                    elif dep in rec_stack:
-                        logger.error(
-                            f"Circular dependency detected: {task_id} -> {dep}"
-                        )
-                        return (True, task_id, dep)  # Return cycle info
-
-            rec_stack.remove(task_id)
-            return (False, "", "")
-
-        # Check for cycles
-        visited = set()
-        for task_id in task_map:
-            if task_id not in visited:
-                has_cycle_result = has_cycle(task_id, visited, set())
-                if has_cycle_result[0]:
-                    # Get the cycle path for better error message
-                    cycle_path = self._get_cycle_path(
-                        task_map, has_cycle_result[1], has_cycle_result[2]
-                    )
-                    cycle_path_str = " -> ".join(cycle_path)
-                    error_msg = f"Circular dependencies detected in task graph: {cycle_path_str}"
-                    logger.error(error_msg)
-                    raise ValueError(error_msg)
 
         groups = []
         completed = set()
-        iterations = 0
-        max_iterations = len(tasks) + 1  # Safety limit
 
-        while len(completed) < len(tasks) and iterations < max_iterations:
-            iterations += 1
+        while len(completed) < len(tasks):
             current_group = []
             for task_id, task in task_map.items():
                 if task_id not in completed:
@@ -734,9 +319,7 @@ class Orchestrator:
                         current_group.append(task)
 
             if not current_group:
-                # This shouldn't happen after cycle detection
-                uncompleted = set(task_map.keys()) - completed
-                logger.error(f"Cannot resolve dependencies for tasks: {uncompleted}")
+                # Circular dependency or invalid dependency
                 raise ValueError("Invalid task dependencies detected")
 
             groups.append(current_group)
@@ -838,76 +421,25 @@ class Orchestrator:
 
         return processed_results
 
-    async def _execute_single_task_enhanced(
-        self, task: SubAgentTask, agent: Agent
-    ) -> SubAgentResult:
-        """Enhanced task execution with exploration support."""
-        # Import ThinkingAgent here to avoid circular imports
-        from .thinking_agent import ThinkingAgent
-
-        # If exploration is enabled and agent supports it
-        if (
-            self.enable_exploration
-            and self.exploration_executor
-            and isinstance(agent, ThinkingAgent)
-        ):
-            # Use exploration executor
-            return await self.exploration_executor.execute_with_exploration(
-                agent=agent, task=task, strategy=self.exploration_strategy
-            )
-        else:
-            # Fall back to standard execution
-            return await self._execute_single_task(task, agent)
-
-    async def _execute_single_task(
-        self, task: SubAgentTask, agent: Optional[Agent] = None
-    ) -> SubAgentResult:
+    async def _execute_single_task(self, task: SubAgentTask) -> SubAgentResult:
         """Execute a single subagent task with retry logic and exponential backoff."""
-        # Check global timeout
-        if self._start_time and (time.time() - self._start_time) > self.global_timeout:
+        if task.agent_id not in self.subagents:
             return SubAgentResult(
                 agent_id=task.agent_id,
                 task_id=task.task_id,
                 success=False,
                 result=None,
-                error=f"Global timeout exceeded ({self.global_timeout}s)",
-                error_type="GLOBAL_TIMEOUT",
+                error=f"Subagent '{task.agent_id}' not found",
+                error_type="AGENT_NOT_FOUND",
             )
 
-        # If agent is provided (from enhanced execution), use it
-        if agent is None:
-            if task.agent_id not in self.subagents:
-                return SubAgentResult(
-                    agent_id=task.agent_id,
-                    task_id=task.task_id,
-                    success=False,
-                    result=None,
-                    error=f"Subagent '{task.agent_id}' not found",
-                    error_type="AGENT_NOT_FOUND",
-                )
-            agent = self.subagents[task.agent_id]
-
-        # Use enhanced execution if available
-        if hasattr(self, "enable_exploration") and self.enable_exploration:
-            return await self._execute_single_task_enhanced(task, agent)
+        agent = self.subagents[task.agent_id]
 
         # Use task-specific retry config or fall back to orchestrator defaults
         max_retries = getattr(task, "max_retries", self.max_retries)
         retry_delay = getattr(task, "retry_delay", self.retry_delay)
         retry_backoff = getattr(task, "retry_backoff", self.retry_backoff)
         retry_timeout = getattr(task, "retry_timeout", self.retry_timeout)
-
-        # Enforce global retry limit
-        if self._total_retries >= self.max_total_retries:
-            logger.warning(f"Global retry limit reached ({self.max_total_retries})")
-            return SubAgentResult(
-                agent_id=task.agent_id,
-                task_id=task.task_id,
-                success=False,
-                result=None,
-                error="Global retry limit exceeded",
-                error_type="RETRY_LIMIT_EXCEEDED",
-            )
 
         start_time = time.time()
         partial_results = []
@@ -922,18 +454,6 @@ class Orchestrator:
 
         for attempt in range(max_retries + 1):
             try:
-                # Check global limits
-                if self._total_retries >= self.max_total_retries:
-                    logger.warning("Global retry limit reached during task execution")
-                    break
-
-                if (
-                    self._start_time
-                    and (time.time() - self._start_time) > self.global_timeout
-                ):
-                    logger.warning("Global timeout reached during task execution")
-                    break
-
                 # Check timeout
                 if retry_timeout and (time.time() - start_time) > retry_timeout:
                     error_msg = f"Task timeout exceeded: {retry_timeout}s"
@@ -954,7 +474,6 @@ class Orchestrator:
 
                 # Log retry attempt
                 if attempt > 0:
-                    self._increment_total_retries()
                     orch_logger.log_retry_attempt(
                         task.task_id,
                         attempt,
@@ -1055,23 +574,18 @@ class Orchestrator:
 
         # All retries exhausted - try task decomposition as final fallback
         if (
-            self.available_tools
-            and len(task.task_description) > 100
-            and self._decomposition_depth < self.max_decomposition_depth
-        ):  # Only for complex tasks and within depth limit
+            self.available_tools and len(task.task_description) > 100
+        ):  # Only for complex tasks
             logger.info(
-                f"Attempting task decomposition as final fallback for {task.task_id} (depth: {self._decomposition_depth})"
+                f"Attempting task decomposition as final fallback for {task.task_id}"
             )
             try:
-                self._increment_decomposition_depth()
                 decomp_result = await self._execute_with_decomposition(task)
-                self._decrement_decomposition_depth()
                 if decomp_result.success:
                     decomp_result.retry_count = retry_count
                     decomp_result.execution_time = time.time() - start_time
                     return decomp_result
             except Exception as decomp_error:
-                self._decrement_decomposition_depth()
                 logger.warning(f"Task decomposition failed: {decomp_error}")
 
         # All fallbacks exhausted
@@ -1104,38 +618,13 @@ class Orchestrator:
 
     async def process(self, messages: List[Dict[str, str]], **kwargs) -> LLMResponse:
         """Process messages through the main agent with subagent delegation capability."""
-        # Set start time for global timeout tracking
-        self._start_time = time.time()
+        return await self.main_agent.process(messages, **kwargs)
 
-        try:
-            # Create a task for the main processing
-            process_task = asyncio.create_task(
-                self.main_agent.process(messages, **kwargs)
-            )
-
-            # Wait with timeout
-            remaining_timeout = self.global_timeout
-            result = await asyncio.wait_for(process_task, timeout=remaining_timeout)
-
-            return result
-        except asyncio.TimeoutError:
-            logger.error(f"Global orchestration timeout after {self.global_timeout}s")
-            # Cancel the task
-            process_task.cancel()
-
-            # Return a timeout response
-            from .providers.base import LLMResponse
-
-            return LLMResponse(
-                content=f"Orchestration timed out after {self.global_timeout} seconds. The task was too complex or encountered issues.",
-                input_tokens=0,
-                output_tokens=0,
-                cost_in_cents=0,
-                time=int((time.time() - self._start_time) * 1000),
-            )
-        finally:
-            # Reset start time
-            self._start_time = None
+    def clear_all_memory(self):
+        """Clear memory for all agents."""
+        self.main_agent.clear_memory()
+        for agent in self.subagents.values():
+            agent.clear_memory()
 
     def _get_tool_name(self, tool: Callable) -> str:
         """Extract tool name from function."""
@@ -1176,39 +665,15 @@ class Orchestrator:
             input: DynamicPlanningRequest,
         ) -> Dict[str, Any]:
             """Dynamically create subagents based on the user's request."""
-            # Increment recursion depth first, then check limit
-            self._increment_recursion_depth()
+            # Log the start of the request
+            orch_logger.log_request_start(input.user_request)
+            orch_logger.log_planning_analysis(input.analysis)
 
-            try:
-                # Check if we've exceeded the recursion depth limit
-                if self._recursion_depth > self.max_recursion_depth:
-                    logger.warning(
-                        f"Max recursion depth exceeded ({self.max_recursion_depth})"
-                    )
-                    return {
-                        "error": "Maximum recursion depth exceeded - cannot create more subagents",
-                        "recursion_depth": self._recursion_depth,
-                    }
-
-                logger.info(
-                    f"Planning subagents - Recursion depth: {self._recursion_depth}/{self.max_recursion_depth}"
-                )
-                logger.debug(
-                    f"Total retries so far: {self._total_retries}/{self.max_total_retries}"
-                )
-                logger.debug(
-                    f"Decomposition depth: {self._decomposition_depth}/{self.max_decomposition_depth}"
-                )
-
-                # Log the start of the request
-                orch_logger.log_request_start(input.user_request)
-                orch_logger.log_planning_analysis(input.analysis)
-
-                # Use the planning LLM to analyze the request and create subagent plans
-                planning_messages = [
-                    {
-                        "role": "system",
-                        "content": f"""You are a planning agent that designs specialized subagents for complex tasks.
+            # Use the planning LLM to analyze the request and create subagent plans
+            planning_messages = [
+                {
+                    "role": "system",
+                    "content": f"""You are a planning agent that designs specialized subagents for complex tasks.
                         
 Available tools that can be assigned to subagents:
 {self._format_available_tools()}
@@ -1234,24 +699,24 @@ Return a JSON object with this structure:
     ],
     "reasoning": "Explanation of why these subagents and this structure"
 }}""",
-                    },
-                    {
-                        "role": "user",
-                        "content": f"User request: {input.user_request}\n\nAnalysis: {input.analysis}",
-                    },
-                ]
+                },
+                {
+                    "role": "user",
+                    "content": f"User request: {input.user_request}\n\nAnalysis: {input.analysis}",
+                },
+            ]
 
-                orch_logger.log_llm_call(
-                    self.planning_provider, self.planning_model, "Planning"
-                )
+            orch_logger.log_llm_call(
+                self.planning_provider, self.planning_model, "Planning"
+            )
 
+            try:
                 planning_response = await chat_async(
                     provider=self.planning_provider,
                     model=self.planning_model,
                     messages=planning_messages,
                     temperature=0.2,
                     response_format=PlanningResponse,
-                    reasoning_effort=self.reasoning_effort,
                 )
 
                 # The response is already a structured Pydantic object
@@ -1259,7 +724,7 @@ Return a JSON object with this structure:
 
                 # Log the subagent plans
                 orch_logger.log_subagent_plans(
-                    [plan.dict() for plan in plan_data.subagent_plans],
+                    [plan.model_dump() for plan in plan_data.subagent_plans],
                     plan_data.reasoning,
                 )
 
@@ -1284,53 +749,14 @@ Return a JSON object with this structure:
                         not in ["plan_and_create_subagents", "delegate_to_subagents"]
                     ]
 
-                    # Create the subagent (enhanced if enabled)
-                    try:
-                        if hasattr(self, "_create_enhanced_subagent"):
-                            # Get parent context if available
-                            parent_context = None
-                            if (
-                                hasattr(self, "enable_cross_agent_memory")
-                                and self.enable_cross_agent_memory
-                                and isinstance(
-                                    self.main_agent.memory_manager,
-                                    EnhancedMemoryManager,
-                                )
-                            ):
-                                try:
-                                    parent_context = await self.main_agent.memory_manager.prepare_context_for_new_agent(
-                                        focus=plan.task_description,
-                                        include_cross_agent=True,
-                                    )
-                                except Exception as e:
-                                    self.print_function(
-                                        f"[WARNING] Failed to prepare parent context for subagent: {e}"
-                                    )
-                                    parent_context = None
-
-                            subagent = self._create_enhanced_subagent(
-                                agent_id=agent_id,
-                                system_prompt=plan.system_prompt,
-                                tools=agent_tools,
-                                parent_context=parent_context,
-                            )
-                        else:
-                            raise AttributeError(
-                                "_create_enhanced_subagent not available"
-                            )
-                    except Exception as e:
-                        # Fallback to regular agent creation
-                        self.print_function(
-                            f"[WARNING] Failed to create enhanced subagent, falling back to regular agent: {e}"
-                        )
-                        subagent = Agent(
-                            agent_id=agent_id,
-                            provider=self.subagent_provider,
-                            model=self.subagent_model,
-                            system_prompt=plan.system_prompt,
-                            tools=agent_tools,
-                            reasoning_effort=self.reasoning_effort,
-                        )
+                    # Create the subagent
+                    subagent = Agent(
+                        agent_id=agent_id,
+                        provider=self.subagent_provider,
+                        model=self.subagent_model,
+                        system_prompt=plan.system_prompt,
+                        tools=agent_tools,
+                    )
 
                     # Register the subagent
                     self.register_subagent(subagent)
@@ -1372,9 +798,6 @@ Return a JSON object with this structure:
             except Exception as e:
                 logger.error(f"Error in planning LLM call: {e}", exc_info=True)
                 return {"error": f"Planning LLM call failed: {str(e)}"}
-            finally:
-                # Always decrement recursion depth
-                self._decrement_recursion_depth()
 
         # Add to main agent's tools
         self.main_agent.tools.append(plan_and_create_subagents)
@@ -1502,7 +925,6 @@ Return a JSON array of subtask descriptions.""",
                 messages=decomposition_messages,
                 temperature=0.2,
                 response_format=TaskDecomposition,
-                reasoning_effort=self.reasoning_effort,
             )
 
             decomposition = response.content
@@ -1522,10 +944,7 @@ Return a JSON array of subtask descriptions.""",
                 subtask.task_id = f"{task.task_id}_subtask_{i}"
                 subtasks.append(subtask)
 
-            # Log decomposition in a nice way
-            orch_logger.console.print(
-                f"\n[dim yellow]📋 Task decomposed into {len(subtasks)} subtasks[/dim yellow]"
-            )
+            logger.info(f"Task decomposed into {len(subtasks)} subtasks")
 
             return subtasks
 
@@ -1583,74 +1002,5 @@ Return a JSON array of subtask descriptions.""",
             },
         )
 
-    async def get_orchestration_insights(self) -> Dict[str, Any]:
-        """Get insights about orchestration patterns and performance."""
-        insights = {
-            "timestamp": datetime.now().isoformat(),
-            "shared_context_stats": {},
-            "exploration_patterns": {},
-            "cross_agent_collaborations": [],
-        }
 
-        # Get shared context statistics
-        if hasattr(self, "shared_context") and self.shared_context:
-            recent_artifacts = await self.shared_context.get_recent_artifacts(limit=20)
-            insights["shared_context_stats"] = {
-                "total_artifacts": len(recent_artifacts),
-                "artifact_types": {},
-            }
-
-            for artifact in recent_artifacts:
-                type_name = artifact.artifact_type.value
-                if type_name not in insights["shared_context_stats"]["artifact_types"]:
-                    insights["shared_context_stats"]["artifact_types"][type_name] = 0
-                insights["shared_context_stats"]["artifact_types"][type_name] += 1
-
-        # Get exploration patterns if available
-        if hasattr(self, "exploration_executor") and self.exploration_executor:
-            insights["exploration_patterns"] = {
-                "successful_patterns": len(
-                    self.exploration_executor.successful_patterns
-                )
-            }
-
-        # Import ThinkingAgent here to avoid circular imports
-        from .thinking_agent import ThinkingAgent
-
-        # Get cross-agent collaboration info
-        for agent_id, agent in self.subagents.items():
-            if isinstance(agent, ThinkingAgent):
-                # Check for collaboration artifacts
-                collab_artifacts = await self.shared_context.list_artifacts(
-                    pattern=f"collaboration/*{agent_id}*"
-                )
-                if collab_artifacts:
-                    insights["cross_agent_collaborations"].append(
-                        {"agent_id": agent_id, "collaborations": len(collab_artifacts)}
-                    )
-
-        return insights
-
-    async def cleanup_workspace(self, older_than_hours: int = 24):
-        """Clean up old artifacts from shared workspace."""
-        if not hasattr(self, "shared_context") or not self.shared_context:
-            return 0
-
-        cutoff_time = datetime.now().timestamp() - (older_than_hours * 3600)
-        artifacts = await self.shared_context.list_artifacts()
-
-        cleaned = 0
-        for artifact in artifacts:
-            if artifact.created_at.timestamp() < cutoff_time:
-                await self.shared_context.delete_artifact(
-                    artifact.key, self.main_agent.agent_id
-                )
-                cleaned += 1
-
-        logger.info(f"Cleaned up {cleaned} old artifacts")
-
-        return cleaned
-
-
-# Backward compatibility aliases
-AgentOrchestrator = Orchestrator  # Old name for compatibility
+# Backward compatibility alias - AgentOrchestrator is the class name
