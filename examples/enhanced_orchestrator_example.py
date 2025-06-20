@@ -469,7 +469,7 @@ async def simple_enhanced_example():
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) > 1 and sys.argv[1] == "--simple":
+    if len(sys.argv) > 1 and "simple" in sys.argv[1]:
         # Run simple example
         asyncio.run(simple_enhanced_example())
     else:
