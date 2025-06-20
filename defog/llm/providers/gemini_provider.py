@@ -144,20 +144,29 @@ class GeminiProvider(BaseLLMProvider):
 
         from google.genai import types
 
-        # Extract system message if present
-        system_msg = None
-        if messages and messages[0]["role"] == "system":
-            system_msg = messages[0]["content"]
-            if not isinstance(system_msg, str):
-                # System message should always be text
-                system_msg = " ".join(
-                    [
-                        block.get("text", "")
-                        for block in system_msg
-                        if block.get("type") == "text"
-                    ]
-                )
-            messages = messages[1:]
+        # Extract all system messages
+        system_messages = []
+        non_system_messages = []
+
+        for msg in messages:
+            if msg.get("role") == "system":
+                content = msg["content"]
+                if not isinstance(content, str):
+                    # System message should always be text
+                    content = " ".join(
+                        [
+                            block.get("text", "")
+                            for block in content
+                            if block.get("type") == "text"
+                        ]
+                    )
+                system_messages.append(content)
+            else:
+                non_system_messages.append(msg)
+
+        # Concatenate all system messages into a single string
+        system_msg = "\n\n".join(system_messages) if system_messages else None
+        messages = non_system_messages
 
         # Convert messages to Gemini Content objects
 
