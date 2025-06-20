@@ -173,7 +173,6 @@ async def dynamic_orchestration_example():
     ]
 
     response = await orchestrator.process(messages)
-    print(f"Response:\n{response.content}\n")
 
     # Generate and display the ASCII flowchart
     print("\n=== Orchestrator Execution Flowchart ===")
@@ -186,6 +185,15 @@ async def dynamic_orchestration_example():
 
     print("\n=== Additional final answer generation cost ===")
     print(f"${response.cost_in_cents / 100:.4f}")
+
+    print("\n=== Response ===\n")
+    print(f"Response:\n{response.content}\n")
+    # Add citations to the response using tool outputs as sources
+    print("\n=== Response with Citations ===")
+    from defog.llm.orchestrator_citations import add_citations_to_response
+
+    cited_response = await add_citations_to_response(response)
+    print(cited_response)
 
 
 async def simple_dynamic_example():
@@ -239,6 +247,14 @@ async def simple_dynamic_example():
 
         print("\n=== Additional final answer generation cost ===")
         print(f"${response.cost_in_cents / 100:.4f}")
+
+        # Add citations to the response using tool outputs as sources
+        print("\n=== Response with Citations ===")
+        from defog.llm.orchestrator_citations import add_citations_to_response
+
+        cited_response = await add_citations_to_response(response)
+        print(cited_response)
+
     except Exception as e:
         logger.error(f"Error during processing: {e}", exc_info=True)
         print(f"Error: {e}")
