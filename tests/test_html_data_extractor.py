@@ -332,15 +332,6 @@ class TestHTMLDataExtractorE2E:
             focus_areas=["company information", "team members", "revenue data"],
         )
 
-        # Print extraction details
-        for extraction in result.extraction_results:
-            print(f"\nDatapoint: {extraction.datapoint_name}")
-            print(f"  Success: {extraction.success}")
-            if extraction.error:
-                print(f"  Error: {extraction.error}")
-            if extraction.extracted_data:
-                print(f"  Data type: {type(extraction.extracted_data)}")
-
         # Verify results
         assert isinstance(result, HTMLDataExtractionResult)
         assert result.total_datapoints_identified >= 3  # At least 3 datapoints
@@ -772,12 +763,6 @@ class TestHTMLDataExtractorWithImages:
         assert result.successful_extractions + result.failed_extractions == len(
             result.extraction_results
         )
-
-        # Print summary for debugging
-        print("\nMixed extraction results:")
-        print(f"  Total identified: {result.total_datapoints_identified}")
-        print(f"  Successful: {result.successful_extractions}")
-        print(f"  Failed: {result.failed_extractions}")
 
         for extraction in result.extraction_results:
             if extraction.success:
