@@ -315,6 +315,65 @@ async def run_with_visualization():
     print(generate_detailed_tool_trace(response.tool_outputs))
 ```
 
+## Cost Tracking
+
+The orchestrator now tracks costs across all components including:
+- Planning LLM costs (for dynamic agent creation)
+- Subagent LLM costs
+- Individual tool execution costs
+
+### Cost Breakdown Structure
+
+When using the orchestrator tools (`plan_and_create_subagents` or `delegate_to_subagents`), the response includes a `total_cost_breakdown`:
+
+```python
+# Example cost breakdown from orchestrator response
+{
+    "total_cost_breakdown": {
+        "planning_cost_in_cents": 0.5,      # Cost of planning LLM call
+        "subagent_costs_in_cents": 2.3,     # Total LLM costs from all subagents
+        "tool_costs_in_cents": 0.35,        # Total costs from tool executions
+        "total_cost_in_cents": 3.15         # Combined total cost
+    }
+}
+```
+
+### Implementing Tool Costs
+
+To track tool costs, your tools should return a `cost_in_cents` field in their response:
+
+```python
+async def expensive_api_tool(input: ToolInput) -> Dict[str, Any]:
+    """Tool that calls an expensive API."""
+    result = await call_expensive_api(input.query)
+    
+    # Calculate cost based on API usage
+    api_cost = calculate_api_cost(result)
+    
+    return {
+        "result": result.data,
+        "cost_in_cents": api_cost  # Tool cost will be aggregated
+    }
+```
+
+### Accessing Cost Information
+
+```python
+# After orchestrator execution
+response = await orchestrator.process(messages)
+
+# Check tool outputs for cost breakdown
+for tool_output in response.tool_outputs:
+    if tool_output.get("name") == "plan_and_create_subagents":
+        result = tool_output.get("result", {})
+        costs = result.get("total_cost_breakdown", {})
+        
+        print(f"Planning: ${costs['planning_cost_in_cents']/100:.2f}")
+        print(f"Subagents: ${costs['subagent_costs_in_cents']/100:.2f}")
+        print(f"Tools: ${costs['tool_costs_in_cents']/100:.2f}")
+        print(f"Total: ${costs['total_cost_in_cents']/100:.2f}")
+```
+
 ## Best Practices
 
 1. **Agent Specialization**: Create agents with specific, focused roles
