@@ -193,6 +193,7 @@ async def generate_sql_query_local(
             "query_db": db_type,
             "reason_for_query": "No reason provided",
             "previous_context": new_context,
+            "cost_in_cents": response.cost_in_cents,
         }
 
     except Exception as e:
