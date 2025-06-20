@@ -73,6 +73,9 @@ async def sql_answer_tool(
             provider.value if hasattr(provider, "value") else str(provider), model
         )
 
+        # Track total cost across all operations
+        total_cost_in_cents = 0
+
         try:
             # Extract database metadata
             tracker.update(20, "Extracting database schema")
@@ -112,6 +115,9 @@ async def sql_answer_tool(
                         f"Filtered to {len(table_metadata)} relevant tables",
                         "completed",
                     )
+                    # Track cost from relevance analysis
+                    if relevance_result.get("cost_in_cents") is not None:
+                        total_cost_in_cents += relevance_result["cost_in_cents"]
                 else:
                     # If filtering fails, continue with all tables but log warning
                     subtask_logger.log_subtask(
@@ -149,6 +155,10 @@ async def sql_answer_tool(
 
             generated_sql = sql_result["query_generated"]
 
+            # Track cost from SQL generation
+            if sql_result.get("cost_in_cents") is not None:
+                total_cost_in_cents += sql_result["cost_in_cents"]
+
             # Execute the SQL query
             tracker.update(80, "Executing SQL query")
             subtask_logger.log_subtask("Running query on database", "processing")
@@ -167,13 +177,20 @@ async def sql_answer_tool(
                     "columns": None,
                 }
 
-            return {
+            # Include total cost from all operations
+            result = {
                 "success": True,
                 "error": None,
                 "query": generated_sql,
                 "columns": colnames,
                 "results": results,
             }
+
+            # Add total cost if any operations incurred costs
+            if total_cost_in_cents > 0:
+                result["cost_in_cents"] = total_cost_in_cents
+
+            return result
 
         except Exception as e:
             return {
@@ -340,7 +357,7 @@ Return only the JSON response."""
                     },
                 )
 
-                return {
+                result = {
                     "success": True,
                     "error": None,
                     "relevant_tables": relevant_tables,
@@ -348,6 +365,12 @@ Return only the JSON response."""
                     "total_tables_analyzed": len(all_table_metadata),
                     "tables_selected": len(relevant_tables),
                 }
+
+                # Add cost if available
+                if analysis_response.cost_in_cents is not None:
+                    result["cost_in_cents"] = analysis_response.cost_in_cents
+
+                return result
 
             except json.JSONDecodeError as e:
                 return {
