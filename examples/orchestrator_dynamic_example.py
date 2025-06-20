@@ -12,7 +12,6 @@ The Cricket World Cup 2015 database contains ball-by-ball data from all matches,
 including batting/bowling statistics, team performance, and match details.
 Run setup_cricket_db.py first to create the DuckDB database from CSV files.
 """
-# ruff: noqa: F821
 
 import asyncio
 import logging
@@ -73,81 +72,6 @@ async def execute_python(input: CodeExecutionInput) -> Dict[str, Any]:
 class DataAnalysisInput(BaseModel):
     data: str = Field(description="Data to analyze as a valid JSON string")
     analysis_type: str = Field(description="Type of analysis to perform")
-
-
-async def analyze_data(input: DataAnalysisInput) -> Dict[str, Any]:
-    """Analyze data using statistical methods."""
-    code = f"""
-import json
-import statistics
-
-# Parse the data
-data = '''{input.data}'''
-analysis_type = '{input.analysis_type}'
-
-# Perform analysis based on type
-if analysis_type == 'statistical':
-    # Try to parse as JSON array of numbers
-    try:
-        numbers = json.loads(data)
-        result = {{
-            'mean': statistics.mean(numbers),
-            'median': statistics.median(numbers),
-            'stdev': statistics.stdev(numbers) if len(numbers) > 1 else 0,
-            'min': min(numbers),
-            'max': max(numbers)
-        }}
-        print(json.dumps(result, indent=2))
-    except:
-        print("Could not perform statistical analysis on the data")
-else:
-    print(f"Analysis type '{analysis_type}' not implemented")
-"""
-
-    result = await code_interpreter_tool(
-        question="Analyze this data",
-        model="claude-3-7-sonnet-latest",
-        provider="anthropic",
-        instructions=code,
-        verbose=False,
-    )
-    return {"analysis": result.get("output", "")}
-
-
-class FileProcessingInput(BaseModel):
-    content: str = Field(description="File content to process")
-    operation: str = Field(description="Operation to perform on the file")
-
-
-async def process_file(input: FileProcessingInput) -> Dict[str, Any]:
-    """Process file content with various operations."""
-    code = f"""
-# Process file content
-content = '''{input.content}'''
-operation = '{input.operation}'
-
-if operation == 'word_count':
-    words = content.split()
-    lines = content.split('\\n')
-    print(f"Words: {{len(words)}}")
-    print(f"Lines: {{len(lines)}}")
-    print(f"Characters: {{len(content)}}")
-elif operation == 'extract_numbers':
-    import re
-    numbers = re.findall(r'\\b\\d+\\.?\\d*\\b', content)
-    print(f"Found numbers: {{numbers}}")
-else:
-    print(f"Operation '{operation}' not supported")
-"""
-
-    result = await code_interpreter_tool(
-        question="Process file content",
-        model="claude-3-7-sonnet-latest",
-        provider="anthropic",
-        instructions=code,
-        verbose=False,
-    )
-    return {"result": result.get("output", "")}
 
 
 class SQLQueryInput(BaseModel):
@@ -212,40 +136,21 @@ async def dynamic_orchestration_example():
         memory_config={"token_threshold": 50000, "preserve_last_n_messages": 10},
     )
 
-    # Create orchestrator with available tools and infinite loop prevention
+    # Create orchestrator with available tools
     orchestrator = AgentOrchestrator(
         main_agent=main_agent,
         available_tools=[
             web_search,
             execute_python,
-            analyze_data,
-            process_file,
             cricket_sql_query,
         ],
         subagent_provider="anthropic",
         subagent_model="claude-sonnet-4-20250514",
         planning_provider="anthropic",
         planning_model="claude-sonnet-4-20250514",
-        max_recursion_depth=2,  # Prevent deep agent nesting
-        max_total_retries=15,  # Global retry limit
-        max_decomposition_depth=1,  # Limit task decomposition
-        global_timeout=600.0,  # 10 minute timeout
     )
 
-    # Example 1: Research and analysis task
-    # print("=== Example 1: Research and Analysis ===")
-    # messages = [{
-    #     "role": "user",
-    #     "content": """I need to understand the current state of quantum computing.
-    #     Please research recent breakthroughs, analyze the market size and growth projections,
-    #     and create a simple table comparing the qubit counts of major quantum computers."""
-    # }]
-
-    # response = await orchestrator.process(messages)
-    # print(f"Response:\n{response.content}\n")
-
-    # Example 2: Cricket World Cup 2015 Analysis
-    print("=== Example 2: Cricket World Cup 2015 Analysis ===")
+    print("=== Example: Cricket World Cup 2015 Analysis ===")
     messages = [
         {
             "role": "user",
@@ -282,9 +187,6 @@ async def simple_dynamic_example():
         planning_model="gpt-4.1",
         subagent_provider="openai",
         subagent_model="gpt-4.1",
-        max_recursion_depth=2,
-        max_total_retries=10,
-        global_timeout=120.0,  # 2 minute timeout for simple example
     )
 
     logger.info("Processing request...")

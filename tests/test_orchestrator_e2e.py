@@ -1,5 +1,4 @@
 """End-to-end tests for the dynamic agent orchestration system."""
-# ruff: noqa: F821
 
 import pytest
 import asyncio

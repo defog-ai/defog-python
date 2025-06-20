@@ -1,489 +1,226 @@
 # Agent Orchestration
 
-This document covers the advanced agent orchestration capabilities in defog-python, including multi-agent coordination, thinking agents, and shared context management.
+This document covers the agent orchestration capabilities in defog-python, including multi-agent coordination and task delegation.
 
-## Enhanced Agent Orchestrator
+## Basic Agent Orchestrator
 
-The `EnhancedAgentOrchestrator` provides advanced multi-agent coordination:
+The `AgentOrchestrator` provides multi-agent coordination and task delegation:
 
 ```python
-from defog.llm.enhanced_orchestrator import (
-    EnhancedAgentOrchestrator,
-    EnhancedOrchestratorConfig,
-    ExecutionMode
-)
+from defog.llm import Agent, AgentOrchestrator, ExecutionMode
 
-# Create orchestrator with full configuration
-config = EnhancedOrchestratorConfig(
-    # Core settings
-    model="claude-3-5-sonnet",
+# Create main orchestrator agent
+main_agent = Agent(
+    agent_id="orchestrator",
     provider="anthropic",
-    temperature=0.7,
-    max_tokens=4096,
-    
-    # Agent features
-    enable_thinking_agents=True,
-    enable_shared_context=True,
-    enable_alternative_paths=True,
-    
-    # Memory management
-    enable_cross_agent_memory=True,
-    memory_config={
-        "token_threshold": 50000,
-        "preserve_last_n_messages": 10
-    },
-    
-    # Execution settings
-    max_parallel_agents=5,
-    agent_timeout_seconds=300,
-    retry_failed_agents=True,
-    
-    # Cost management
-    max_cost_per_agent_cents=100,
-    total_cost_limit_cents=1000
+    model="claude-3-5-sonnet",
+    system_prompt="You are an orchestrator that coordinates tasks between specialized agents."
 )
 
-orchestrator = EnhancedAgentOrchestrator(config=config)
+# Create orchestrator
+orchestrator = AgentOrchestrator(
+    main_agent=main_agent,
+    max_parallel_tasks=5,
+    max_retries=3,
+    retry_delay=1.0,
+    retry_backoff=2.0
+)
 ```
 
-## Thinking Agents
+## Creating and Registering Subagents
 
-Thinking agents provide enhanced reasoning capabilities:
+You can create specialized subagents and register them with the orchestrator:
 
 ```python
-from defog.llm.thinking_agent import ThinkingAgent, ThinkingAgentConfig
-
-# Create a thinking agent
-thinking_agent = ThinkingAgent(
-    agent_id="researcher",
-    config=ThinkingAgentConfig(
-        model="claude-3-5-sonnet",
-        provider="anthropic",
-        
-        # Thinking configuration
-        enable_extended_thinking=True,
-        max_thinking_tokens=8000,
-        thinking_style="analytical",  # analytical, creative, systematic
-        
-        # Reasoning features
-        enable_self_reflection=True,
-        enable_alternative_exploration=True,
-        confidence_threshold=0.8,
-        
-        # Collaboration
-        enable_cross_agent_queries=True,
-        shared_context_access=True
-    )
+# Create specialized subagents
+calculator_agent = Agent(
+    agent_id="calculator",
+    provider="openai",
+    model="gpt-4o",
+    system_prompt="You are a calculator assistant. Perform mathematical calculations.",
+    tools=[calculator_tool]
 )
 
-# Execute task with thinking
-result = await thinking_agent.execute_task(
-    task="Analyze the implications of quantum computing on cryptography",
-    
-    # Thinking directives
-    thinking_directives=[
-        "Consider both near-term and long-term impacts",
-        "Evaluate current mitigation strategies",
-        "Identify knowledge gaps"
-    ],
-    
-    # Collaboration context
-    available_agents=["security_expert", "quantum_physicist"],
-    shared_artifacts=["research_papers", "threat_models"]
+text_processor_agent = Agent(
+    agent_id="text_processor",
+    provider="anthropic",
+    model="claude-3-5-haiku",
+    system_prompt="You are a text processing assistant.",
+    tools=[text_processor_tool]
 )
 
-# Access thinking process
-print(f"Thinking process: {result['thinking_process']}")
-print(f"Confidence: {result['confidence']}")
-print(f"Alternative approaches: {result['alternatives']}")
+# Register subagents
+orchestrator.register_subagent(calculator_agent)
+orchestrator.register_subagent(text_processor_agent)
 ```
 
-## Shared Context Store
+## Dynamic Agent Creation
 
-Enable cross-agent information sharing:
+The orchestrator can dynamically create subagents based on task requirements:
 
 ```python
-from defog.llm.shared_context import SharedContextStore
+# Create orchestrator with available tools
+orchestrator = AgentOrchestrator(
+    main_agent=main_agent,
+    available_tools=[calculator_tool, text_processor_tool, data_formatter_tool],
+    subagent_provider="anthropic",
+    subagent_model="claude-3-5-haiku",
+    planning_provider="anthropic",
+    planning_model="claude-3-5-sonnet"
+)
 
-# Initialize shared context
-context_store = SharedContextStore(
-    workspace_path="/tmp/agent_workspace",
-    
-    # Versioning
-    enable_versioning=True,
-    max_versions_per_artifact=5,
-    
-    # Cleanup
-    auto_cleanup=True,
-    ttl_hours=24,
-    
-    # Access control
-    agent_permissions={
-        "researcher": ["read", "write"],
-        "reviewer": ["read"],
-        "supervisor": ["read", "write", "delete"]
+# The orchestrator will automatically create subagents as needed
+response = await orchestrator.process([
+    {
+        "role": "user",
+        "content": "Calculate 25 * 4 and format the result as JSON"
     }
-)
-
-# Store artifact with metadata
-await context_store.store_artifact(
-    artifact_id="market_analysis",
-    content={"data": analysis_data},
-    metadata={
-        "agent_id": "analyst",
-        "timestamp": "2024-01-15T10:00:00Z",
-        "confidence": 0.85,
-        "tags": ["finance", "quarterly"]
-    }
-)
-
-# Retrieve with lineage
-artifact = await context_store.get_artifact(
-    artifact_id="market_analysis",
-    include_lineage=True
-)
-print(f"Created by: {artifact['lineage']['created_by']}")
-print(f"Modified by: {artifact['lineage']['modifications']}")
+])
 ```
 
-## Complex Multi-Agent Workflows
+## Task Delegation
 
-### Hierarchical Task Delegation
+The main agent can delegate tasks to subagents:
 
 ```python
-from defog.llm.enhanced_orchestrator import SubAgentTask, TaskDependency
-
-# Define complex workflow
-workflow_tasks = [
-    # Phase 1: Research (parallel)
-    SubAgentTask(
-        agent_id="market_researcher",
-        task_description="Research current market trends",
-        execution_mode=ExecutionMode.PARALLEL,
-        priority="high",
-        estimated_duration_seconds=120
-    ),
-    SubAgentTask(
-        agent_id="competitor_analyst",
-        task_description="Analyze competitor strategies",
-        execution_mode=ExecutionMode.PARALLEL,
-        priority="high"
-    ),
-    
-    # Phase 2: Synthesis (depends on Phase 1)
-    SubAgentTask(
-        agent_id="strategy_synthesizer",
-        task_description="Synthesize research into strategic recommendations",
-        dependencies=["market_researcher", "competitor_analyst"],
-        execution_mode=ExecutionMode.SEQUENTIAL,
-        
-        # Advanced options
-        require_all_dependencies=True,
-        confidence_threshold=0.8,
-        alternative_paths_allowed=True
-    ),
-    
-    # Phase 3: Review and refinement
-    SubAgentTask(
-        agent_id="senior_reviewer",
-        task_description="Review and refine strategy",
-        dependencies=["strategy_synthesizer"],
-        
-        # Conditional execution
-        condition=lambda results: results["strategy_synthesizer"]["confidence"] < 0.9,
-        fallback_agent="expert_consultant"
-    )
+# The main agent uses the delegate_to_subagents tool
+messages = [
+    {
+        "role": "user",
+        "content": "Please calculate 15 * 7 and count the words in 'Hello world'"
+    }
 ]
 
-# Execute workflow
-results = await orchestrator.execute_workflow(
-    tasks=workflow_tasks,
-    
-    # Workflow options
-    continue_on_failure=True,
-    collect_thinking_traces=True,
-    generate_summary=True
-)
-
-# Access comprehensive results
-print(f"Workflow summary: {results['summary']}")
-print(f"Total duration: {results['duration_seconds']}s")
-print(f"Total cost: ${results['total_cost_cents'] / 100:.2f}")
+response = await orchestrator.process(messages)
+print(response.content)
 ```
 
-### Dynamic Agent Creation
+## Execution Modes
+
+Tasks can be executed in parallel or sequential mode:
 
 ```python
-# Define agent templates
-agent_templates = {
-    "researcher": {
-        "model": "claude-3-5-sonnet",
-        "temperature": 0.3,
-        "system_prompt": "You are a thorough researcher..."
-    },
-    "analyst": {
-        "model": "gpt-4o",
-        "temperature": 0.5,
-        "tools": ["web_search", "code_interpreter"]
+from defog.llm import SubAgentTask, ExecutionMode
+
+# Define tasks
+tasks = [
+    SubAgentTask(
+        agent_id="calculator",
+        task_description="Calculate 100 * 50",
+        execution_mode=ExecutionMode.PARALLEL
+    ),
+    SubAgentTask(
+        agent_id="text_processor",
+        task_description="Count words in 'The quick brown fox'",
+        execution_mode=ExecutionMode.PARALLEL
+    ),
+    SubAgentTask(
+        agent_id="formatter",
+        task_description="Format previous results as JSON",
+        execution_mode=ExecutionMode.SEQUENTIAL,
+        dependencies=["calculator", "text_processor"]
+    )
+]
+```
+
+## Error Handling and Retries
+
+The orchestrator includes robust error handling:
+
+```python
+# Configure retry behavior
+orchestrator = AgentOrchestrator(
+    main_agent=main_agent,
+    max_retries=3,              # Maximum retry attempts
+    retry_delay=1.0,            # Initial delay between retries
+    retry_backoff=2.0,          # Exponential backoff factor
+    retry_timeout=30.0,         # Timeout for individual tasks
+    fallback_model="gpt-4o"     # Fallback model for errors
+)
+```
+
+## Memory Management
+
+Agents can have memory management enabled:
+
+```python
+# Create agent with memory
+agent = Agent(
+    agent_id="memory_agent",
+    provider="anthropic",
+    model="claude-3-5-sonnet",
+    memory_config={
+        "enabled": True,
+        "token_threshold": 50000,
+        "preserve_last_n_messages": 10,
+        "summary_max_tokens": 1000
     }
-}
-
-# Dynamic agent spawning
-async def create_specialized_agent(specialty: str):
-    if specialty in agent_templates:
-        return ThinkingAgent(
-            agent_id=f"{specialty}_{uuid.uuid4().hex[:8]}",
-            config=agent_templates[specialty]
-        )
-    else:
-        # Create generic agent with specialty prompt
-        return ThinkingAgent(
-            agent_id=f"generic_{specialty}",
-            config={
-                "model": "gpt-4o",
-                "system_prompt": f"You are a specialist in {specialty}..."
-            }
-        )
-
-# Spawn agents based on task requirements
-task_requirements = analyze_task_requirements(user_query)
-agents = []
-for requirement in task_requirements:
-    agent = await create_specialized_agent(requirement)
-    agents.append(agent)
-```
-
-## Agent Communication Patterns
-
-### Direct Agent-to-Agent Communication
-
-```python
-# Enable direct communication between agents
-class CollaborativeAgent(ThinkingAgent):
-    async def consult_peer(self, peer_id: str, question: str):
-        """Consult another agent directly"""
-        response = await self.orchestrator.route_message(
-            from_agent=self.agent_id,
-            to_agent=peer_id,
-            message={
-                "type": "consultation",
-                "question": question,
-                "context": self.current_context
-            }
-        )
-        return response
-
-# Usage in agent task
-async def analyze_with_consultation(self, data):
-    initial_analysis = await self.analyze(data)
-    
-    if initial_analysis["confidence"] < 0.7:
-        # Consult specialist
-        specialist_opinion = await self.consult_peer(
-            "domain_specialist",
-            f"Please review this analysis: {initial_analysis}"
-        )
-        
-        # Incorporate feedback
-        final_analysis = await self.refine_analysis(
-            initial_analysis,
-            specialist_opinion
-        )
-    
-    return final_analysis
-```
-
-### Broadcasting and Subscriptions
-
-```python
-# Broadcast findings to interested agents
-await orchestrator.broadcast(
-    from_agent="researcher",
-    event_type="discovery",
-    data={
-        "finding": "New market opportunity identified",
-        "confidence": 0.9,
-        "impact": "high"
-    },
-    
-    # Subscription filters
-    subscriber_filter=lambda agent: "analyst" in agent.role
 )
 
-# Subscribe to events
-orchestrator.subscribe(
-    agent_id="portfolio_manager",
-    event_types=["discovery", "risk_alert"],
-    callback=handle_market_event
-)
+# Clear memory when needed
+agent.clear_memory()
+
+# Clear all agent memories
+orchestrator.clear_all_memory()
 ```
 
-## Advanced Orchestration Patterns
+## Complete Example
 
-### Map-Reduce Pattern
+Here's a complete example showing dynamic agent creation and task execution:
 
 ```python
-async def map_reduce_analysis(orchestrator, documents):
-    # Map phase: Analyze documents in parallel
-    map_tasks = []
-    for i, doc in enumerate(documents):
-        task = SubAgentTask(
-            agent_id=f"analyzer_{i}",
-            task_description=f"Analyze document: {doc['title']}",
-            execution_mode=ExecutionMode.PARALLEL,
-            input_data=doc
-        )
-        map_tasks.append(task)
-    
-    map_results = await orchestrator.execute_tasks(map_tasks)
-    
-    # Reduce phase: Combine analyses
-    reduce_task = SubAgentTask(
-        agent_id="synthesizer",
-        task_description="Combine all document analyses",
-        input_data=map_results,
-        execution_mode=ExecutionMode.SEQUENTIAL
+import asyncio
+from defog.llm import Agent, AgentOrchestrator
+
+# Define tools
+async def web_search_tool(query: str) -> str:
+    # Implementation
+    return f"Search results for: {query}"
+
+async def summarize_tool(text: str) -> str:
+    # Implementation
+    return f"Summary: {text[:100]}..."
+
+async def main():
+    # Create main orchestrator
+    main_agent = Agent(
+        agent_id="main_orchestrator",
+        provider="anthropic",
+        model="claude-3-5-sonnet",
+        system_prompt="""You are a research orchestrator. 
+        Analyze user requests and create specialized agents to handle different aspects.
+        Use the plan_and_create_subagents tool for complex tasks."""
     )
     
-    final_result = await orchestrator.execute_task(reduce_task)
-    return final_result
-```
-
-### Pipeline Pattern
-
-```python
-# Create processing pipeline
-pipeline = orchestrator.create_pipeline([
-    ("data_cleaner", "Clean and validate input data"),
-    ("feature_extractor", "Extract relevant features"),
-    ("model_builder", "Build predictive model"),
-    ("validator", "Validate model performance"),
-    ("reporter", "Generate final report")
-])
-
-# Execute pipeline with data flow
-result = await pipeline.execute(
-    input_data=raw_data,
+    # Create orchestrator with tools
+    orchestrator = AgentOrchestrator(
+        main_agent=main_agent,
+        available_tools=[web_search_tool, summarize_tool],
+        subagent_provider="anthropic",
+        subagent_model="claude-3-5-haiku"
+    )
     
-    # Pipeline options
-    stop_on_error=False,
-    collect_intermediates=True,
-    parallel_stages=["feature_extractor", "model_builder"]
-)
-
-# Access intermediate results
-for stage, output in result["intermediates"].items():
-    print(f"{stage}: {output['summary']}")
-```
-
-### Consensus Pattern
-
-```python
-async def consensus_decision(orchestrator, question):
-    # Get opinions from multiple agents
-    agents = ["expert_1", "expert_2", "expert_3", "expert_4", "expert_5"]
-    
-    opinion_tasks = [
-        SubAgentTask(
-            agent_id=agent,
-            task_description=f"Provide opinion on: {question}",
-            execution_mode=ExecutionMode.PARALLEL
-        )
-        for agent in agents
-    ]
-    
-    opinions = await orchestrator.execute_tasks(opinion_tasks)
-    
-    # Aggregate opinions
-    consensus_task = SubAgentTask(
-        agent_id="consensus_builder",
-        task_description="Build consensus from expert opinions",
-        input_data=opinions,
-        
-        # Consensus parameters
-        consensus_config={
-            "method": "weighted_voting",  # majority, weighted, deliberative
-            "confidence_weights": True,
-            "require_quorum": 0.8
+    # Process complex request
+    response = await orchestrator.process([
+        {
+            "role": "user",
+            "content": "Research the latest developments in quantum computing and provide a summary"
         }
-    )
+    ])
     
-    consensus = await orchestrator.execute_task(consensus_task)
-    return consensus
-```
+    print(f"Response: {response.content}")
+    print(f"Tokens used: {response.total_tokens}")
+    print(f"Cost: ${response.cost_in_cents / 100}")
 
-## Monitoring and Debugging
-
-### Agent Performance Monitoring
-
-```python
-# Enable comprehensive monitoring
-orchestrator.enable_monitoring(
-    metrics=[
-        "execution_time",
-        "token_usage",
-        "cost",
-        "error_rate",
-        "confidence_scores"
-    ],
-    
-    # Real-time dashboard
-    dashboard_port=8080,
-    
-    # Alerts
-    alert_thresholds={
-        "error_rate": 0.1,
-        "cost_per_task": 1.0,
-        "execution_time": 300
-    }
-)
-
-# Get performance metrics
-metrics = orchestrator.get_metrics()
-print(f"Average task duration: {metrics['avg_duration']}s")
-print(f"Success rate: {metrics['success_rate']:.2%}")
-print(f"Total cost: ${metrics['total_cost']:.2f}")
-```
-
-### Debugging Tools
-
-```python
-# Enable debug mode
-orchestrator.set_debug_mode(
-    enabled=True,
-    
-    # Debug options
-    log_level="DEBUG",
-    save_thinking_traces=True,
-    save_agent_conversations=True,
-    breakpoint_on_error=True
-)
-
-# Inspect agent state
-agent_state = await orchestrator.inspect_agent("researcher")
-print(f"Current task: {agent_state['current_task']}")
-print(f"Memory usage: {agent_state['memory_tokens']}")
-print(f"Thinking trace: {agent_state['thinking_trace']}")
-
-# Replay workflow for debugging
-replay_result = await orchestrator.replay_workflow(
-    workflow_id="wf_123",
-    modifications={
-        "agent_model": "gpt-4o",  # Try different model
-        "temperature": 0.3         # Adjust temperature
-    }
-)
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Best Practices
 
-1. **Design clear agent roles** with specific responsibilities
-2. **Use thinking agents** for complex reasoning tasks
-3. **Implement proper error handling** and fallback strategies
-4. **Monitor costs** and set appropriate limits
-5. **Use shared context** judiciously to avoid information overload
-6. **Test workflows** with smaller/cheaper models first
-7. **Document agent interactions** for debugging
-8. **Implement timeouts** to prevent hanging agents
-9. **Use consensus patterns** for critical decisions
-10. **Clean up resources** after workflow completion
+1. **Agent Specialization**: Create agents with specific, focused roles
+2. **Tool Selection**: Only provide agents with the tools they need
+3. **Error Handling**: Always configure appropriate retry settings
+4. **Memory Management**: Enable memory for agents handling long conversations
+5. **Cost Management**: Monitor token usage and costs, especially with parallel execution
+6. **Task Dependencies**: Use dependencies to ensure proper execution order
