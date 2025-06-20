@@ -114,13 +114,15 @@ async def main():
     try:
         # Run examples
         # Apple financial report (3 pages only)
-        # await extract("https://www.apple.com/newsroom/pdfs/fy2025-q2/FY25_Q2_Consolidated_Financial_Statements.pdf")
+        await extract(
+            "https://www.apple.com/newsroom/pdfs/fy2025-q2/FY25_Q2_Consolidated_Financial_Statements.pdf"
+        )
 
         # Qwen 2.5 research paper (26 pages)
         # await extract("https://arxiv.org/pdf/2412.15115")
 
         # AI 2027 report
-        await extract("https://ai-2027.com/ai-2027.pdf")
+        # await extract("https://ai-2027.com/ai-2027.pdf")
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
