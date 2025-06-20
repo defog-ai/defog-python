@@ -305,7 +305,7 @@ def generate_detailed_tool_trace(tool_outputs: List[Dict[str, Any]]) -> str:
                 lines.append(
                     f"      Tools: ${breakdown.get('tool_costs_in_cents', 0) / 100:.4f}"
                 )
-                lines.append(f"      ─────────────────")
+                lines.append("      ─────────────────")
                 lines.append(
                     f"      TOTAL: ${breakdown.get('total_cost_in_cents', 0) / 100:.4f}"
                 )
