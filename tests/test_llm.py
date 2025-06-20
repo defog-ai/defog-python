@@ -1,5 +1,6 @@
 import unittest
 import pytest
+import asyncio
 from defog.llm.utils import (
     map_model_to_provider,
     chat_async,
@@ -226,7 +227,8 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
         messages = [
             {"role": "user", "content": "Return a greeting in not more than 2 words\n"}
         ]
-        for model in models:
+
+        async def test_model(model):
             provider = map_model_to_provider(model)
             response = await chat_async(
                 provider=provider,
@@ -239,6 +241,13 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             )
             self.assertIsInstance(response.content, str)
             self.assertIsInstance(response.time, float)
+            return model, response
+
+        # Run all model tests in parallel
+        results = await asyncio.gather(*[test_model(model) for model in models])
+
+        # Verify all models completed successfully
+        self.assertEqual(len(results), len(models))
 
     @pytest.mark.asyncio(loop_scope="session")
     @skip_if_no_models()
@@ -255,7 +264,8 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             test_models.append("mistral-small-latest")
 
         models = [m for m in test_models if m in sum(AVAILABLE_MODELS.values(), [])]
-        for model in models:
+
+        async def test_model(model):
             provider = map_model_to_provider(model)
             response = await chat_async(
                 provider=provider,
@@ -268,6 +278,13 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             )
             self.check_sql(response.content)
             self.assertIsInstance(response.time, float)
+            return model, response
+
+        # Run all model tests in parallel
+        results = await asyncio.gather(*[test_model(model) for model in models])
+
+        # Verify all models completed successfully
+        self.assertEqual(len(results), len(models))
 
     @pytest.mark.asyncio(loop_scope="session")
     @skip_if_no_models()
@@ -286,22 +303,35 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             self.skipTest("No models with reasoning effort support available")
 
         reasoning_effort = ["low", "medium", "high", None]
+
+        async def test_model_effort(model, effort):
+            provider = map_model_to_provider(model)
+            response = await chat_async(
+                provider=provider,
+                model=model,
+                messages=messages_sql_structured,
+                max_completion_tokens=32000,
+                temperature=0.0,
+                seed=0,
+                response_format=ResponseFormat,
+                reasoning_effort=effort,
+                max_retries=1,
+            )
+            self.check_sql(response.content.sql)
+            self.assertIsInstance(response.content.reasoning, str)
+            return (model, effort, response)
+
+        # Create all test combinations
+        test_tasks = []
         for effort in reasoning_effort:
             for model in test_models:
-                provider = map_model_to_provider(model)
-                response = await chat_async(
-                    provider=provider,
-                    model=model,
-                    messages=messages_sql_structured,
-                    max_completion_tokens=32000,
-                    temperature=0.0,
-                    seed=0,
-                    response_format=ResponseFormat,
-                    reasoning_effort=effort,
-                    max_retries=1,
-                )
-                self.check_sql(response.content.sql)
-                self.assertIsInstance(response.content.reasoning, str)
+                test_tasks.append(test_model_effort(model, effort))
+
+        # Run all tests in parallel
+        results = await asyncio.gather(*test_tasks)
+
+        # Verify all tests completed successfully
+        self.assertEqual(len(results), len(reasoning_effort) * len(test_models))
 
     @pytest.mark.asyncio(loop_scope="session")
     @skip_if_no_models()
@@ -318,7 +348,8 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             test_models.append("mistral-small-latest")
 
         models = [m for m in test_models if m in sum(AVAILABLE_MODELS.values(), [])]
-        for model in models:
+
+        async def test_model(model):
             provider = map_model_to_provider(model)
             response = await chat_async(
                 provider=provider,
@@ -332,6 +363,13 @@ class TestChatClients(unittest.IsolatedAsyncioTestCase):
             )
             self.check_sql(response.content.sql)
             self.assertIsInstance(response.content.reasoning, str)
+            return model, response
+
+        # Run all model tests in parallel
+        results = await asyncio.gather(*[test_model(model) for model in models])
+
+        # Verify all models completed successfully
+        self.assertEqual(len(results), len(models))
 
 
 if __name__ == "__main__":
