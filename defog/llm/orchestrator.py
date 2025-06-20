@@ -774,8 +774,8 @@ class AgentOrchestrator:
             orch_logger.log_request_start(input.user_request)
             orch_logger.log_planning_analysis(input.analysis)
 
-            # Use the planning LLM to analyze the request and create subagent plans
-            planning_messages = [
+            # Use the subagent designer LLM to analyze the request and create subagent plans
+            subagent_designer_messages = [
                 {
                     "role": "system",
                     "content": f"""You are a planning agent that designs specialized subagents for complex tasks.
@@ -821,7 +821,7 @@ Return a JSON object with this structure:
                 planning_response = await chat_async(
                     provider=self.subagent_designer_provider,
                     model=self.subagent_designer_model,
-                    messages=planning_messages,
+                    messages=subagent_designer_messages,
                     temperature=0.2,
                     response_format=PlanningResponse,
                 )
