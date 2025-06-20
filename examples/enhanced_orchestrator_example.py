@@ -81,7 +81,7 @@ class DataAnalysisInput(BaseModel):
 
 
 async def analyze_data(input: DataAnalysisInput) -> Dict[str, Any]:
-    """Analyze data using statistical or visualization methods."""
+    """Analyze data using statistical methods."""
     code = f"""
 import json
 import statistics
@@ -291,7 +291,6 @@ You must use plan_and_create_subagents for complex multi-part requests.""",
 1. Use SQL to find the top 5 batsmen by total runs
 2. Calculate the strike rates and averages for these players
 3. Use Python to create a statistical comparison of their performance
-4. Explore different ways to visualize batting performance trends
 
 Database path: {cricket_db_path}
 
@@ -310,7 +309,6 @@ Data: [45, 52, 38, 64, 42, 48, 55, 67, 71, 39, 58, 61]
 1. Perform statistical analysis (mean, median, std dev)
 2. Identify outliers using different methods
 3. Create Python code for trend analysis
-4. Compare different visualization approaches
 
 Explore at least 2 different analytical methods.""",
             }
