@@ -166,7 +166,6 @@ async def generate_sql_query_local(
             model=model,
             messages=messages,
             temperature=temperature,
-            max_completion_tokens=2000,
             config=config,
         )
 
@@ -182,26 +181,6 @@ async def generate_sql_query_local(
             sql_query = sql_query[:-3]
         sql_query = sql_query.strip()
 
-        # Generate a reason for the query
-        reason_messages = messages + [
-            {"role": "assistant", "content": sql_query},
-            {
-                "role": "user",
-                "content": "Briefly explain in 1-2 sentences why this SQL query answers the question.",
-            },
-        ]
-
-        reason_response = await chat_async(
-            provider=provider,
-            model=model,
-            messages=reason_messages,
-            temperature=temperature,
-            max_completion_tokens=200,
-            config=config,
-        )
-
-        reason = reason_response.content.strip()
-
         # Update context for future queries
         new_context = previous_context.copy() if previous_context else []
         new_context.append({"role": "user", "content": question})
@@ -212,7 +191,7 @@ async def generate_sql_query_local(
             "ran_successfully": True,
             "error_message": None,
             "query_db": db_type,
-            "reason_for_query": reason,
+            "reason_for_query": "No reason provided",
             "previous_context": new_context,
         }
 

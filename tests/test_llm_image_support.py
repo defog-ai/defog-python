@@ -56,7 +56,6 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
             provider=LLMProvider.ANTHROPIC,
             model="claude-3-7-sonnet-latest",
             messages=messages,
-            max_completion_tokens=2000,
             temperature=0.0,
             max_retries=1,
         )
@@ -86,7 +85,6 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
                 provider=LLMProvider.ANTHROPIC,
                 model="claude-3-7-sonnet-latest",
                 messages=messages,
-                max_completion_tokens=2000,
                 temperature=0.0,
                 max_retries=1,
             )
@@ -118,7 +116,6 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
             provider=LLMProvider.OPENAI,
             model="gpt-4o-mini",
             messages=messages,
-            max_completion_tokens=2000,
             temperature=0.0,
             max_retries=1,
         )
@@ -150,7 +147,6 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
             provider=LLMProvider.GEMINI,
             model="gemini-2.0-flash",
             messages=messages,
-            max_completion_tokens=2000,
             temperature=0.0,
             max_retries=1,
         )
@@ -187,7 +183,6 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
             provider=LLMProvider.ANTHROPIC,
             model="claude-3-7-sonnet-latest",
             messages=messages,
-            max_completion_tokens=2000,
             temperature=0.0,
             max_retries=1,
         )
@@ -254,7 +249,6 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
             provider=LLMProvider.ANTHROPIC,
             model="claude-3-7-sonnet-latest",
             messages=messages,
-            max_completion_tokens=2000,
             temperature=0.0,
             max_retries=1,
         )
@@ -267,7 +261,6 @@ class TestLLMImageSupport(unittest.IsolatedAsyncioTestCase):
             provider=LLMProvider.ANTHROPIC,
             model="claude-3-7-sonnet-latest",
             messages=messages,
-            max_completion_tokens=2000,
             temperature=0.0,
             max_retries=1,
         )

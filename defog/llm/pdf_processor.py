@@ -149,7 +149,6 @@ Provide a thorough analysis based on the PDF content."""
                 "model": self.model,
                 "messages": messages,
                 "temperature": self.temperature,
-                "max_completion_tokens": 16000,
                 "reasoning_effort": "low",  # 2048 token thinking budget
             }
 
