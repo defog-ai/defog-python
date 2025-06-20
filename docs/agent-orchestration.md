@@ -1,6 +1,6 @@
 # Agent Orchestration
 
-This document covers the agent orchestration capabilities in defog-python, including multi-agent coordination and task delegation.
+This document covers the agent orchestration capabilities in defog-python, including multi-agent coordination, task delegation, and visualization of execution flows.
 
 ## Basic Agent Orchestrator
 
@@ -65,8 +65,8 @@ orchestrator = AgentOrchestrator(
     available_tools=[calculator_tool, text_processor_tool, data_formatter_tool],
     subagent_provider="anthropic",
     subagent_model="claude-3-5-haiku",
-    planning_provider="anthropic",
-    planning_model="claude-3-5-sonnet"
+    subagent_designer_provider="anthropic",
+    subagent_designer_model="claude-3-5-sonnet"
 )
 
 # The orchestrator will automatically create subagents as needed
@@ -214,6 +214,105 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+```
+
+## Visualizing Orchestrator Execution
+
+The defog-python library includes utilities to visualize the execution flow of the orchestrator and its subagents:
+
+### ASCII Flowchart Generation
+
+```python
+from defog.llm.utils_orchestrator_viz import generate_orchestrator_flowchart, generate_detailed_tool_trace
+
+# After running the orchestrator
+response = await orchestrator.process(messages)
+
+# Generate ASCII flowchart
+flowchart = generate_orchestrator_flowchart(response.tool_outputs)
+print(flowchart)
+```
+
+This will produce output like:
+```
+┌─────────────────────────┐
+│   Agent Orchestrator    │
+└────────────┬────────────┘
+             │
+             ▼
+┌─────────────────────────┐
+│  plan_and_create_       │
+│      subagents          │
+└────────────┬────────────┘
+             │
+      ┌──────┴──────┐
+      │             │
+      ▼             ▼
+┌───────────────────────┐  ┌───────────────────────┐
+│ Team Batting Analysis │  │ Individual Batting    │
+│        Agent          │  │ Performance Agent     │
+├───────────────────────┤  ├───────────────────────┤
+│ Tools:                │  │ Tools:                │
+│  • cricket_sql_query  │  │  • cricket_sql_query  │
+│  • cricket_sql_query  │  │  • cricket_sql_query  │
+│  • cricket_sql_query  │  └───────────────────────┘
+└───────────────────────┘
+
+Summary:
+────────────────────────────────────────
+Total Subagents Created: 2
+Total Tool Calls: 6
+Execution Mode(s): parallel
+```
+
+### Detailed Tool Trace
+
+```python
+# Generate detailed trace of all tool calls
+trace = generate_detailed_tool_trace(response.tool_outputs)
+print(trace)
+```
+
+This will show a hierarchical trace of all tool calls:
+```
+Orchestrator Execution Trace
+==================================================
+
+1. plan_and_create_subagents
+   └─ team_batting_analysis_agent [✓]
+       ├─ cricket_sql_query (question: List each team's total runs...) [✓]
+       ├─ cricket_sql_query (question: Calculate average runs per...) [✓]
+       └─ Tokens: 2556 ($0.01)
+   └─ individual_batting_performance_agent [✓]
+       ├─ cricket_sql_query (question: List top 5 highest scores...) [✗]
+       ├─ cricket_sql_query (question: List top 5 batsmen by total...) [✓]
+       └─ Tokens: 3588 ($0.02)
+```
+
+### Integration Example
+
+```python
+# Complete example with visualization
+async def run_with_visualization():
+    # Create and configure orchestrator
+    orchestrator = AgentOrchestrator(
+        main_agent=main_agent,
+        available_tools=[web_search, execute_python, cricket_sql_query],
+        subagent_provider="openai",
+        subagent_model="gpt-4o"
+    )
+    
+    # Process request
+    response = await orchestrator.process(messages)
+    
+    # Display results with visualization
+    print(f"Response: {response.content}")
+    
+    print("\n=== Execution Flowchart ===")
+    print(generate_orchestrator_flowchart(response.tool_outputs))
+    
+    print("\n=== Tool Trace ===")
+    print(generate_detailed_tool_trace(response.tool_outputs))
 ```
 
 ## Best Practices
