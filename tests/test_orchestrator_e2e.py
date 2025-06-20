@@ -25,9 +25,10 @@ async def calculator_tool(input: CalculatorInput) -> Dict[str, Any]:
         allowed_names.update({"__builtins__": {}})
 
         result = eval(input.expression, allowed_names)
-        return {"result": result, "expression": input.expression}
+        # Simulate tool cost (0.1 cents per calculation)
+        return {"result": result, "expression": input.expression, "cost_in_cents": 0.1}
     except Exception as e:
-        return {"error": str(e), "expression": input.expression}
+        return {"error": str(e), "expression": input.expression, "cost_in_cents": 0.1}
 
 
 class TextProcessorInput(BaseModel):
@@ -49,9 +50,15 @@ async def text_processor_tool(input: TextProcessorInput) -> Dict[str, Any]:
     elif operation == "uppercase":
         result = text.upper()
     else:
-        return {"error": f"Unknown operation: {operation}"}
+        return {"error": f"Unknown operation: {operation}", "cost_in_cents": 0.05}
 
-    return {"result": result, "operation": operation, "input_text": text}
+    # Simulate tool cost (0.05 cents per text operation)
+    return {
+        "result": result,
+        "operation": operation,
+        "input_text": text,
+        "cost_in_cents": 0.05,
+    }
 
 
 class DataFormatterInput(BaseModel):
@@ -90,9 +97,14 @@ async def data_formatter_tool(input: DataFormatterInput) -> Dict[str, Any]:
         else:
             return {"error": f"Unknown format type: {input.format_type}"}
 
-        return {"result": result, "format_type": input.format_type}
+        # Simulate tool cost (0.2 cents per format operation)
+        return {
+            "result": result,
+            "format_type": input.format_type,
+            "cost_in_cents": 0.2,
+        }
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "cost_in_cents": 0.2}
 
 
 @pytest.mark.asyncio
@@ -188,8 +200,8 @@ async def test_dynamic_agent_creation():
         available_tools=[calculator_tool, text_processor_tool, data_formatter_tool],
         subagent_provider="openai",
         subagent_model="gpt-4.1",
-        planning_provider="openai",
-        planning_model="gpt-4.1",
+        subagent_designer_provider="openai",
+        subagent_designer_model="gpt-4.1",
     )
 
     messages = [
@@ -261,6 +273,73 @@ def test_agent_memory_configuration():
     print("✅ Memory configuration test passed")
 
 
+@pytest.mark.asyncio
+async def test_cost_tracking_with_tools():
+    """Test that tool costs are properly tracked and aggregated."""
+    # Create main agent
+    main_agent = Agent(
+        agent_id="cost_test_main",
+        provider="openai",
+        model="gpt-4.1",
+        system_prompt="You are an orchestrator that delegates tasks.",
+    )
+
+    # Create orchestrator with tools that have costs
+    tools = [calculator_tool, text_processor_tool, data_formatter_tool]
+    orchestrator = AgentOrchestrator(
+        main_agent=main_agent,
+        available_tools=tools,
+        subagent_provider="openai",
+        subagent_model="gpt-4o-mini",
+    )
+
+    # Test message that will trigger multiple tools
+    messages = [
+        {
+            "role": "user",
+            "content": """I need help with three tasks:
+        1. Calculate: 100 + 200 + 300
+        2. Count words in "This is a test sentence"
+        3. Format this data as JSON: [{"id": 1}, {"id": 2}]
+        
+        Use the planning tool to create specialized agents for these tasks.""",
+        }
+    ]
+
+    response = await orchestrator.process(messages)
+
+    # Check if tool outputs contain cost information
+    if response.tool_outputs:
+        for tool_output in response.tool_outputs:
+            if tool_output.get("name") == "plan_and_create_subagents":
+                result = tool_output.get("result", {})
+                cost_breakdown = result.get("total_cost_breakdown", {})
+
+                print("\n💰 Cost Breakdown:")
+                print(
+                    f"  Planning cost: ${cost_breakdown.get('planning_cost_in_cents', 0) / 100:.4f}"
+                )
+                print(
+                    f"  Subagent costs: ${cost_breakdown.get('subagent_costs_in_cents', 0) / 100:.4f}"
+                )
+                print(
+                    f"  Tool costs: ${cost_breakdown.get('tool_costs_in_cents', 0) / 100:.4f}"
+                )
+                print(
+                    f"  Total cost: ${cost_breakdown.get('total_cost_in_cents', 0) / 100:.4f}"
+                )
+
+                # Verify tool costs are tracked (should be > 0 since our tools have costs)
+                assert cost_breakdown.get("tool_costs_in_cents", 0) > 0, (
+                    "Tool costs should be tracked"
+                )
+                assert cost_breakdown.get("total_cost_in_cents", 0) > 0, (
+                    "Total cost should include all components"
+                )
+
+    print("✅ Cost tracking test passed")
+
+
 if __name__ == "__main__":
     # Run tests individually to better handle API rate limits
     import sys
@@ -273,6 +352,7 @@ if __name__ == "__main__":
             test_basic_agent_functionality,
             test_orchestrator_with_predefined_subagents,
             test_dynamic_agent_creation,
+            test_cost_tracking_with_tools,
         ]
 
         passed = 0
