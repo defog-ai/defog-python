@@ -32,7 +32,7 @@ class SubAgentTask:
     agent_id: str
     task_description: str
     context: Optional[Dict[str, Any]] = None
-    execution_mode: ExecutionMode = ExecutionMode.SEQUENTIAL
+    execution_mode: ExecutionMode = ExecutionMode.PARALLEL
     dependencies: Optional[List[str]] = None  # IDs of tasks that must complete first
     max_retries: int = 3
     retry_delay: float = 1.0
@@ -48,7 +48,7 @@ class SubAgentPlan:
     system_prompt: str
     task_description: str
     tools: List[str]  # Tool names from available tools
-    execution_mode: ExecutionMode = ExecutionMode.SEQUENTIAL
+    execution_mode: ExecutionMode = ExecutionMode.PARALLEL
     dependencies: Optional[List[str]] = None
 
 
@@ -154,7 +154,15 @@ class Agent:
 
 
 class AgentOrchestrator:
-    """Orchestrator for managing main agent and subagents with task delegation."""
+    """Orchestrator for managing main agent and subagents with task delegation.
+
+    The orchestrator enables hierarchical task execution where a main agent can:
+    1. Delegate tasks to pre-registered subagents
+    2. Dynamically create specialized subagents based on task requirements
+
+    Dynamic subagent creation uses a separate LLM (subagent_designer_provider/model)
+    to analyze complex tasks and design optimal subagent architectures.
+    """
 
     def __init__(
         self,
@@ -163,14 +171,30 @@ class AgentOrchestrator:
         available_tools: Optional[List[Callable]] = None,
         subagent_provider: Optional[str] = None,
         subagent_model: Optional[str] = None,
-        planning_provider: str = "anthropic",
-        planning_model: str = "claude-opus-4-20250514",
+        subagent_designer_provider: str = "anthropic",
+        subagent_designer_model: str = "claude-opus-4-20250514",
         max_retries: int = 3,
         retry_delay: float = 1.0,
         retry_backoff: float = 2.0,
         retry_timeout: Optional[float] = None,
         fallback_model: Optional[str] = None,
     ):
+        """Initialize the AgentOrchestrator.
+
+        Args:
+            main_agent: The primary agent that handles user interactions and orchestration
+            max_parallel_tasks: Maximum number of subagent tasks to run concurrently
+            available_tools: List of tool functions that can be assigned to dynamically created subagents
+            subagent_provider: Default LLM provider for subagents (defaults to main agent's provider)
+            subagent_model: Default LLM model for subagents (defaults to main agent's model)
+            subagent_designer_provider: LLM provider specifically for analyzing tasks and designing subagent architectures
+            subagent_designer_model: LLM model for subagent design (can be more powerful than main agent)
+            max_retries: Maximum retry attempts for failed tasks
+            retry_delay: Initial delay between retries in seconds
+            retry_backoff: Exponential backoff factor for retries
+            retry_timeout: Maximum time in seconds for a task before timeout
+            fallback_model: Alternative model to use if primary model fails
+        """
         self.main_agent = main_agent
         self.subagents = {}
         self.max_parallel_tasks = max_parallel_tasks
@@ -190,8 +214,8 @@ class AgentOrchestrator:
         }
         self.subagent_provider = subagent_provider or main_agent.provider
         self.subagent_model = subagent_model or main_agent.model
-        self.planning_provider = planning_provider
-        self.planning_model = planning_model
+        self.subagent_designer_provider = subagent_designer_provider
+        self.subagent_designer_model = subagent_designer_model
 
         # Circuit breaker state
         self.failure_count = 0
@@ -224,7 +248,7 @@ class AgentOrchestrator:
                     task_description=task_data["task_description"],
                     context=task_data.get("context"),
                     execution_mode=ExecutionMode(
-                        task_data.get("execution_mode", "sequential")
+                        task_data.get("execution_mode", "parallel")
                     ),
                     dependencies=task_data.get("dependencies"),
                     max_retries=task_data.get("max_retries", self.max_retries),
@@ -236,16 +260,39 @@ class AgentOrchestrator:
 
             results = await self._execute_subagent_tasks(tasks)
 
-            # Format results for main agent
-            formatted_results = {}
+            # Format results for main agent and calculate total costs
+            formatted_results = {
+                "task_results": {},
+                "total_cost_breakdown": {
+                    "subagent_costs_in_cents": 0,
+                    "tool_costs_in_cents": 0,
+                    "total_cost_in_cents": 0,
+                },
+            }
+
             for result in results:
-                formatted_results[result.task_id] = {
+                formatted_results["task_results"][result.task_id] = {
                     "agent_id": result.agent_id,
                     "success": result.success,
                     "result": result.result,
                     "error": result.error,
                     "metadata": result.metadata,
                 }
+
+                # Add up costs if available
+                if result.metadata:
+                    subagent_cost = result.metadata.get("cost_in_cents", 0) or 0
+                    tool_cost = result.metadata.get("tool_costs_in_cents", 0) or 0
+
+                    formatted_results["total_cost_breakdown"][
+                        "subagent_costs_in_cents"
+                    ] += subagent_cost
+                    formatted_results["total_cost_breakdown"][
+                        "tool_costs_in_cents"
+                    ] += tool_cost
+                    formatted_results["total_cost_breakdown"][
+                        "total_cost_in_cents"
+                    ] += subagent_cost + tool_cost
 
             return formatted_results
 
@@ -303,8 +350,28 @@ class AgentOrchestrator:
         """Group tasks by dependency order."""
         # Simple topological sort
         task_map = {f"task_{i}": task for i, task in enumerate(tasks)}
+        agent_to_task_id = {}
+
         for task_id, task in task_map.items():
             task.task_id = task_id
+            agent_to_task_id[task.agent_id] = task_id
+
+        # Convert agent_id dependencies to task_id dependencies
+        for task in tasks:
+            if task.dependencies:
+                task_dependencies = []
+                for dep in task.dependencies:
+                    if dep in agent_to_task_id:
+                        task_dependencies.append(agent_to_task_id[dep])
+                    else:
+                        # If dependency is already a task_id, keep it
+                        if dep.startswith("task_"):
+                            task_dependencies.append(dep)
+                        else:
+                            logger.warning(
+                                f"Unknown dependency '{dep}' for task {task.task_id}"
+                            )
+                task.dependencies = task_dependencies
 
         groups = []
         completed = set()
@@ -494,6 +561,22 @@ class AgentOrchestrator:
                 # Success - reset circuit breaker
                 self.failure_count = 0
 
+                # Calculate total cost including tool costs
+                total_cost = response.cost_in_cents or 0
+                tool_costs = 0
+
+                # Add cost from each tool if available
+                if response.tool_outputs:
+                    for tool_output in response.tool_outputs:
+                        # Check if tool has associated cost
+                        if (
+                            isinstance(tool_output.get("result"), dict)
+                            and "cost_in_cents" in tool_output["result"]
+                        ):
+                            tool_costs += tool_output["result"]["cost_in_cents"]
+
+                total_cost += tool_costs
+
                 result = SubAgentResult(
                     agent_id=task.agent_id,
                     task_id=task.task_id,
@@ -507,18 +590,28 @@ class AgentOrchestrator:
                         "output_tokens": response.output_tokens,
                         "total_tokens": response.input_tokens + response.output_tokens,
                         "cost_in_cents": response.cost_in_cents,
+                        "tool_costs_in_cents": tool_costs,
+                        "total_cost_in_cents": total_cost,
                         "tool_outputs": response.tool_outputs,
                     },
                 )
 
-                # Log task completion
+                # Log task completion with cost breakdown
+                enhanced_metadata = result.metadata.copy() if result.metadata else {}
+                if "tool_costs_in_cents" in enhanced_metadata:
+                    enhanced_metadata["cost_breakdown"] = {
+                        "llm_cost": enhanced_metadata.get("cost_in_cents", 0),
+                        "tool_cost": enhanced_metadata.get("tool_costs_in_cents", 0),
+                        "total_cost": enhanced_metadata.get("total_cost_in_cents", 0),
+                    }
+
                 orch_logger.log_task_execution_complete(
                     task.agent_id,
                     task.task_id,
                     True,
                     result.result,
                     None,
-                    result.metadata,
+                    enhanced_metadata,
                 )
 
                 return result
@@ -635,7 +728,19 @@ class AgentOrchestrator:
         return inspect.getdoc(tool) or "No description available"
 
     def _add_dynamic_planning_tool(self):
-        """Add tool for dynamically planning and creating subagents."""
+        """Add tool for dynamically planning and creating subagents.
+
+        This tool uses a dedicated LLM (subagent_designer_provider/model) to:
+        1. Analyze complex user requests
+        2. Design specialized subagent architectures
+        3. Assign appropriate tools to each subagent
+        4. Determine execution order and dependencies
+        5. Create and execute the subagents automatically
+
+        The subagent designer LLM can be different from the main agent's model,
+        allowing you to use a more powerful model for complex task decomposition
+        while keeping the main agent lightweight.
+        """
         from pydantic import BaseModel, Field
 
         class DynamicPlanningRequest(BaseModel):
@@ -654,7 +759,7 @@ class AgentOrchestrator:
             system_prompt: str
             task_description: str
             tools: List[str]
-            execution_mode: str = "sequential"
+            execution_mode: str = "parallel"
             dependencies: List[str] = []
 
         class PlanningResponse(BaseModel):
@@ -707,13 +812,15 @@ Return a JSON object with this structure:
             ]
 
             orch_logger.log_llm_call(
-                self.planning_provider, self.planning_model, "Planning"
+                self.subagent_designer_provider,
+                self.subagent_designer_model,
+                "Planning",
             )
 
             try:
                 planning_response = await chat_async(
-                    provider=self.planning_provider,
-                    model=self.planning_model,
+                    provider=self.subagent_designer_provider,
+                    model=self.subagent_designer_model,
                     messages=planning_messages,
                     temperature=0.2,
                     response_format=PlanningResponse,
@@ -774,13 +881,20 @@ Return a JSON object with this structure:
                 # Execute the tasks
                 results = await self._execute_subagent_tasks(tasks)
 
-                # Format results
+                # Format results and calculate total costs
                 formatted_results = {
                     "created_agents": created_agents,
                     "reasoning": plan_data.reasoning,
                     "task_results": {},
+                    "total_cost_breakdown": {
+                        "planning_cost_in_cents": planning_response.cost_in_cents or 0,
+                        "subagent_costs_in_cents": 0,
+                        "tool_costs_in_cents": 0,
+                        "total_cost_in_cents": planning_response.cost_in_cents or 0,
+                    },
                 }
 
+                # Aggregate costs from all subagents
                 for result in results:
                     formatted_results["task_results"][result.task_id] = {
                         "agent_id": result.agent_id,
@@ -789,6 +903,25 @@ Return a JSON object with this structure:
                         "error": result.error,
                         "metadata": result.metadata,
                     }
+
+                    # Add up costs if available
+                    if result.metadata:
+                        subagent_cost = result.metadata.get("cost_in_cents", 0) or 0
+                        tool_cost = result.metadata.get("tool_costs_in_cents", 0) or 0
+
+                        formatted_results["total_cost_breakdown"][
+                            "subagent_costs_in_cents"
+                        ] += subagent_cost
+                        formatted_results["total_cost_breakdown"][
+                            "tool_costs_in_cents"
+                        ] += tool_cost
+                        formatted_results["total_cost_breakdown"][
+                            "total_cost_in_cents"
+                        ] += subagent_cost + tool_cost
+
+                # Clean up created subagents after execution
+                for agent_id in created_agents:
+                    self.unregister_subagent(agent_id)
 
                 # Log orchestration completion
                 orch_logger.log_orchestration_complete(formatted_results)
@@ -869,6 +1002,22 @@ Return a JSON object with this structure:
             messages = [{"role": "user", "content": task.task_description}]
             response = await agent.process(messages, context=task.context)
 
+            # Calculate total cost including tool costs
+            total_cost = response.cost_in_cents or 0
+            tool_costs = 0
+
+            # Add cost from each tool if available
+            if response.tool_outputs:
+                for tool_output in response.tool_outputs:
+                    # Check if tool has associated cost
+                    if (
+                        isinstance(tool_output.get("result"), dict)
+                        and "cost_in_cents" in tool_output["result"]
+                    ):
+                        tool_costs += tool_output["result"]["cost_in_cents"]
+
+            total_cost += tool_costs
+
             return SubAgentResult(
                 agent_id=task.agent_id,
                 task_id=task.task_id,
@@ -879,6 +1028,8 @@ Return a JSON object with this structure:
                     "output_tokens": response.output_tokens,
                     "total_tokens": response.input_tokens + response.output_tokens,
                     "cost_in_cents": response.cost_in_cents,
+                    "tool_costs_in_cents": tool_costs,
+                    "total_cost_in_cents": total_cost,
                     "tool_outputs": response.tool_outputs,
                     "fallback_model_used": self.fallback_model,
                 },
@@ -920,8 +1071,8 @@ Return a JSON array of subtask descriptions.""",
                 reasoning: str
 
             response = await chat_async(
-                provider=self.planning_provider,
-                model=self.planning_model,
+                provider=self.subagent_designer_provider,
+                model=self.subagent_designer_model,
                 messages=decomposition_messages,
                 temperature=0.2,
                 response_format=TaskDecomposition,
@@ -935,7 +1086,7 @@ Return a JSON array of subtask descriptions.""",
                     agent_id=task.agent_id,
                     task_description=subtask_desc,
                     context=task.context,
-                    execution_mode=ExecutionMode.SEQUENTIAL,
+                    execution_mode=ExecutionMode.PARALLEL,
                     dependencies=[f"{task.task_id}_subtask_{i - 1}"] if i > 0 else None,
                     max_retries=max(
                         1, task.max_retries // 2
