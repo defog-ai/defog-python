@@ -274,10 +274,6 @@ if __name__ == "__main__":
             test_basic_agent_functionality,
             test_orchestrator_with_predefined_subagents,
             test_dynamic_agent_creation,
-            test_parallel_task_execution,
-            test_sequential_task_dependencies,
-            test_tool_assignment_correctness,
-            test_error_handling,
         ]
 
         passed = 0
