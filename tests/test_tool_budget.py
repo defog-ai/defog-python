@@ -206,10 +206,6 @@ async def test_tool_budget_with_gemini():
         1 for output in response.tool_outputs if output["name"] == "multiply"
     )
 
-    # Debug output
-    print(f"\nGemini test - Add count: {add_count}, Multiply count: {multiply_count}")
-    print(f"Tool outputs: {[output['name'] for output in response.tool_outputs]}")
-
     # Since Gemini doesn't support disabling parallel tool calls, it may exceed
     # the budget in a single response. We'll check that it at least made some calls
     # and that the response acknowledges the limitations.
