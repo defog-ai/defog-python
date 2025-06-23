@@ -12,6 +12,7 @@ from ..config import LLMConfig
 from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs, convert_tool_choice
 from ..image_utils import convert_to_openai_format
+from ..tools.handler import ToolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +269,7 @@ class OpenAIProvider(BaseLLMProvider):
         model: str = "",
         post_tool_function: Optional[Callable] = None,
         image_result_keys: Optional[List[str]] = None,
+        tool_handler: Optional[ToolHandler] = None,
         **kwargs,
     ) -> Tuple[
         Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
@@ -276,6 +278,10 @@ class OpenAIProvider(BaseLLMProvider):
         Extract content (including any tool calls) and usage info from OpenAI response.
         Handles chaining of tool calls.
         """
+        # Use provided tool_handler or fall back to self.tool_handler
+        if tool_handler is None:
+            tool_handler = self.tool_handler
+
         if len(response.choices) == 0:
             raise ProviderError(self.get_provider_name(), "No response from OpenAI")
         if response.choices[0].finish_reason == "length":
@@ -325,6 +331,7 @@ class OpenAIProvider(BaseLLMProvider):
                             request_params["messages"],
                             post_tool_function,
                             consecutive_exceptions,
+                            tool_handler,
                         )
 
                         # Append the tool calls as an assistant response
@@ -386,6 +393,11 @@ class OpenAIProvider(BaseLLMProvider):
                                 )
                                 request_params["messages"].append(image_message)
 
+                        # Update available tools based on budget
+                        tools, tool_dict = self.update_tools_with_budget(
+                            tools, tool_handler, request_params, model
+                        )
+
                         # Set tool_choice to "auto" so that the next message will be generated normally
                         request_params["tool_choice"] = (
                             "auto" if request_params["tool_choice"] != "auto" else None
@@ -398,7 +410,7 @@ class OpenAIProvider(BaseLLMProvider):
                         consecutive_exceptions += 1
                         if (
                             consecutive_exceptions
-                            >= self.tool_handler.max_consecutive_errors
+                            >= tool_handler.max_consecutive_errors
                         ):
                             raise ProviderError(
                                 self.get_provider_name(),
@@ -406,7 +418,7 @@ class OpenAIProvider(BaseLLMProvider):
                                 e,
                             )
                         print(
-                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                            f"{e}. Retries left: {tool_handler.max_consecutive_errors - consecutive_exceptions}"
                         )
                         request_params["messages"].append(
                             {"role": "assistant", "content": str(e)}
@@ -472,16 +484,24 @@ class OpenAIProvider(BaseLLMProvider):
         post_tool_function: Optional[Callable] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
         image_result_keys: Optional[List[str]] = None,
+        tool_budget: Optional[Dict[str, int]] = None,
         **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with OpenAI."""
         from openai import AsyncOpenAI
 
+        # Create a ToolHandler instance with tool_budget if provided
+        tool_handler = self.create_tool_handler_with_budget(tool_budget)
+
         if post_tool_function:
-            self.tool_handler.validate_post_tool_function(post_tool_function)
+            tool_handler.validate_post_tool_function(post_tool_function)
 
         t = time.time()
         client_openai = AsyncOpenAI(base_url=self.base_url, api_key=self.api_key)
+
+        # Filter tools based on budget before building params
+        tools = self.filter_tools_by_budget(tools, tool_handler)
+
         request_params, messages = self.build_params(
             messages=messages,
             model=model,
@@ -502,7 +522,7 @@ class OpenAIProvider(BaseLLMProvider):
         # Build a tool dict if needed
         tool_dict = {}
         if tools and len(tools) > 0 and "tools" in request_params:
-            tool_dict = self.tool_handler.build_tool_dict(tools)
+            tool_dict = tool_handler.build_tool_dict(tools)
 
         try:
             # If MCP servers are provided, use Responses API
@@ -597,6 +617,7 @@ class OpenAIProvider(BaseLLMProvider):
                     model=model,
                     post_tool_function=post_tool_function,
                     image_result_keys=image_result_keys,
+                    tool_handler=tool_handler,
                 )
         except Exception as e:
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)

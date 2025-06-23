@@ -12,6 +12,7 @@ from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs, convert_tool_choice
 from ..image_utils import convert_to_anthropic_format
 from ..utils_image_support import process_tool_results_with_images
+from ..tools.handler import ToolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         post_tool_function: Optional[Callable] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
         image_result_keys: Optional[List[str]] = None,
+        tool_handler: Optional[ToolHandler] = None,
         **kwargs,
     ) -> Tuple[
         Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
@@ -255,6 +257,10 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         Extract content (including any tool calls) and usage info from Anthropic response.
         Handles chaining of tool calls and structured output parsing.
         """
+        # Use provided tool_handler or fall back to self.tool_handler
+        if tool_handler is None:
+            tool_handler = self.tool_handler
+
         # Note: We check block.type property instead of using isinstance with specific block classes
         # This ensures compatibility with both regular and beta API responses
 
@@ -354,6 +360,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                 request_params["messages"],
                                 post_tool_function,
                                 consecutive_exceptions,
+                                tool_handler=tool_handler,
                             )
 
                         # For MCP tools, extract results from mcp_tool_result blocks
@@ -523,6 +530,14 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                     if request_params["tool_choice"] != "auto"
                                     else None
                                 )
+
+                                # Update available tools based on budget after successful tool execution
+                                tools, tool_dict = self.update_tools_with_budget(
+                                    tools,
+                                    tool_handler,
+                                    request_params,
+                                    request_params.get("model"),
+                                )
                             else:
                                 # Only MCP tools, conversation is complete
                                 content = "\n".join(
@@ -541,7 +556,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                         consecutive_exceptions += 1
                         if (
                             consecutive_exceptions
-                            >= self.tool_handler.max_consecutive_errors
+                            >= tool_handler.max_consecutive_errors
                         ):
                             raise ProviderError(
                                 self.get_provider_name(),
@@ -549,11 +564,16 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                                 e,
                             )
                         print(
-                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                            f"{e}. Retries left: {tool_handler.max_consecutive_errors - consecutive_exceptions}"
                         )
                         request_params["messages"].append(
                             {"role": "assistant", "content": str(e)}
                         )
+
+                    # Update available tools based on budget before making next call
+                    tools, tool_dict = self.update_tools_with_budget(
+                        tools, tool_handler, request_params, request_params.get("model")
+                    )
 
                     # Make next call - use the same API endpoint (beta or regular) as the initial call
                     if mcp_servers and len(mcp_servers) > 0:
@@ -609,13 +629,17 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         post_tool_function: Optional[Callable] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
         image_result_keys: Optional[List[str]] = None,
+        tool_budget: Optional[Dict[str, int]] = None,
         **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with Anthropic."""
         from anthropic import AsyncAnthropic
 
+        # Create a ToolHandler instance with tool_budget if provided
+        tool_handler = self.create_tool_handler_with_budget(tool_budget)
+
         if post_tool_function:
-            self.tool_handler.validate_post_tool_function(post_tool_function)
+            tool_handler.validate_post_tool_function(post_tool_function)
 
         t = time.time()
 
@@ -630,6 +654,9 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
             api_key=self.api_key,
             default_headers=headers,
         )
+
+        # Filter tools based on budget before building params
+        tools = self.filter_tools_by_budget(tools, tool_handler)
 
         params, _ = self.build_params(
             messages=messages,
@@ -647,7 +674,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
         # Construct a tool dict if needed
         tool_dict = {}
         if tools and len(tools) > 0 and "tools" in params:
-            tool_dict = self.tool_handler.build_tool_dict(tools)
+            tool_dict = tool_handler.build_tool_dict(tools)
 
         if mcp_servers and len(mcp_servers) > 0:
             func_to_call = client.beta.messages.create
@@ -674,6 +701,7 @@ THE RESPONSE SHOULD START WITH '{{' AND END WITH '}}' WITH NO OTHER CHARACTERS B
                 post_tool_function=post_tool_function,
                 mcp_servers=mcp_servers,
                 image_result_keys=image_result_keys,
+                tool_handler=tool_handler,
             )
         except Exception as e:
             traceback.print_exc()

@@ -10,6 +10,7 @@ from ..exceptions import ProviderError, MaxTokensError
 from ..config import LLMConfig
 from ..cost import CostCalculator
 from ..utils_function_calling import get_function_specs, convert_tool_choice
+from ..tools.handler import ToolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -220,6 +221,7 @@ Respond with JSON only.
         response_format=None,
         model: str = "",
         post_tool_function: Optional[Callable] = None,
+        tool_handler: Optional[ToolHandler] = None,
         **kwargs,
     ) -> Tuple[
         Any, List[Dict[str, Any]], int, int, Optional[int], Optional[Dict[str, int]]
@@ -228,6 +230,10 @@ Respond with JSON only.
         Extract content (including any tool calls) and usage info from DeepSeek response.
         Handles chaining of tool calls.
         """
+        # Use provided tool_handler or fall back to self.tool_handler
+        if tool_handler is None:
+            tool_handler = self.tool_handler
+
         if len(response.choices) == 0:
             raise ProviderError(self.get_provider_name(), "No response from DeepSeek")
         if response.choices[0].finish_reason == "length":
@@ -279,6 +285,7 @@ Respond with JSON only.
                             request_params["messages"],
                             post_tool_function,
                             consecutive_exceptions,
+                            tool_handler,
                         )
 
                         # Append the tool calls as an assistant response
@@ -319,6 +326,11 @@ Respond with JSON only.
                                 }
                             )
 
+                        # Update available tools based on budget
+                        tools, tool_dict = self.update_tools_with_budget(
+                            tools, tool_handler, request_params, model
+                        )
+
                         # Set tool_choice to "auto" so that the next message will be generated normally
                         request_params["tool_choice"] = (
                             "auto" if request_params["tool_choice"] != "auto" else None
@@ -331,7 +343,7 @@ Respond with JSON only.
                         consecutive_exceptions += 1
                         if (
                             consecutive_exceptions
-                            >= self.tool_handler.max_consecutive_errors
+                            >= tool_handler.max_consecutive_errors
                         ):
                             raise ProviderError(
                                 self.get_provider_name(),
@@ -339,7 +351,7 @@ Respond with JSON only.
                                 e,
                             )
                         print(
-                            f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+                            f"{e}. Retries left: {tool_handler.max_consecutive_errors - consecutive_exceptions}"
                         )
                         request_params["messages"].append(
                             {"role": "assistant", "content": str(e)}
@@ -404,16 +416,24 @@ Respond with JSON only.
         reasoning_effort: Optional[str] = None,
         post_tool_function: Optional[Callable] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
+        tool_budget: Optional[Dict[str, int]] = None,
         **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with DeepSeek."""
         from openai import AsyncOpenAI
 
+        # Create a ToolHandler instance with tool_budget if provided
+        tool_handler = self.create_tool_handler_with_budget(tool_budget)
+
         if post_tool_function:
-            self.tool_handler.validate_post_tool_function(post_tool_function)
+            tool_handler.validate_post_tool_function(post_tool_function)
 
         t = time.time()
         client_deepseek = AsyncOpenAI(base_url=self.base_url, api_key=self.api_key)
+
+        # Filter tools based on budget before building params
+        tools = self.filter_tools_by_budget(tools, tool_handler)
+
         request_params, messages = self.build_params(
             messages=messages,
             model=model,
@@ -434,7 +454,7 @@ Respond with JSON only.
         # Build a tool dict if needed
         tool_dict = {}
         if tools and len(tools) > 0 and "tools" in request_params:
-            tool_dict = self.tool_handler.build_tool_dict(tools)
+            tool_dict = tool_handler.build_tool_dict(tools)
 
         try:
             # Use regular Chat Completions API
@@ -463,6 +483,7 @@ Respond with JSON only.
                 response_format=response_format,
                 model=model,
                 post_tool_function=post_tool_function,
+                tool_handler=tool_handler,
             )
         except Exception as e:
             raise ProviderError(self.get_provider_name(), f"API call failed: {e}", e)
