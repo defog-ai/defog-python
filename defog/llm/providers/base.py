@@ -98,6 +98,7 @@ class BaseLLMProvider(ABC):
         post_tool_function: Optional[Callable] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
         image_result_keys: Optional[List[str]] = None,
+        tool_budget: Optional[Dict[str, int]] = None,
         **kwargs,
     ) -> LLMResponse:
         """Execute a chat completion with the provider."""
@@ -217,12 +218,17 @@ class BaseLLMProvider(ABC):
         messages: List[Dict[str, Any]],
         post_tool_function: Optional[Callable] = None,
         consecutive_exceptions: int = 0,
+        tool_handler: Optional[ToolHandler] = None,
     ) -> Tuple[List[Any], int]:
         """Common tool handling logic shared by all providers."""
+        # Use provided tool_handler or fall back to self.tool_handler
+        if tool_handler is None:
+            tool_handler = self.tool_handler
+
         tool_outputs = []
 
         try:
-            tool_outputs = await self.tool_handler.execute_tool_calls_batch(
+            tool_outputs = await tool_handler.execute_tool_calls_batch(
                 tool_calls,
                 tool_dict,
                 enable_parallel=self.config.enable_parallel_tool_calls,
@@ -231,15 +237,87 @@ class BaseLLMProvider(ABC):
             consecutive_exceptions = 0
         except Exception as e:
             consecutive_exceptions += 1
-            if consecutive_exceptions >= self.tool_handler.max_consecutive_errors:
+            if consecutive_exceptions >= tool_handler.max_consecutive_errors:
                 raise ProviderError(
                     self.get_provider_name(),
                     f"Tool execution failed after {consecutive_exceptions} consecutive errors: {str(e)}",
                 )
 
             # Add error to messages for retry
-            error_msg = f"{e}. Retries left: {self.tool_handler.max_consecutive_errors - consecutive_exceptions}"
+            error_msg = f"{e}. Retries left: {tool_handler.max_consecutive_errors - consecutive_exceptions}"
             print(error_msg)
             messages.append({"role": "assistant", "content": str(e)})
 
         return tool_outputs, consecutive_exceptions
+
+    def create_tool_handler_with_budget(
+        self, tool_budget: Optional[Dict[str, int]] = None
+    ) -> ToolHandler:
+        """Create a ToolHandler instance with optional tool budget."""
+        if tool_budget:
+            return ToolHandler(tool_budget=tool_budget)
+        return self.tool_handler
+
+    def filter_tools_by_budget(
+        self, tools: Optional[List[Callable]], tool_handler: ToolHandler
+    ) -> Optional[List[Callable]]:
+        """Filter tools based on available budget."""
+        if tools and tool_handler.tool_budget:
+            return tool_handler.get_available_tools(tools)
+        return tools
+
+    def update_tools_with_budget(
+        self,
+        tools: Optional[List[Callable]],
+        tool_handler: ToolHandler,
+        request_params: Dict[str, Any],
+        model: str,
+    ) -> Tuple[Optional[List[Callable]], Dict[str, Callable]]:
+        """Update available tools based on budget and rebuild parameters."""
+        from ..utils_function_calling import get_function_specs
+
+        if not tools or not tool_handler.tool_budget:
+            return tools, tool_handler.build_tool_dict(tools) if tools else {}
+
+        # Get available tools based on budget
+        available_tools = tool_handler.get_available_tools(tools)
+
+        if available_tools != tools:
+            # Find which tools were removed
+            removed_tools = []
+            for tool in tools:
+                if tool not in available_tools:
+                    removed_tools.append(tool.__name__)
+
+            # Tools have changed, update parameters
+            if available_tools:
+                # Rebuild tool specs with only available tools
+                function_specs = get_function_specs(available_tools, model)
+                request_params["tools"] = function_specs
+                tool_dict = tool_handler.build_tool_dict(available_tools)
+            else:
+                # No tools available, remove tools from params
+                request_params.pop("tools", None)
+                request_params.pop("tool_choice", None)
+                tool_dict = {}
+
+            # Add a note about removed tools to the last user message
+            if removed_tools and request_params.get("messages"):
+                # Find the last user message
+                for i in range(len(request_params["messages"]) - 1, -1, -1):
+                    if request_params["messages"][i].get("role") == "user":
+                        budget_msg = f"\n\nIMPORTANT: The following tools have exceeded their usage budget and are no longer available: {', '.join(removed_tools)}. Do not attempt to call these tools."
+
+                        # Handle both string content and structured content
+                        if isinstance(request_params["messages"][i]["content"], str):
+                            request_params["messages"][i]["content"] += budget_msg
+                        elif isinstance(request_params["messages"][i]["content"], list):
+                            # Append as a new text block
+                            request_params["messages"][i]["content"].append(
+                                {"type": "text", "text": budget_msg}
+                            )
+                        break
+
+            return available_tools, tool_dict
+
+        return tools, tool_handler.build_tool_dict(tools)
