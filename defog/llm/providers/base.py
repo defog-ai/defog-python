@@ -299,6 +299,7 @@ class BaseLLMProvider(ABC):
                 # No tools available, remove tools from params
                 request_params.pop("tools", None)
                 request_params.pop("tool_choice", None)
+                request_params.pop("parallel_tool_calls", None)
                 tool_dict = {}
 
             # Add a note about removed tools to the last user message
