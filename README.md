@@ -127,13 +127,22 @@ For advanced features like:
 
 See the [full documentation](docs/README.md).
 
-## Contributing
+## Development
 
-Contributions are welcome! Please:
-
+### Testing and formatting
 1. Run tests: `python3.12 -m pytest tests`
-2. Format code: `black .`
+2. Format code: `ruff format`
 3. Update documentation when adding features
+
+### Using Serena with Claude Code while developing
+
+If you're using Claude Code to help with development, run:
+
+```bash
+uvx --from git+https://github.com/oraios/serena index-project
+claude mcp add serena -- uvx --from git+https://github.com/oraios/serena serena-mcp-server --context ide-assistant --project $(pwd)
+# ℹ️ Once in Claude Code, you should ask Claude to "Read the initial instructions" as your first prompt, such that it will receive information on how to use Serena's tools.
+```
 
 ## License
 
