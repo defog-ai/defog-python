@@ -91,3 +91,6 @@ examples/cricket_wc2015.duckdb
 .env
 .env.local
 .env.*.local
+
+# pkl files
+*.pkl
