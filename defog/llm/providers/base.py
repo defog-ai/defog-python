@@ -19,6 +19,7 @@ class LLMResponse:
     output_tokens_details: Optional[Dict[str, int]] = None
     cost_in_cents: Optional[float] = None
     tool_outputs: Optional[List[Dict[str, Any]]] = None
+    citations: Optional[List[Dict[str, Any]]] = None
 
 
 class BaseLLMProvider(ABC):
