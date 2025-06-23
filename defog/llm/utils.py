@@ -1,5 +1,6 @@
 import asyncio
 import traceback
+import json
 from typing import Dict, List, Optional, Any, Union, Callable
 
 from .providers import (
@@ -15,6 +16,7 @@ from .providers.base import LLMResponse
 from .exceptions import LLMError, ConfigurationError
 from .config import LLMConfig
 from .llm_providers import LLMProvider
+from .citations import citations_tool
 from copy import deepcopy
 
 # Keep the original LLMResponse for backwards compatibility
@@ -107,6 +109,7 @@ async def chat_async(
     mcp_servers: Optional[List[Dict[str, Any]]] = None,
     image_result_keys: Optional[List[str]] = None,
     tool_budget: Optional[Dict[str, int]] = None,
+    insert_tool_citations: bool = False,
 ) -> LLMResponse:
     """
     Execute a chat completion with explicit provider parameter.
@@ -134,6 +137,7 @@ async def chat_async(
         mcp_servers: List of MCP server configurations (Anthropic only)
         image_result_keys: List of keys to check in tool results for image data (e.g., ['image_base64', 'screenshot_data'])
         tool_budget: Dictionary mapping tool names to maximum allowed calls. Tools not in the dictionary have unlimited calls.
+        insert_tool_citations: If True, adds citations to the response using tool outputs as source documents (OpenAI and Anthropic only)
 
     Returns:
         LLMResponse object containing the result
@@ -171,7 +175,7 @@ async def chat_async(
             provider_instance = get_provider_instance(current_provider, config)
 
             # Execute the chat completion
-            return await provider_instance.execute_chat(
+            response = await provider_instance.execute_chat(
                 messages=messages,
                 model=current_model,
                 max_completion_tokens=max_completion_tokens,
@@ -190,6 +194,49 @@ async def chat_async(
                 image_result_keys=image_result_keys,
                 tool_budget=tool_budget,
             )
+
+            # Process citations if requested and provider supports it
+            if insert_tool_citations and response.tool_outputs:
+                # Get the provider enum if it's a string
+                if isinstance(current_provider, str):
+                    provider_enum = LLMProvider(current_provider.lower())
+                else:
+                    provider_enum = current_provider
+
+                # Check if provider supports citations
+                if provider_enum not in [LLMProvider.OPENAI, LLMProvider.ANTHROPIC]:
+                    raise ValueError(
+                        "insert_tool_citations is only supported for OpenAI and Anthropic providers"
+                    )
+
+                # Get the original user question
+                original_question = get_original_user_question(messages)
+
+                # Convert tool outputs to documents
+                documents = convert_tool_outputs_to_documents(response.tool_outputs)
+
+                # Call citations tool to add citations to the response
+                citation_blocks = await citations_tool(
+                    question=original_question,
+                    instructions="Add citations to the following response using the tool outputs as source documents: "
+                    + response.content,
+                    documents=documents,
+                    model=current_model,
+                    provider=provider_enum,
+                    max_tokens=max_completion_tokens or 16000,
+                    verbose=False,  # Don't show progress for internal citation processing
+                )
+
+                # Update response with citation-enhanced content and citations
+                if citation_blocks and len(citation_blocks) > 0:
+                    # Extract text content from citation blocks
+                    cited_content = "".join(
+                        block.get("text", "") for block in citation_blocks
+                    )
+                    response.content = cited_content
+                    response.citations = citation_blocks
+
+            return response
 
         except Exception as e:
             error_trace = traceback.format_exc()
@@ -257,3 +304,46 @@ def map_model_to_provider(model: str) -> LLMProvider:
         return LLMProvider.ALIBABA
     else:
         raise ConfigurationError(f"Unknown model: {model}")
+
+
+def convert_tool_outputs_to_documents(
+    tool_outputs: List[Dict[str, Any]],
+) -> List[Dict[str, str]]:
+    """
+    Convert tool outputs to document format for citation processing.
+
+    Args:
+        tool_outputs: List of tool output dictionaries
+
+    Returns:
+        List of documents with document_name and document_content
+    """
+    documents = []
+    for output in tool_outputs:
+        doc_name = f"{output['name']}_{output['tool_call_id']}"
+        doc_content = f"Function: {output['name']}\nArguments: {json.dumps(output['args'])}\nResult: {json.dumps(output['result'])}"
+        documents.append({"document_name": doc_name, "document_content": doc_content})
+    return documents
+
+
+def get_original_user_question(messages: List[Dict[str, Any]]) -> str:
+    """
+    Extract the original user question from the messages list.
+
+    Args:
+        messages: List of message dictionaries
+
+    Returns:
+        The content of the first user message, or empty string if not found
+    """
+    for message in messages:
+        if message.get("role") == "user":
+            content = message.get("content", "")
+            # Handle both string content and list content (for multimodal)
+            if isinstance(content, list):
+                # Extract text from multimodal content
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        return item.get("text", "")
+            return content
+    return ""
