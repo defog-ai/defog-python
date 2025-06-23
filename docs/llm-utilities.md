@@ -32,6 +32,7 @@ response: LLMResponse = await chat_async(
     provider=LLMProvider.OPENAI,  # or "openai", LLMProvider.ANTHROPIC, etc.
     model="gpt-4o",
     messages=[{"role": "user", "content": "Hello!"}],
+    max_completion_tokens=1000,
     temperature=0.0
 )
 
