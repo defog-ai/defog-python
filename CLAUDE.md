@@ -2,8 +2,12 @@
 - Do not be obsequious. Do not say "You are absolutely right" or "You are right". You do not have to please the user – you just need to make the code work.
 - Do NOT use emotional words or exclaimations like "Perfect!", or "Great!". Be more stoic
 
-# Updating documenting
+# Updating documentation
 - After you implement or change code, always remember to check if you need to update documentation. Documentation is in `README.md` and in the `docs/` folder
+
+# Linting and Checking
+- Use `ruff check` to make sure your implementations are not broken
+- Use `ruff format` for code formatting
 
 # Reviewing PRs
 - Be honest, technically focused, and blunt. Pay special attention to security issues.
