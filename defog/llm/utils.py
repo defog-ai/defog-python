@@ -171,6 +171,18 @@ async def chat_async(
                 if backup_model is not None:
                     current_model = backup_model
 
+            # Validate provider support for citations before execution
+            if insert_tool_citations:
+                if isinstance(current_provider, str):
+                    provider_enum = LLMProvider(current_provider.lower())
+                else:
+                    provider_enum = current_provider
+                
+                if provider_enum not in [LLMProvider.OPENAI, LLMProvider.ANTHROPIC]:
+                    raise ValueError(
+                        "insert_tool_citations is only supported for OpenAI and Anthropic providers"
+                    )
+
             # Get provider instance
             provider_instance = get_provider_instance(current_provider, config)
 
@@ -197,17 +209,11 @@ async def chat_async(
 
             # Process citations if requested and provider supports it
             if insert_tool_citations and response.tool_outputs:
-                # Get the provider enum if it's a string
+                # Get the provider enum (already validated above)
                 if isinstance(current_provider, str):
                     provider_enum = LLMProvider(current_provider.lower())
                 else:
                     provider_enum = current_provider
-
-                # Check if provider supports citations
-                if provider_enum not in [LLMProvider.OPENAI, LLMProvider.ANTHROPIC]:
-                    raise ValueError(
-                        "insert_tool_citations is only supported for OpenAI and Anthropic providers"
-                    )
 
                 # Get the original user question
                 original_question = get_original_user_question(messages)
@@ -233,8 +239,11 @@ async def chat_async(
                     cited_content = "".join(
                         block.get("text", "") for block in citation_blocks
                     )
-                    response.content = cited_content
-                    response.citations = citation_blocks
+                    # Only update content if citation processing produced meaningful content
+                    if cited_content.strip():
+                        response.content = cited_content
+                        response.citations = citation_blocks
+                    # If citation processing failed or returned empty content, keep original content
 
             return response
 
