@@ -130,7 +130,7 @@ See the [full documentation](docs/README.md).
 ## Development
 
 ### Testing and formatting
-1. Run tests: `python3.12 -m pytest tests`
+1. Run tests: `python -m pytest tests`
 2. Format code: `ruff format`
 3. Update documentation when adding features
 
