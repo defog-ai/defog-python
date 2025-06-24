@@ -18,10 +18,15 @@ extras = {
 setup(
     name="defog",
     packages=find_packages(),
-    version="1.0.2",
+    version="1.1.0",
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
     license="MIT",
+    entry_points={
+        "console_scripts": [
+            "defog=defog.cli:main",
+        ],
+    },
     install_requires=[
         "httpx>=0.28.1",
         "psycopg2-binary>=2.9.5",
@@ -42,6 +47,7 @@ setup(
         "mcp",
         "rich",
         "jsonref",
+        "fastmcp",
     ],
     author_email="founders@defog.ai",
     url="https://github.com/defog-ai/defog-python",
