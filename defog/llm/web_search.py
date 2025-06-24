@@ -5,7 +5,7 @@ from defog.llm.utils_logging import (
     NoOpToolProgressTracker,
     NoOpSubTaskLogger,
 )
-import os
+from defog import config
 
 
 async def web_search_tool(
@@ -33,7 +33,7 @@ async def web_search_tool(
         if provider in [LLMProvider.OPENAI, LLMProvider.OPENAI.value]:
             from openai import AsyncOpenAI
 
-            client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            client = AsyncOpenAI(api_key=config.get("OPENAI_API_KEY"))
 
             tracker.update(20, "Initiating web search")
             subtask_logger.log_search_status(question)
@@ -85,7 +85,7 @@ async def web_search_tool(
             from anthropic import AsyncAnthropic
             from anthropic.types import TextBlock
 
-            client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            client = AsyncAnthropic(api_key=config.get("ANTHROPIC_API_KEY"))
 
             tracker.update(20, "Initiating web search")
             subtask_logger.log_search_status(question, max_results=5)
@@ -159,7 +159,7 @@ async def web_search_tool(
                 FunctionCallingConfig,
             )
 
-            client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+            client = genai.Client(api_key=config.get("GEMINI_API_KEY"))
             google_search_tool = Tool(google_search=GoogleSearch())
 
             tracker.update(20, "Initiating Google search")

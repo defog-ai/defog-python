@@ -1,4 +1,4 @@
-import os
+from defog import config as defog_config
 import time
 import logging
 from typing import Dict, List, Any, Optional, Callable, Tuple, Union
@@ -15,7 +15,7 @@ class TogetherProvider(BaseLLMProvider):
     """Together AI provider implementation."""
 
     def __init__(self, api_key: Optional[str] = None, config=None):
-        super().__init__(api_key or os.getenv("TOGETHER_API_KEY"), config=config)
+        super().__init__(api_key or defog_config.get("TOGETHER_API_KEY"), config=config)
 
     @classmethod
     def from_config(cls, config: LLMConfig):

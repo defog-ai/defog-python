@@ -4,18 +4,16 @@ MCP Server for Defog Python
 Provides tools for SQL queries, code interpretation, web search, and YouTube transcription
 """
 
-import os
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 import logging
 
 # we use fastmcp 2.0 provider instead of the fastmcp provided by mcp
 # this is because this version makes it easier to change multiple variables, like the port
 from fastmcp import FastMCP
-from defog.llm.web_search import web_search_tool
 from defog.llm.youtube import get_youtube_summary
-from defog.llm.code_interp import code_interpreter_tool
 from defog.llm.sql import sql_answer_tool
 from defog.llm.pdf_data_extractor import extract_pdf_data as extract_pdf_data_tool
+from defog import config
 import json
 
 # Configure logging
@@ -31,7 +29,7 @@ def validate_database_credentials() -> Dict[str, Any]:
     Validate database credentials based on DB_TYPE environment variable.
     Returns a dictionary with validation results.
     """
-    db_type = os.getenv("DB_TYPE")
+    db_type = config.get("DB_TYPE")
 
     if not db_type:
         return {"valid": False, "error": "DB_TYPE environment variable not set"}
@@ -60,7 +58,7 @@ def validate_database_credentials() -> Dict[str, Any]:
     # Check for missing credentials
     missing_creds = []
     for cred in required_creds[db_type]:
-        if not os.getenv(cred):
+        if not config.get(cred):
             missing_creds.append(cred)
 
     if missing_creds:
@@ -95,198 +93,165 @@ if validation_result["valid"]:
         Returns:
             JSON string containing query results or error message
         """
-        db_type = os.getenv("DB_TYPE")
+        db_type = config.get("DB_TYPE")
 
         # Parse database credentials
         creds = {}
         # get db creds from env, depending on db_type
         if db_type == "postgres":
             creds = {
-                "host": os.getenv("DB_HOST"),
-                "port": os.getenv("DB_PORT"),
-                "user": os.getenv("DB_USER"),
-                "password": os.getenv("DB_PASSWORD"),
-                "database": os.getenv("DB_NAME"),
+                "host": config.get("DB_HOST"),
+                "port": config.get("DB_PORT"),
+                "user": config.get("DB_USER"),
+                "password": config.get("DB_PASSWORD"),
+                "database": config.get("DB_NAME"),
             }
         elif db_type == "mysql":
             creds = {
-                "host": os.getenv("DB_HOST"),
-                "user": os.getenv("DB_USER"),
-                "password": os.getenv("DB_PASSWORD"),
-                "database": os.getenv("DB_NAME"),
+                "host": config.get("DB_HOST"),
+                "user": config.get("DB_USER"),
+                "password": config.get("DB_PASSWORD"),
+                "database": config.get("DB_NAME"),
             }
         elif db_type == "bigquery":
             creds = {
-                "json_key_path": os.getenv("DB_KEY_PATH"),
+                "json_key_path": config.get("DB_KEY_PATH"),
             }
         elif db_type == "snowflake":
             creds = {
-                "user": os.getenv("DB_USER"),
-                "password": os.getenv("DB_PASSWORD"),
-                "account": os.getenv("DB_ACCOUNT"),
-                "warehouse": os.getenv("DB_WAREHOUSE"),
-                "database": os.getenv("DB_NAME"),
+                "user": config.get("DB_USER"),
+                "password": config.get("DB_PASSWORD"),
+                "account": config.get("DB_ACCOUNT"),
+                "warehouse": config.get("DB_WAREHOUSE"),
+                "database": config.get("DB_NAME"),
             }
         elif db_type == "databricks":
             creds = {
-                "server_hostname": os.getenv("DB_HOST"),
-                "http_path": os.getenv("DB_PATH"),
-                "access_token": os.getenv("DB_TOKEN"),
+                "server_hostname": config.get("DB_HOST"),
+                "http_path": config.get("DB_PATH"),
+                "access_token": config.get("DB_TOKEN"),
             }
         elif db_type == "sqlserver":
             creds = {
-                "server": os.getenv("DB_HOST"),
-                "user": os.getenv("DB_USER"),
-                "password": os.getenv("DB_PASSWORD"),
-                "database": os.getenv("DB_NAME"),
+                "server": config.get("DB_HOST"),
+                "user": config.get("DB_USER"),
+                "password": config.get("DB_PASSWORD"),
+                "database": config.get("DB_NAME"),
             }
         elif db_type == "sqlite":
             creds = {
-                "database": os.getenv("DATABASE_PATH"),
+                "database": config.get("DATABASE_PATH"),
             }
         elif db_type == "duckdb":
             creds = {
-                "database": os.getenv("DATABASE_PATH"),
+                "database": config.get("DATABASE_PATH"),
             }
+        elif db_type == "redshift":
+            creds = {
+                "host": config.get("DB_HOST"),
+                "port": config.get("DB_PORT"),
+                "user": config.get("DB_USER"),
+                "password": config.get("DB_PASSWORD"),
+                "database": config.get("DB_NAME"),
+            }
+        else:
+            raise ValueError(f"Unsupported database type: {db_type}")
+
+        # select model/provider based on what API keys are available
+        # we prefer to use openai/o4-mini, gemini/gemini-pro-2.5, anthropic/claude-sonnet-4 - in that order
+        if config.get("OPENAI_API_KEY"):
+            model = "o4-mini"
+            provider = "openai"
+        elif config.get("GEMINI_API_KEY"):
+            model = "gemini-pro-2.5"
+            provider = "gemini"
+        elif config.get("ANTHROPIC_API_KEY"):
+            model = "claude-sonnet-4-20250514"
+            provider = "anthropic"
+        else:
+            raise ValueError("No API keys found")
 
         # Parse table metadata if provided
         result = await sql_answer_tool(
             question=question,
             db_type=db_type,
             db_creds=creds,
-            model="o4-mini",
-            provider="openai",
+            model=model,
+            provider=provider,
         )
 
         return json.dumps(result, indent=2, default=str)
 
 
-@mcp.tool(
-    description="Execute Python code to analyze data or perform calculations. Returns execution results."
-)
-async def code_interpreter(question: str, csv_data: Optional[str] = None) -> str:
-    """
-    Execute Python code to answer questions or analyze data.
+if config.get("GEMINI_API_KEY"):
 
-    Args:
-        question: The question or task to accomplish
-        code: Optional Python code to execute (will be generated if not provided)
-        csv_data: Optional CSV data as a string to analyze
-        model: LLM model to use
-        provider: LLM provider (openai, anthropic, gemini, etc.)
+    @mcp.tool(
+        description="Get a detailed transcript/summary of a YouTube video. Returns formatted transcript with timestamps."
+    )
+    async def youtube_video_summary(
+        video_url: str,
+        task_description: str,
+        system_instructions: List[str] = None,
+    ) -> str:
+        """
+        Get a summary of a YouTube video.
 
-    Returns:
-        JSON string containing execution results or error message
-    """
-    try:
-        result = await code_interpreter_tool(
-            question=question,
-            model="gpt-4.1",
-            provider="openai",
-            csv_string=csv_data or "",
-            verbose=False,
-        )
+        Args:
+            video_url: YouTube video URL
+            task_description: Description of the task to accomplish
+            system_instructions: System instructions to use for the task
 
-        return json.dumps(result, indent=2)
+        Returns:
+            JSON string containing summary
+        """
+        try:
+            result = await get_youtube_summary(
+                video_url=video_url,
+                verbose=False,
+                task_description=task_description,
+                system_instructions=system_instructions,
+            )
 
-    except Exception as e:
-        logger.error(f"Error in code_interpreter: {e}")
-        return json.dumps({"error": str(e), "status": "error"})
+            return json.dumps({"summary": result}, indent=2)
 
-
-@mcp.tool(
-    description="Search the web for information. Returns search results with citations."
-)
-async def web_search(
-    query: str,
-) -> str:
-    """
-    Search the web for information about a topic.
-
-    Args:
-        query: Search query or question
-        model: LLM model to use
-        provider: LLM provider (openai, anthropic, gemini, etc.)
-        max_tokens: Maximum tokens for the response
-
-    Returns:
-        JSON string containing search results and citations
-    """
-    try:
-        # Perform web search
-        result = await web_search_tool(
-            question=query,
-            model="o4-mini",
-            provider="openai",
-            verbose=False,
-        )
-
-        return json.dumps({"result": result, "status": "success"}, indent=2)
-
-    except Exception as e:
-        logger.error(f"Error in web_search: {e}")
-        return json.dumps({"error": str(e), "status": "error"})
+        except Exception as e:
+            logger.error(f"Error in youtube_transcript: {e}")
+            return json.dumps({"error": str(e), "status": "error"})
+else:
+    logger.warning("No API keys found for Gemini, YouTube tool will not be available")
 
 
-@mcp.tool(
-    description="Get a detailed transcript/summary of a YouTube video. Returns formatted transcript with timestamps."
-)
-async def youtube_video_summary(
-    video_url: str,
-    task_description: str,
-    system_instructions: List[str] = None,
-) -> str:
-    """
-    Get a summary of a YouTube video.
+if config.get("ANTHROPIC_API_KEY"):
 
-    Args:
-        video_url: YouTube video URL
-        task_description: Description of the task to accomplish
-        system_instructions: System instructions to use for the task
+    @mcp.tool(
+        description="Extract structured data from a PDF document. Requires a URL to the PDF."
+    )
+    async def extract_pdf_data(
+        pdf_url: str,
+    ) -> str:
+        """
+        Extract structured data from a PDF document.
 
-    Returns:
-        JSON string containing summary
-    """
-    try:
-        result = await get_youtube_summary(
-            video_url=video_url,
-            verbose=False,
-            task_description=task_description,
-            system_instructions=system_instructions,
-        )
+        Args:
+            pdf_url: URL to the PDF document
 
-        return json.dumps({"summary": result}, indent=2)
+        Returns:
+            JSON string containing extracted data or error message
+        """
+        try:
+            result = await extract_pdf_data_tool(
+                pdf_url=pdf_url,
+            )
 
-    except Exception as e:
-        logger.error(f"Error in youtube_transcript: {e}")
-        return json.dumps({"error": str(e), "status": "error"})
+            return json.dumps(result, indent=2)
 
-
-@mcp.tool(
-    description="Extract structured data from a PDF document. Requires a URL to the PDF."
-)
-async def extract_pdf_data(
-    pdf_url: str,
-) -> str:
-    """
-    Extract structured data from a PDF document.
-
-    Args:
-        pdf_url: URL to the PDF document
-
-    Returns:
-        JSON string containing extracted data or error message
-    """
-    try:
-        result = await extract_pdf_data_tool(
-            pdf_url=pdf_url,
-        )
-
-        return json.dumps(result, indent=2)
-
-    except Exception as e:
-        logger.error(f"Error in extract_pdf_data: {e}")
-        return json.dumps({"error": str(e), "status": "error"})
+        except Exception as e:
+            logger.error(f"Error in extract_pdf_data: {e}")
+            return json.dumps({"error": str(e), "status": "error"})
+else:
+    logger.warning(
+        "No API keys found for Anthropic, PDF extraction tool will not be available"
+    )
 
 
 def run_server():

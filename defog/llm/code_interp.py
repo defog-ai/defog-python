@@ -5,7 +5,7 @@ from defog.llm.utils_logging import (
     NoOpToolProgressTracker,
     NoOpSubTaskLogger,
 )
-import os
+from defog import config
 from io import BytesIO
 
 
@@ -46,7 +46,7 @@ async def code_interpreter_tool(
                 ResponseOutputMessage,
             )
 
-            client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            client = AsyncOpenAI(api_key=config.get("OPENAI_API_KEY"))
 
             if csv_string:
                 tracker.update(20, "Uploading data file")
@@ -101,7 +101,7 @@ async def code_interpreter_tool(
             from anthropic import AsyncAnthropic
 
             client = AsyncAnthropic(
-                api_key=os.getenv("ANTHROPIC_API_KEY"),
+                api_key=config.get("ANTHROPIC_API_KEY"),
                 default_headers={"anthropic-beta": "code-execution-2025-05-22"},
             )
 
@@ -158,7 +158,7 @@ async def code_interpreter_tool(
             from google import genai
             from google.genai import types
 
-            client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+            client = genai.Client(api_key=config.get("GEMINI_API_KEY"))
 
             tracker.update(20, "Uploading data file")
             subtask_logger.log_subtask("Uploading CSV to Gemini", "processing")
