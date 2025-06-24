@@ -41,6 +41,7 @@ setup(
         "beautifulsoup4>=4.12.0",
         "mcp",
         "rich",
+        "jsonref",
     ],
     author_email="founders@defog.ai",
     url="https://github.com/defog-ai/defog-python",
