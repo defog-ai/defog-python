@@ -306,7 +306,7 @@ def run_server():
     try:
         import asyncio
 
-        tools = asyncio.run(mcp.list_tools())
+        tools = asyncio.run(mcp._list_tools())
         tool_names = [tool.name for tool in tools]
         logger.info(f"Registered {len(tool_names)} tools: {', '.join(tool_names)}")
     except Exception as e:
