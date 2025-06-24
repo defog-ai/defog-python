@@ -112,12 +112,19 @@ export DATABASE_PATH="/path/to/your/database.duckdb"
 
 ### Standalone Mode
 ```bash
-python mcp_server.py
+# first, export any database related env variables you need to
+# also make sure you have the API keys either exported or already in your env
+defog serve
 ```
 
 The server will start on port 33364 by default.
 
-### With Claude Desktop
+### Using with Claude Code
+
+1. Run `claude mcp add --transport http defog http://127.0.0.1:33364/mcp/` to add the server.
+2. That's it! For text to SQL questions, you may have to specify using the text to SQL tool or ask something like "get this from the database". We will work on making this more seamless
+
+### Using with Claude Desktop
 
 1. Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
@@ -142,35 +149,6 @@ The server will start on port 33364 by default.
 ```
 
 2. Restart Claude Desktop
-
-## Usage Examples
-
-### SQL Query
-```
-Query: "Show me the top 10 customers by revenue"
-```
-
-### Code Interpretation
-```
-Query: "Calculate the correlation between these variables"
-CSV Data: "x,y\n1,2\n2,4\n3,6\n4,8"
-```
-
-### Web Search
-```
-Query: "Latest developments in quantum computing 2024"
-```
-
-### YouTube Summary
-```
-Video URL: "https://youtube.com/watch?v=..."
-Task: "Summarize the key technical concepts discussed"
-```
-
-### PDF Data Extraction
-```
-PDF URL: "https://example.com/document.pdf"
-```
 
 ## Configuration
 
