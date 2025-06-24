@@ -277,7 +277,11 @@ def run_server():
     except Exception as e:
         logger.warning(f"Could not list tools: {e}")
 
-    mcp.run(transport="streamable-http", port=33364)
+    # disable streamable-http for now, until Claude Desktop supports it
+    # mcp.run(transport="streamable-http", port=33364)
+
+    # use normal HTTP (stdio under the hood, AFAIK) for now
+    mcp.run()
 
 
 if __name__ == "__main__":

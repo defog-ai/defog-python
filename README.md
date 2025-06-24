@@ -136,9 +136,31 @@ See the [full documentation](docs/README.md).
 
 ## Using our MCP Server
 
-1. Export any environment variables you would need to, like database credentials or your API keys. More in [README_MCP.md](./README_MCP.md)
-2. Run `defog serve`
-3. Add to your MCP Client
+1. Run `defog serve` once to complete your setup, and `defog db` to update your database credentials
+2. Add to your MCP Client
+    - Claude Code: `claude mcp add defog -- defog serve`
+    - Claude Desktop: add the config below
+    ```json
+    {
+        "mcpServers": {
+            "defog": {
+                "command": "python3",
+                "args": ["-m", "defog.mcp_server"],
+                "env": {
+                    "OPENAI_API_KEY": "YOUR_OPENAI_KEY",
+                    "ANTHROPIC_API_KEY": "YOUR_ANTHROPIC_KEY",
+                    "GEMINI_API_KEY": "YOUR_GEMINI_KEY",
+                    "DB_TYPE": "YOUR_DB_TYPE",
+                    "DB_HOST": "YOUR_DB_HOST",
+                    "DB_PORT": "YOUR_DB_PORT",
+                    "DB_USER": "YOUR_DB_USER",
+                    "DB_PASSWORD": "YOUR_DB_PASSWORD",
+                    "DB_NAME": "YOUR_DB_NAME"
+                }
+            }
+        }
+        }
+    ```
 
 ## License
 
