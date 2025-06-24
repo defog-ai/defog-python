@@ -150,6 +150,8 @@ The CLI wizard will automatically launch if required environment variables are m
       "args": ["serve"],
       "env": {
         "OPENAI_API_KEY": "your-openai-key",
+        "ANTHROPIC_API_KEY": "your-anthropic-key",
+        "GEMINI_API_KEY": "your-gemini-key",
         "DB_TYPE": "postgres",
         "DB_HOST": "localhost",
         "DB_PORT": "5432",
