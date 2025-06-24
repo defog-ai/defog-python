@@ -5,7 +5,7 @@ Provides tools for SQL queries, code interpretation, web search, and YouTube tra
 """
 
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import logging
 
 # we use fastmcp 2.0 provider instead of the fastmcp provided by mcp
@@ -26,85 +26,139 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("Defog MCP Server")
 
 
-@mcp.tool(
-    description="Execute a natural language query against a SQL database. Supports multiple database types."
-)
-async def text_to_sql_tool(
-    question: str,
-) -> str:
+def validate_database_credentials() -> Dict[str, Any]:
     """
-    Execute a natural language query against a SQL database. This works best for questions involving structured data.
-
-    Args:
-        question: Natural language question to query the database
-
-    Returns:
-        JSON string containing query results or error message
+    Validate database credentials based on DB_TYPE environment variable.
+    Returns a dictionary with validation results.
     """
     db_type = os.getenv("DB_TYPE")
 
-    # Parse database credentials
-    creds = {}
-    # get db creds from env, depending on db_type
-    if db_type == "postgres":
-        creds = {
-            "host": os.getenv("DB_HOST"),
-            "port": os.getenv("DB_PORT"),
-            "user": os.getenv("DB_USER"),
-            "password": os.getenv("DB_PASSWORD"),
-            "database": os.getenv("DB_NAME"),
-        }
-    elif db_type == "mysql":
-        creds = {
-            "host": os.getenv("DB_HOST"),
-            "user": os.getenv("DB_USER"),
-            "password": os.getenv("DB_PASSWORD"),
-            "database": os.getenv("DB_NAME"),
-        }
-    elif db_type == "bigquery":
-        creds = {
-            "json_key_path": os.getenv("DB_KEY_PATH"),
-        }
-    elif db_type == "snowflake":
-        creds = {
-            "user": os.getenv("DB_USER"),
-            "password": os.getenv("DB_PASSWORD"),
-            "account": os.getenv("DB_ACCOUNT"),
-            "warehouse": os.getenv("DB_WAREHOUSE"),
-            "database": os.getenv("DB_NAME"),
-        }
-    elif db_type == "databricks":
-        creds = {
-            "server_hostname": os.getenv("DB_HOST"),
-            "http_path": os.getenv("DB_PATH"),
-            "access_token": os.getenv("DB_TOKEN"),
-        }
-    elif db_type == "sqlserver":
-        creds = {
-            "server": os.getenv("DB_HOST"),
-            "user": os.getenv("DB_USER"),
-            "password": os.getenv("DB_PASSWORD"),
-            "database": os.getenv("DB_NAME"),
-        }
-    elif db_type == "sqlite":
-        creds = {
-            "database": os.getenv("DATABASE_PATH"),
-        }
-    elif db_type == "duckdb":
-        creds = {
-            "database": os.getenv("DATABASE_PATH"),
+    if not db_type:
+        return {"valid": False, "error": "DB_TYPE environment variable not set"}
+
+    # Define required credentials for each database type
+    required_creds = {
+        "postgres": ["DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME"],
+        "mysql": ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"],
+        "bigquery": ["DB_KEY_PATH"],
+        "snowflake": [
+            "DB_USER",
+            "DB_PASSWORD",
+            "DB_ACCOUNT",
+            "DB_WAREHOUSE",
+            "DB_NAME",
+        ],
+        "databricks": ["DB_HOST", "DB_PATH", "DB_TOKEN"],
+        "sqlserver": ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"],
+        "sqlite": ["DATABASE_PATH"],
+        "duckdb": ["DATABASE_PATH"],
+    }
+
+    if db_type not in required_creds:
+        return {"valid": False, "error": f"Unsupported database type: {db_type}"}
+
+    # Check for missing credentials
+    missing_creds = []
+    for cred in required_creds[db_type]:
+        if not os.getenv(cred):
+            missing_creds.append(cred)
+
+    if missing_creds:
+        return {
+            "valid": False,
+            "error": f"Missing required credentials for {db_type}: {', '.join(missing_creds)}",
         }
 
-    # Parse table metadata if provided
-    result = await sql_answer_tool(
-        question=question,
-        db_type=db_type,
-        db_creds=creds,
-        model="o4-mini",
-        provider="openai",
+    return {
+        "valid": True,
+        "db_type": db_type,
+        "message": f"Successfully validated {db_type} database credentials",
+    }
+
+
+# Only register text_to_sql_tool if database credentials are valid
+validation_result = validate_database_credentials()
+if validation_result["valid"]:
+
+    @mcp.tool(
+        description="Execute a natural language query against a SQL database. Supports multiple database types."
     )
+    async def text_to_sql_tool(
+        question: str,
+    ) -> str:
+        """
+        Execute a natural language query against a SQL database. This works best for questions involving structured data.
 
-    return json.dumps(result, indent=2, default=str)
+        Args:
+            question: Natural language question to query the database
+
+        Returns:
+            JSON string containing query results or error message
+        """
+        db_type = os.getenv("DB_TYPE")
+
+        # Parse database credentials
+        creds = {}
+        # get db creds from env, depending on db_type
+        if db_type == "postgres":
+            creds = {
+                "host": os.getenv("DB_HOST"),
+                "port": os.getenv("DB_PORT"),
+                "user": os.getenv("DB_USER"),
+                "password": os.getenv("DB_PASSWORD"),
+                "database": os.getenv("DB_NAME"),
+            }
+        elif db_type == "mysql":
+            creds = {
+                "host": os.getenv("DB_HOST"),
+                "user": os.getenv("DB_USER"),
+                "password": os.getenv("DB_PASSWORD"),
+                "database": os.getenv("DB_NAME"),
+            }
+        elif db_type == "bigquery":
+            creds = {
+                "json_key_path": os.getenv("DB_KEY_PATH"),
+            }
+        elif db_type == "snowflake":
+            creds = {
+                "user": os.getenv("DB_USER"),
+                "password": os.getenv("DB_PASSWORD"),
+                "account": os.getenv("DB_ACCOUNT"),
+                "warehouse": os.getenv("DB_WAREHOUSE"),
+                "database": os.getenv("DB_NAME"),
+            }
+        elif db_type == "databricks":
+            creds = {
+                "server_hostname": os.getenv("DB_HOST"),
+                "http_path": os.getenv("DB_PATH"),
+                "access_token": os.getenv("DB_TOKEN"),
+            }
+        elif db_type == "sqlserver":
+            creds = {
+                "server": os.getenv("DB_HOST"),
+                "user": os.getenv("DB_USER"),
+                "password": os.getenv("DB_PASSWORD"),
+                "database": os.getenv("DB_NAME"),
+            }
+        elif db_type == "sqlite":
+            creds = {
+                "database": os.getenv("DATABASE_PATH"),
+            }
+        elif db_type == "duckdb":
+            creds = {
+                "database": os.getenv("DATABASE_PATH"),
+            }
+
+        # Parse table metadata if provided
+        result = await sql_answer_tool(
+            question=question,
+            db_type=db_type,
+            db_creds=creds,
+            model="o4-mini",
+            provider="openai",
+        )
+
+        return json.dumps(result, indent=2, default=str)
 
 
 @mcp.tool(
@@ -237,16 +291,24 @@ async def extract_pdf_data(
 
 def run_server():
     """Run the MCP server."""
-    logger.info("Starting MCP Browser Explorer (Simplified)")
+    logger.info("Starting Defog Browser")
+
+    # Log database validation status
+    if validation_result["valid"]:
+        logger.info(f"Database credentials validated: {validation_result['message']}")
+    else:
+        logger.warning(
+            f"Database credentials validation failed: {validation_result['error']}"
+        )
+        logger.warning("SQL tool will not be available")
+
     # List all registered tools
     try:
         import asyncio
 
         tools = asyncio.run(mcp.list_tools())
-        tool_names = [tool.name for tool in tools if tool.name.startswith("browser_")]
-        logger.info(
-            f"Registered {len(tool_names)} browser tools: {', '.join(tool_names[:5])}{'...' if len(tool_names) > 5 else ''}"
-        )
+        tool_names = [tool.name for tool in tools]
+        logger.info(f"Registered {len(tool_names)} tools: {', '.join(tool_names)}")
     except Exception as e:
         logger.warning(f"Could not list tools: {e}")
 
