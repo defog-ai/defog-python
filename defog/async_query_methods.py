@@ -31,7 +31,7 @@ async def get_query(
     llm_provider: Optional[Union[LLMProvider, str]] = None,
     llm_model: Optional[str] = None,
     table_metadata: Optional[dict] = None,
-    cache_metadata: bool = True,
+    cache_metadata: bool = False,
 ):
     """
     Asynchronously generates SQL query using local LLM and returns the response.
@@ -115,7 +115,7 @@ async def run_query(
     llm_provider: Optional[Union[LLMProvider, str]] = None,
     llm_model: Optional[str] = None,
     table_metadata: Optional[dict] = None,
-    cache_metadata: bool = True,
+    cache_metadata: bool = False,
 ):
     """
     Asynchronously sends the question to the defog servers, executes the generated SQL,

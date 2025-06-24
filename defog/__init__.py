@@ -187,7 +187,7 @@ class Defog(BaseDefog):
         llm_provider: Optional[Union[LLMProvider, str]] = None,
         llm_model: Optional[str] = None,
         table_metadata: Optional[dict] = None,
-        cache_metadata: bool = True,
+        cache_metadata: bool = False,
     ): ...
 
 
@@ -249,7 +249,7 @@ class AsyncDefog(BaseDefog):
         llm_provider: Optional[Union[LLMProvider, str]] = None,
         llm_model: Optional[str] = None,
         table_metadata: Optional[dict] = None,
-        cache_metadata: bool = True,
+        cache_metadata: bool = False,
     ): ...
 
 
