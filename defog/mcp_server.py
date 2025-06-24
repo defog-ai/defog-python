@@ -14,6 +14,7 @@ from defog.llm.youtube import get_youtube_summary
 from defog.llm.sql import sql_answer_tool
 from defog.llm.pdf_data_extractor import extract_pdf_data as extract_pdf_data_tool
 from defog import config
+from defog.local_metadata_extractor import extract_metadata_from_db_async
 import json
 
 # Configure logging
@@ -181,6 +182,124 @@ if validation_result["valid"]:
         )
 
         return json.dumps(result, indent=2, default=str)
+
+    @mcp.tool(
+        description="List all tables and their schemas in the configured database. Returns table names, column names, and data types."
+    )
+    async def list_database_schema() -> str:
+        """
+        List all tables and their schemas in the configured database.
+
+        Returns:
+            JSON string containing database schema information
+        """
+        db_type = config.get("DB_TYPE")
+
+        # Parse database credentials (same as in text_to_sql_tool)
+        creds = {}
+        if db_type == "postgres":
+            creds = {
+                "host": config.get("DB_HOST"),
+                "port": config.get("DB_PORT"),
+                "user": config.get("DB_USER"),
+                "password": config.get("DB_PASSWORD"),
+                "database": config.get("DB_NAME"),
+            }
+        elif db_type == "mysql":
+            creds = {
+                "host": config.get("DB_HOST"),
+                "user": config.get("DB_USER"),
+                "password": config.get("DB_PASSWORD"),
+                "database": config.get("DB_NAME"),
+            }
+        elif db_type == "bigquery":
+            creds = {
+                "json_key_path": config.get("DB_KEY_PATH"),
+            }
+        elif db_type == "snowflake":
+            creds = {
+                "user": config.get("DB_USER"),
+                "password": config.get("DB_PASSWORD"),
+                "account": config.get("DB_ACCOUNT"),
+                "warehouse": config.get("DB_WAREHOUSE"),
+                "database": config.get("DB_NAME"),
+            }
+        elif db_type == "databricks":
+            creds = {
+                "server_hostname": config.get("DB_HOST"),
+                "http_path": config.get("DB_PATH"),
+                "access_token": config.get("DB_TOKEN"),
+            }
+        elif db_type == "sqlserver":
+            creds = {
+                "server": config.get("DB_HOST"),
+                "user": config.get("DB_USER"),
+                "password": config.get("DB_PASSWORD"),
+                "database": config.get("DB_NAME"),
+            }
+        elif db_type == "sqlite":
+            creds = {
+                "database": config.get("DATABASE_PATH"),
+            }
+        elif db_type == "duckdb":
+            creds = {
+                "database": config.get("DATABASE_PATH"),
+            }
+        elif db_type == "redshift":
+            creds = {
+                "host": config.get("DB_HOST"),
+                "port": config.get("DB_PORT"),
+                "user": config.get("DB_USER"),
+                "password": config.get("DB_PASSWORD"),
+                "database": config.get("DB_NAME"),
+            }
+        else:
+            return json.dumps(
+                {"error": f"Unsupported database type: {db_type}"}, indent=2
+            )
+
+        try:
+            # Extract metadata from database
+            schema_result = await extract_metadata_from_db_async(
+                db_type=db_type,
+                db_creds=creds,
+                tables=[],  # Empty list means all tables
+            )
+
+            # Format the result for better readability
+            formatted_result = {
+                "database_type": db_type,
+                "tables": {},
+            }
+
+            for table_name, table_info in schema_result.items():
+                if isinstance(table_info, dict) and "columns" in table_info:
+                    # Handle new format with table_description
+                    formatted_result["tables"][table_name] = {
+                        "description": table_info.get("table_description", ""),
+                        "columns": table_info["columns"],
+                    }
+                else:
+                    # Handle old format (list of columns)
+                    formatted_result["tables"][table_name] = {
+                        "description": "",
+                        "columns": table_info,
+                    }
+
+            # Add summary statistics
+            formatted_result["summary"] = {
+                "total_tables": len(formatted_result["tables"]),
+                "total_columns": sum(
+                    len(table_data["columns"])
+                    for table_data in formatted_result["tables"].values()
+                ),
+            }
+
+            return json.dumps(formatted_result, indent=2, default=str)
+
+        except Exception as e:
+            logger.error(f"Error in list_database_schema: {e}")
+            return json.dumps({"error": str(e), "status": "error"}, indent=2)
 
 
 if config.get("GEMINI_API_KEY"):
