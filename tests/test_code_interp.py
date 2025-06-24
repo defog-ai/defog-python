@@ -28,7 +28,7 @@ Charlie Wilson,32,48000,Marketing"""
 
         response = await code_interpreter_tool(
             question=self.complex_question,
-            model="gpt-4o",
+            model="gpt-4.1",
             provider=LLMProvider.OPENAI,
             csv_string=self.sample_csv,
         )
@@ -106,7 +106,7 @@ Charlie Wilson,32,48000,Marketing"""
 
         response = await code_interpreter_tool(
             question="What are the key insights about salary distribution across departments? Include summary statistics.",
-            model="gpt-4o",
+            model="gpt-4.1",
             provider=LLMProvider.OPENAI,
             csv_string=large_csv,
         )
