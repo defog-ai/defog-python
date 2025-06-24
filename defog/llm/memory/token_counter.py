@@ -238,3 +238,45 @@ class TokenCounter:
         """
         used_tokens = self.count_tokens(messages, model, provider, client)
         return max(0, max_context_tokens - used_tokens - response_buffer)
+
+    def count_tool_output_tokens(self, tool_output: Any, model: str = "gpt-4") -> int:
+        """
+        Count tokens for a single tool output.
+
+        Args:
+            tool_output: The tool output (can be string, dict, list, etc.)
+            model: Model name for tokenization (defaults to gpt-4)
+
+        Returns:
+            Token count for the tool output
+        """
+        # Convert tool output to string representation
+        if isinstance(tool_output, str):
+            output_str = tool_output
+        else:
+            # For non-string outputs, use JSON serialization
+            try:
+                output_str = json.dumps(tool_output)
+            except (TypeError, ValueError):
+                # Fallback to string representation
+                output_str = str(tool_output)
+
+        # Use OpenAI tokenizer to count tokens
+        return self.count_openai_tokens(output_str, model)
+
+    def validate_tool_output_size(
+        self, tool_output: Any, max_tokens: int = 10000, model: str = "gpt-4"
+    ) -> tuple[bool, int]:
+        """
+        Validate if a tool output is within the token limit.
+
+        Args:
+            tool_output: The tool output to validate
+            max_tokens: Maximum allowed tokens (default: 10000)
+            model: Model name for tokenization
+
+        Returns:
+            Tuple of (is_valid, token_count)
+        """
+        token_count = self.count_tool_output_tokens(tool_output, model)
+        return token_count <= max_tokens, token_count
