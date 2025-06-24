@@ -177,7 +177,7 @@ async def chat_async(
                     provider_enum = LLMProvider(current_provider.lower())
                 else:
                     provider_enum = current_provider
-                
+
                 if provider_enum not in [LLMProvider.OPENAI, LLMProvider.ANTHROPIC]:
                     raise ValueError(
                         "insert_tool_citations is only supported for OpenAI and Anthropic providers"
