@@ -33,3 +33,4 @@ beautifulsoup4>=4.12.0
 ruff
 pre-commit
 portalocker
+click

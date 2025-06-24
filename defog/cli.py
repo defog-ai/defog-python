@@ -6,7 +6,10 @@ Defog CLI - Command line interface for Defog
 import argparse
 import sys
 import logging
+import os
 from defog.mcp_server import run_server
+from defog.server_config_manager import ConfigManager
+from defog.cli_wizard import CLIWizard
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,8 +17,29 @@ logger = logging.getLogger(__name__)
 
 def serve_command(args):
     """Run the MCP server"""
+    # Initialize config manager and wizard
+    config_manager = ConfigManager()
+    wizard = CLIWizard(config_manager)
+
+    # Run wizard to get/update environment variables
+    env_vars = wizard.run()
+
+    # Update os.environ with the configured variables
+    for key, value in env_vars.items():
+        os.environ[key] = value
+
     logger.info("Starting Defog MCP server...")
     run_server()
+
+
+def db_command(args):
+    """View and update database configuration"""
+    # Initialize config manager and wizard
+    config_manager = ConfigManager()
+    wizard = CLIWizard(config_manager)
+
+    # Run database configuration
+    wizard.configure_database_standalone()
 
 
 def main():
@@ -27,6 +51,12 @@ def main():
     # Add serve command
     serve_parser = subparsers.add_parser("serve", help="Start the Defog MCP server")
     serve_parser.set_defaults(func=serve_command)
+
+    # Add db command
+    db_parser = subparsers.add_parser(
+        "db", help="View and update database configuration"
+    )
+    db_parser.set_defaults(func=db_command)
 
     args = parser.parse_args()
 

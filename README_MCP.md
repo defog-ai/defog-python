@@ -22,14 +22,28 @@ pip install defog
 
 ### Environment Variables
 
-Set the following environment variables based on your needs:
+The Defog MCP server includes an interactive CLI wizard that will help you configure required environment variables. Simply run:
 
-#### LLM Configuration
+```bash
+defog serve
+```
+
+The wizard will:
+- Detect missing configuration
+- Guide you through selecting an LLM provider (OpenAI, Anthropic, or Google Gemini)
+- Optionally help you configure a database connection
+- Save your settings locally for future use
+
+#### Manual Configuration
+
+You can also set environment variables manually:
+
+##### LLM Configuration
 - `OPENAI_API_KEY`: Required for using OpenAI models (default provider)
 - `ANTHROPIC_API_KEY`: Required if using Anthropic models
 - `GEMINI_API_KEY`: Required if using Google Gemini models
 
-#### Database Configuration (for SQL queries)
+##### Database Configuration (for SQL queries)
 
 Set `DB_TYPE` to one of the supported database types:
 - `postgres`
@@ -112,12 +126,12 @@ export DATABASE_PATH="/path/to/your/database.duckdb"
 
 ### Standalone Mode
 ```bash
-# first, export any database related env variables you need to
-# also make sure you have the API keys either exported or already in your env
 defog serve
 ```
 
-The server will start on port 33364 by default.
+The CLI wizard will automatically launch if required environment variables are missing, guiding you through the configuration process. The server will start on port 33364 by default.
+
+**Note**: Your configuration will be saved locally in `~./defog/config.json` for future use. Environment variables always take precedence over saved configuration.
 
 ### Using with Claude Code
 
@@ -132,8 +146,8 @@ The server will start on port 33364 by default.
 {
   "mcpServers": {
     "defog": {
-      "command": "python",
-      "args": ["/path/to/defog-python/mcp_server.py"],
+      "command": "defog",
+      "args": ["serve"],
       "env": {
         "OPENAI_API_KEY": "your-openai-key",
         "DB_TYPE": "postgres",
