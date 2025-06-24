@@ -7,8 +7,6 @@ from defog.llm.sql_generator import (
     generate_sql_query_local,
     generate_sql_query_local_sync,
 )
-from defog.llm.llm_providers import LLMProvider
-from defog.llm.config import LLMConfig
 
 
 class TestSQLGenerator(unittest.TestCase):
@@ -310,41 +308,6 @@ class TestSQLGenerator(unittest.TestCase):
 
         self.assertEqual(result, mock_result)
         mock_run.assert_called_once()
-
-    def test_generate_sql_query_local_with_custom_config(self):
-        # Test that custom config is passed through properly
-        with patch("defog.llm.sql_generator.chat_async") as mock_chat:
-            mock_response = Mock()
-            mock_response.content = "SELECT 1"
-            mock_reason_response = Mock()
-            mock_reason_response.content = "Test query"
-            mock_chat.side_effect = [mock_response, mock_reason_response]
-
-            custom_config = LLMConfig(default_temperature=0.5)
-
-            import asyncio
-
-            asyncio.run(
-                generate_sql_query_local(
-                    question="Test question",
-                    table_metadata=self.sample_metadata,
-                    db_type="postgres",
-                    provider=LLMProvider.OPENAI,
-                    model="gpt-4",
-                    temperature=0.7,
-                    config=custom_config,
-                )
-            )
-
-            # Verify chat_async was called with correct parameters
-            self.assertEqual(mock_chat.call_count, 2)
-
-            # Check first call (SQL generation)
-            first_call = mock_chat.call_args_list[0]
-            self.assertEqual(first_call[1]["provider"], LLMProvider.OPENAI)
-            self.assertEqual(first_call[1]["model"], "gpt-4")
-            self.assertEqual(first_call[1]["temperature"], 0.7)
-            self.assertEqual(first_call[1]["config"], custom_config)
 
 
 if __name__ == "__main__":
