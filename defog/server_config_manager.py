@@ -87,14 +87,18 @@ class ConfigManager:
 
         return env_vars
 
-    def update_config(self, updates: Dict[str, str]) -> None:
+    def update_config(self, updates: Dict[str, Optional[str]]) -> None:
         """Update configuration with new values.
 
         Args:
             updates: Dictionary of key-value pairs to update.
         """
         config = self.load_config()
-        config.update(updates)
+        for key, value in updates.items():
+            if value is None:
+                config.pop(key, None)  # Remove key
+            else:
+                config[key] = value  # Update key
         self.save_config(config)
 
     def clear_config(self) -> None:
