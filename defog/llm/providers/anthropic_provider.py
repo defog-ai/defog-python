@@ -1,5 +1,5 @@
 import traceback
-import os
+from defog import config as defog_config
 import time
 import json
 import logging
@@ -21,7 +21,9 @@ class AnthropicProvider(BaseLLMProvider):
     """Anthropic Claude provider implementation."""
 
     def __init__(self, api_key: Optional[str] = None, config=None):
-        super().__init__(api_key or os.getenv("ANTHROPIC_API_KEY"), config=config)
+        super().__init__(
+            api_key or defog_config.get("ANTHROPIC_API_KEY"), config=config
+        )
 
     @classmethod
     def from_config(cls, config: LLMConfig):

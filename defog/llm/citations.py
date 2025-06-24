@@ -5,14 +5,14 @@ from defog.llm.utils_logging import (
     NoOpToolProgressTracker,
     NoOpSubTaskLogger,
 )
-import os
+from defog import config
 import asyncio
 
 
 async def upload_document_to_openai_vector_store(document, store_id):
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = AsyncOpenAI(api_key=config.get("OPENAI_API_KEY"))
 
     file_name = document["document_name"]
     if not file_name.endswith(".txt"):
@@ -61,7 +61,7 @@ async def citations_tool(
         if provider in [LLMProvider.OPENAI, LLMProvider.OPENAI.value]:
             from openai import AsyncOpenAI
 
-            client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            client = AsyncOpenAI(api_key=config.get("OPENAI_API_KEY"))
 
             # create an ephemeral vector store
             store = await client.vector_stores.create()
@@ -152,7 +152,7 @@ async def citations_tool(
         elif provider in [LLMProvider.ANTHROPIC, LLMProvider.ANTHROPIC.value]:
             from anthropic import AsyncAnthropic
 
-            client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            client = AsyncAnthropic(api_key=config.get("ANTHROPIC_API_KEY"))
 
             document_contents = []
             for document in documents:

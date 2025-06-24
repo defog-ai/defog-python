@@ -5,7 +5,7 @@ from defog.llm.utils_logging import (
     NoOpToolProgressTracker,
     NoOpSubTaskLogger,
 )
-import os
+from defog import config
 from urllib.parse import urlparse
 
 
@@ -54,7 +54,7 @@ async def get_youtube_summary(
         subtask_logger = logger_class()
         subtask_logger.log_provider_info("Gemini", model)
 
-        if os.getenv("GEMINI_API_KEY") is None:
+        if config.get("GEMINI_API_KEY") is None:
             raise ValueError("GEMINI_API_KEY is not set")
 
         # Validate YouTube URL
@@ -70,7 +70,7 @@ async def get_youtube_summary(
             GenerateContentConfig,
         )
 
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        client = genai.Client(api_key=config.get("GEMINI_API_KEY"))
 
         tracker.update(10, "Processing. Takes ~1s for every ~10s of video")
         subtask_logger.log_subtask(

@@ -1,4 +1,4 @@
-import os
+from defog import config as defog_config
 import traceback
 import time
 import base64
@@ -32,7 +32,7 @@ class GeminiProvider(BaseLLMProvider):
     def __init__(
         self, api_key: Optional[str] = None, config: Optional[LLMConfig] = None
     ):
-        super().__init__(api_key or os.getenv("GEMINI_API_KEY"), config=config)
+        super().__init__(api_key or defog_config.get("GEMINI_API_KEY"), config=config)
 
     @classmethod
     def from_config(cls, config: LLMConfig):

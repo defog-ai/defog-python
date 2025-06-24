@@ -1,4 +1,4 @@
-import os
+from defog import config as defog_config
 import time
 import json
 import base64
@@ -22,7 +22,7 @@ class DeepSeekProvider(BaseLLMProvider):
         self, api_key: Optional[str] = None, base_url: Optional[str] = None, config=None
     ):
         super().__init__(
-            api_key or os.getenv("DEEPSEEK_API_KEY"),
+            api_key or defog_config.get("DEEPSEEK_API_KEY"),
             base_url or "https://api.deepseek.com",
             config=config,
         )

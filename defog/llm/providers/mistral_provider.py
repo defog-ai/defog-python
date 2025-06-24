@@ -1,4 +1,4 @@
-import os
+from defog import config as defog_config
 import time
 import json
 import base64
@@ -19,7 +19,7 @@ class MistralProvider(BaseLLMProvider):
     """Mistral AI provider implementation."""
 
     def __init__(self, api_key: Optional[str] = None, config=None):
-        super().__init__(api_key or os.getenv("MISTRAL_API_KEY"), config=config)
+        super().__init__(api_key or defog_config.get("MISTRAL_API_KEY"), config=config)
 
     @classmethod
     def from_config(cls, config: LLMConfig):
