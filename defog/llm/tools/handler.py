@@ -8,7 +8,6 @@ from ..utils_function_calling import (
     execute_tools_parallel,
     verify_post_tool_function,
 )
-from ..memory.token_counter import TokenCounter
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +69,13 @@ class ToolHandler:
         )
         return available_tools
 
+    @staticmethod
     def check_tool_output_size(
         output: Any, max_tokens: int = 10000, model: str = "gpt-4.1"
     ) -> bool:
         """Check if the output size of a tool call is within the token limit."""
+        from ..memory.token_counter import TokenCounter
+
         token_counter = TokenCounter()
         is_valid, token_count = token_counter.validate_tool_output_size(
             output, max_tokens, model
@@ -136,7 +138,7 @@ class ToolHandler:
                     tool_name, f"Error executing post_tool_function: {e}", e
                 )
 
-        is_valid, token_count = self.check_tool_output_size(result)
+        is_valid, token_count = ToolHandler.check_tool_output_size(result)
         if not is_valid:
             return f"Tool output for {tool_name} is too large at {token_count} tokens. Please rephrase the question asked so that the output is within the token limit."
 
@@ -216,7 +218,7 @@ class ToolHandler:
                         )
 
             for idx, result in enumerate(results):
-                is_valid, token_count = self.check_tool_output_size(result)
+                is_valid, token_count = ToolHandler.check_tool_output_size(result)
                 if not is_valid:
                     results[idx] = (
                         f"Tool output for {func_name} is too large at {token_count} tokens. Please rephrase the question asked so that the output is within the token limit."
