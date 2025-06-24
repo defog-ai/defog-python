@@ -20,6 +20,6 @@
 - Recall that you should consider using the `chat_async` function and its associated parameters (including `response_format`, `reasoning_effort`, and `tools`) - instead of using LLM clients directly or rolling your JSON parsing functions for structure outputs
 
 # Testing
-- Remember to run all tests with `python3.12 -m pytest ...`. This is to ensure you are using the correct version of python and pytest
+- Remember to run all tests with `python -m pytest ...`. This is to ensure you are using the correct version of python and pytest
 - Add `PYTHONPATH=.` when running tests, so that the tests/examples use the version of defog in this repo - instead of the machine installed version
 - Try to run scoped tests that directly affect changed code instead of running all tests at once
