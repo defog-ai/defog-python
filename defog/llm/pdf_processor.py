@@ -465,8 +465,8 @@ class OpenAIPDFProcessor(BasePDFProcessor):
             "input": api_input,
         }
 
-        # Only add temperature if not 0 (some models don't support it)
-        if self.temperature > 0:
+        # Only add temperature if supported (reasoning models don't support it)
+        if not self.model.startswith("o"):
             api_params["temperature"] = self.temperature
 
         # Call OpenAI API using appropriate method
