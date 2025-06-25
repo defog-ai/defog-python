@@ -4,7 +4,7 @@ Tests for TextDataExtractor
 
 import pytest
 from unittest.mock import MagicMock, patch
-from ..defog.llm.text_data_extractor import (
+from defog.llm.text_data_extractor import (
     TextDataExtractor,
     TextAnalysisResponse,
     DataPointIdentification,
