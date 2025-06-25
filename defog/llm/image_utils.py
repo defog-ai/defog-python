@@ -142,14 +142,20 @@ def convert_to_anthropic_format(content: Any) -> Any:
 
     anthropic_content = []
     for block in content:
-        if block.get("type") == "text":
-            anthropic_content.append({"type": "text", "text": block.get("text", "")})
-        elif block.get("type") in ["image", "image_url"]:
+        if block.get("type") in ["image", "image_url"]:
             validate_image_content(block)
 
             if block.get("type") == "image":
                 # Already in Anthropic format
                 anthropic_content.append(block)
+            elif block.get("type") == "document":
+                # Convert from OpenAI format
+                url = block.get("source", {}).get("url", "")
+                if url.startswith("data:"):
+                    # Extract base64 data from data URL
+                    parts = url.split(",", 1)
+                    if len(parts) == 2:
+                        data = parts[1]
             elif block.get("type") == "image_url":
                 # Convert from OpenAI format
                 url = block.get("image_url", {}).get("url", "")
@@ -175,6 +181,8 @@ def convert_to_anthropic_format(content: Any) -> Any:
                     anthropic_content.append(
                         {"type": "image", "source": {"type": "url", "url": url}}
                     )
+        else:
+            anthropic_content.append(block)
 
     return anthropic_content
 
@@ -194,9 +202,7 @@ def convert_to_openai_format(content: Any) -> Any:
 
     openai_content = []
     for block in content:
-        if block.get("type") == "text":
-            openai_content.append({"type": "text", "text": block.get("text", "")})
-        elif block.get("type") in ["image", "image_url"]:
+        if block.get("type") in ["image", "image_url"]:
             validate_image_content(block)
 
             if block.get("type") == "image_url":
@@ -219,6 +225,8 @@ def convert_to_openai_format(content: Any) -> Any:
                             "image_url": {"url": source.get("url", "")},
                         }
                     )
+        else:
+            openai_content.append(block)
 
     return openai_content
 
@@ -241,9 +249,7 @@ def convert_to_gemini_parts(content: Any, genai_types) -> List[Any]:
         return parts
 
     for block in content:
-        if block.get("type") == "text":
-            parts.append(genai_types.Part.from_text(text=block.get("text", "")))
-        elif block.get("type") in ["image", "image_url"]:
+        if block.get("type") in ["image", "image_url"]:
             validate_image_content(block)
 
             # Get image data and mime type
@@ -280,5 +286,6 @@ def convert_to_gemini_parts(content: Any, genai_types) -> List[Any]:
                         )
                     )
                 )
-
+        else:
+            parts.append(block)
     return parts
