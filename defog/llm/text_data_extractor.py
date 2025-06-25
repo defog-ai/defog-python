@@ -40,9 +40,6 @@ class DataPointIdentification(BaseModel):
     data_type: str = Field(
         description="Type of data: 'key_value_pairs', 'list', 'table', 'metrics', 'statements'"
     )
-    location_hint: str = Field(
-        description="Hint about where in the text this data is located (e.g., section name, pattern description)"
-    )
     schema_fields: List[SchemaField] = Field(
         description="List of data fields for extraction."
     )
@@ -162,7 +159,6 @@ ONLY focus on numerically focused data. Do not focus on general qualitative stat
 For each datapoint provide:
 - name: snake_case (e.g., 'economic_indicators')
 - data_type: 'key_value_pairs', 'list', 'table', or 'metrics'
-- location_hint: Description of where/how to find this data
 - schema_fields: [{{name, type, description, optional: true}}]
 
 Extract RAW DATA values. Each datapoint should yield MULTIPLE ROWS when applicable."""
