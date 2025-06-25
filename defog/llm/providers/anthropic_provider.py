@@ -127,10 +127,14 @@ class AnthropicProvider(BaseLLMProvider):
 
         for msg in messages:
             if msg.get("role") == "system":
-                # Extract system message content (always text)
-                content = msg["content"] if isinstance(msg["content"], str) else ""
-                system_messages.append(content)
-                continue
+                if isinstance(msg["content"], str):
+                    system_messages.append(msg["content"])
+                elif isinstance(msg["content"], list):
+                    system_messages.append(
+                        "\n\n".join(
+                            [item["text"] for item in msg["content"] if "text" in item]
+                        )
+                    )
 
             # Convert message content to Anthropic format
             converted_msg = msg.copy()
