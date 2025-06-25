@@ -148,14 +148,6 @@ def convert_to_anthropic_format(content: Any) -> Any:
             if block.get("type") == "image":
                 # Already in Anthropic format
                 anthropic_content.append(block)
-            elif block.get("type") == "document":
-                # Convert from OpenAI format
-                url = block.get("source", {}).get("url", "")
-                if url.startswith("data:"):
-                    # Extract base64 data from data URL
-                    parts = url.split(",", 1)
-                    if len(parts) == 2:
-                        data = parts[1]
             elif block.get("type") == "image_url":
                 # Convert from OpenAI format
                 url = block.get("image_url", {}).get("url", "")
