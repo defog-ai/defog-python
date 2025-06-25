@@ -4,7 +4,7 @@ Tests for TextDataExtractor
 
 import pytest
 from unittest.mock import MagicMock, patch
-from defog.llm.text_data_extractor import (
+from ..defog.llm.text_data_extractor import (
     TextDataExtractor,
     TextAnalysisResponse,
     DataPointIdentification,
@@ -47,7 +47,6 @@ def mock_analysis_response():
                 name="qa_exchanges",
                 description="Question and answer exchanges between reporters and Chair",
                 data_type="qa_pairs",
-                location_hint="Q&A section with REPORTER and CHAIR POWELL labels",
                 schema_fields=[
                     SchemaField(
                         name="questioner", type="string", description="Person asking"
@@ -64,7 +63,6 @@ def mock_analysis_response():
                 name="economic_indicators",
                 description="Key economic metrics mentioned",
                 data_type="key_value_pairs",
-                location_hint="Key Economic Indicators section",
                 schema_fields=[
                     SchemaField(
                         name="gdp_growth", type="float", description="GDP growth rate"
