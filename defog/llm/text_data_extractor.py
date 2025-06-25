@@ -397,7 +397,6 @@ Extract RAW DATA values. Each datapoint should yield MULTIPLE ROWS when applicab
             f"Starting extraction of datapoint: {datapoint.name} ({datapoint.data_type})"
         )
         extraction_task = f"""Extract: {datapoint.name} ({datapoint.data_type})
-Location: {datapoint.location_hint}
 
 For tables/lists: Use columnar format with 'columns' and 'data' arrays.
 For key-value pairs: Extract fields with proper types (numbers without symbols).
