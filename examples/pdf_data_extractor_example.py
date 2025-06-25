@@ -1,10 +1,15 @@
 """
 Example of using the PDF Data Extractor to identify and extract
 structured data from PDFs in parallel.
+
+This example demonstrates:
+- Using different LLM providers (Anthropic and OpenAI)
+- Extracting data from various PDF types
+- Cost analysis and token usage tracking
 """
 
 import asyncio
-from defog.llm.pdf_data_extractor import PDFDataExtractor
+from defog.llm.pdf_data_extractor import extract_pdf_data
 import json
 import logging
 from urllib.parse import urlparse
@@ -48,62 +53,83 @@ def generate_safe_filename(url: str) -> str:
         return f"extracted_data_{timestamp}.json"
 
 
-async def extract(url):
-    """Extract data from a PDF."""
-    print(f"=== Data Extraction from {url} ===\n")
+async def extract_pdf_example(url, provider="anthropic", model=None):
+    """Extract data from a PDF using the extract_pdf_data function."""
+    print(f"\n=== Data Extraction from {url} using {provider} ===\n")
 
-    # Create extractor
-    extractor = PDFDataExtractor(
-        analysis_model="claude-opus-4-20250514",
-        extraction_model="claude-opus-4-20250514",
+    # Use the convenience function
+    result = await extract_pdf_data(
+        pdf_url=url,
+        provider=provider,
+        model=model,
+        focus_areas=["financial data", "tables", "key metrics"],
         max_parallel_extractions=10,
     )
 
-    # Extract all data
-    print("Analyzing PDF structure and extracting data...")
-    result = await extractor.extract_all_data(pdf_url=url)
+    # Extract metadata for display
+    metadata = result.get("metadata", {})
 
-    print(f"\nDocument Type: {result.document_type}")
-    print(f"Total datapoints identified: {result.total_datapoints_identified}")
-    print(f"Successful extractions: {result.successful_extractions}")
-    print(f"Failed extractions: {result.failed_extractions}")
-    print(f"Total time: {result.total_time_ms / 1000:.2f} seconds")
+    print(f"Provider: {provider}")
+    print(f"Model: {model or 'default for provider'}")
+    print(f"Document Type: {metadata.get('document_type', 'Unknown')}")
+    print(
+        f"Total datapoints identified: {metadata.get('total_datapoints_identified', 0)}"
+    )
+    print(f"Successful extractions: {metadata.get('successful_extractions', 0)}")
+    print(f"Failed extractions: {metadata.get('failed_extractions', 0)}")
+    print(f"Total time: {metadata.get('total_time_ms', 0) / 1000:.2f} seconds")
 
     print("\n--- Cost Analysis ---")
-    print(f"Total cost: ${result.total_cost_cents / 100:.4f}")
+    print(f"Total cost: ${metadata.get('total_cost_cents', 0) / 100:.4f}")
     print(
-        f"Analysis cost (Step 1): ${result.metadata.get('analysis_cost_cents', 0.0) / 100:.4f}"
+        f"Analysis cost (Step 1): ${metadata.get('analysis_cost_cents', 0.0) / 100:.4f}"
     )
     print(
-        f"Extraction cost (Step 2+): ${result.metadata.get('extraction_cost_cents', 0.0) / 100:.4f}"
+        f"Extraction cost (Step 2+): ${metadata.get('extraction_cost_cents', 0.0) / 100:.4f}"
     )
 
     print("\n--- Token Usage ---")
-    print(f"Total input tokens: {result.metadata.get('total_input_tokens', 0):,}")
-    print(f"Total output tokens: {result.metadata.get('total_output_tokens', 0):,}")
-    print(f"Total cached tokens: {result.metadata.get('total_cached_tokens', 0):,}")
+    print(f"Total input tokens: {metadata.get('total_input_tokens', 0):,}")
+    print(f"Total output tokens: {metadata.get('total_output_tokens', 0):,}")
+    print(f"Total cached tokens: {metadata.get('total_cached_tokens', 0):,}")
     print(
-        f"Total tokens: {result.metadata.get('total_input_tokens', 0) + result.metadata.get('total_output_tokens', 0):,}"
+        f"Total tokens: {metadata.get('total_input_tokens', 0) + metadata.get('total_output_tokens', 0):,}"
     )
 
     print("\n--- Extracted Datapoints ---")
-    for extraction in result.extraction_results:
-        if extraction.success:
-            print(f"\n✅ {extraction.datapoint_name}:")
+    data = result.get("data", {})
+    for datapoint_name, datapoint_data in data.items():
+        print(f"\n✅ {datapoint_name}")
+        # Show a preview of the data structure
+        if isinstance(datapoint_data, dict):
             print(
-                f"   Cost: ${extraction.cost_cents / 100:.4f} | Tokens: {extraction.input_tokens + extraction.output_tokens:,} (in:{extraction.input_tokens:,}, out:{extraction.output_tokens:,}, cached:{extraction.cached_tokens:,})"
+                f"   Keys: {list(datapoint_data.keys())[:5]}{'...' if len(datapoint_data.keys()) > 5 else ''}"
             )
+        elif isinstance(datapoint_data, list) and len(datapoint_data) > 0:
+            print(f"   {len(datapoint_data)} items extracted")
         else:
-            print(f"\n❌ {extraction.datapoint_name}: {extraction.error}")
-            if extraction.cost_cents > 0:
-                print(
-                    f"   Cost: ${extraction.cost_cents / 100:.4f} | Tokens: {extraction.input_tokens + extraction.output_tokens:,}"
-                )
+            print(f"   Type: {type(datapoint_data).__name__}")
 
-    # save the extracted data to a json file
+    # Save the extracted data to a JSON file
     filename = generate_safe_filename(url)
     with open(filename, "w") as f:
-        json.dump(result.model_dump(), f, indent=2)
+        # Convert Pydantic models to dict for JSON serialization
+        json_data = {}
+        for key, value in result.items():
+            if key == "data":
+                # Convert each Pydantic model in data to dict
+                json_data[key] = {}
+                for data_key, data_value in value.items():
+                    if hasattr(data_value, "model_dump"):
+                        json_data[key][data_key] = data_value.model_dump()
+                    else:
+                        json_data[key][data_key] = data_value
+            else:
+                json_data[key] = value
+        json.dump(json_data, f, indent=2)
+    print(f"\n💾 Data saved to: {filename}")
+
+    return result
 
 
 async def main():
@@ -111,21 +137,32 @@ async def main():
     print("🚀 PDF Data Extractor Examples")
     print("=" * 60)
 
+    # Example PDF URLs
+    apple_financial_pdf = "https://www.apple.com/newsroom/pdfs/fy2025-q2/FY25_Q2_Consolidated_Financial_Statements.pdf"
+
     try:
-        # Run examples
-        # Apple financial report (3 pages only)
-        await extract(
-            "https://www.apple.com/newsroom/pdfs/fy2025-q2/FY25_Q2_Consolidated_Financial_Statements.pdf"
+        # Example 1: Extract with Anthropic (default)
+        # print("\n📄 Example 1: Extracting Apple Financial Report with Anthropic")
+        # await extract_pdf_example(apple_financial_pdf, provider="anthropic", model="claude-sonnet-4-20250514")
+
+        # Example 2: Extract with OpenAI
+        print("\n\n📄 Example 2: Extracting Apple Financial Report with OpenAI")
+        await extract_pdf_example(
+            apple_financial_pdf, provider="openai", model="o4-mini"
         )
 
+        # Uncomment to try other PDFs:
         # Qwen 2.5 research paper (26 pages)
-        # await extract("https://arxiv.org/pdf/2412.15115")
+        # await extract_pdf_example("https://arxiv.org/pdf/2412.15115", provider="openai")
 
         # AI 2027 report
-        # await extract("https://ai-2027.com/ai-2027.pdf")
+        # await extract_pdf_example("https://ai-2027.com/ai-2027.pdf", provider="anthropic")
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
+        import traceback
+
+        traceback.print_exc()
 
     print("\n" + "=" * 60)
     print("✅ Examples completed!")
