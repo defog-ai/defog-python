@@ -12,7 +12,11 @@ from .memory import (
     compactify_messages,
     TokenCounter,
 )
-from .pdf_processor import analyze_pdf, PDFAnalysisInput, ClaudePDFProcessor
+from .pdf_processor import (
+    PDFAnalysisInput,
+    ClaudePDFProcessor,
+    OpenAIPDFProcessor,
+)
 from .pdf_data_extractor import PDFDataExtractor, extract_pdf_data
 from .image_data_extractor import ImageDataExtractor, extract_image_data
 from .html_data_extractor import HTMLDataExtractor, extract_html_data
@@ -40,9 +44,9 @@ __all__ = [
     "compactify_messages",
     "TokenCounter",
     # PDF processing
-    "analyze_pdf",
     "PDFAnalysisInput",
     "ClaudePDFProcessor",
+    "OpenAIPDFProcessor",
     "PDFDataExtractor",
     "extract_pdf_data",
     # Image processing

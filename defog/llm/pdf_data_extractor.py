@@ -12,8 +12,7 @@ import logging
 from typing import Dict, List, Any, Optional, Type, Union
 from pydantic import BaseModel, Field, create_model
 
-from .pdf_processor import ClaudePDFProcessor
-from .openai_pdf_processor import OpenAIPDFProcessor
+from .pdf_processor import ClaudePDFProcessor, OpenAIPDFProcessor
 
 logger = logging.getLogger(__name__)
 
