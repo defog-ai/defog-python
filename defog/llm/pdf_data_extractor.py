@@ -28,9 +28,6 @@ class DataPointIdentification(BaseModel):
     data_type: str = Field(
         description="Type of data: 'table', 'key_value_pairs', 'list', 'metrics', 'chart_data'"
     )
-    location_hint: str = Field(
-        description="Hint about where in the PDF this data is located"
-    )
     schema_fields: List[Dict[str, Any]] = Field(
         description="List of fields for extraction. Each field should have: 'name' (snake_case field name), 'type' (data type), 'description' (what the field contains), and 'optional' (boolean, preferably true). For financial tables, use descriptive names like 'revenue_q1_2024' instead of generic names."
     )
@@ -126,22 +123,20 @@ class PDFDataExtractor:
         Returns:
             Tuple of (PDFAnalysisResponse with identified datapoints, cost metadata dict)
         """
-        analysis_task = f"""Analyze this PDF to identify all structured data that can be extracted and converted to tabular format suitable for SQL databases.
+        analysis_task = f"""Analyze this PDF to identify all structured data that can be extracted and converted to a tabular format.
 
 Focus on identifying:
-1. Tables (financial, statistical, comparison) - Extract with proper column headers
-2. Key-value pairs (metadata, properties, specifications)
-3. Lists and enumerations
-4. Metrics and measurements with clear labels
-5. Chart/graph data that can be tabulated
-6. Repeated patterns suggesting structured data
+1. Tables - extract these with proper column headers
+2. Chart/graph data that can be tabulated
+3. Key-value pairs - extract these with proper keys and values
+4. Lists and enumerations
+5. Metrics and measurements with clear labels
 
 {f"Specifically focus on: {', '.join(focus_areas)}" if focus_areas else ""}
 
 For each identified datapoint:
 - Provide a descriptive name using snake_case (e.g., 'quarterly_revenue_by_segment')
 - Specify the data type
-- Indicate where it's located in the document
 - Define schema fields with:
   * Clear, descriptive field names in snake_case
   * Appropriate data types (string, int, float, date, etc.)
@@ -351,7 +346,6 @@ Be thorough and identify ALL potential datapoints that could be valuable when co
 Datapoint: {datapoint.name}
 Description: {datapoint.description}
 Type: {datapoint.data_type}
-Location hint: {datapoint.location_hint}
 
 IMPORTANT EXTRACTION GUIDELINES:
 1. For tables:
