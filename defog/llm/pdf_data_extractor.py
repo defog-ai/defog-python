@@ -13,9 +13,18 @@ from typing import Dict, List, Any, Optional, Type, Union
 from pydantic import BaseModel, Field, create_model
 
 from .pdf_processor import ClaudePDFProcessor
-from .llm_providers import LLMProvider
+from .openai_pdf_processor import OpenAIPDFProcessor
 
 logger = logging.getLogger(__name__)
+
+
+class SchemaField(BaseModel):
+    """Schema field definition for data extraction."""
+
+    name: str = Field(description="Snake_case field name")
+    type: str = Field(description="Data type (string, int, float, date, etc.)")
+    description: str = Field(description="What the field contains")
+    optional: bool = Field(default=True, description="Whether the field is optional")
 
 
 class DataPointIdentification(BaseModel):
@@ -28,8 +37,8 @@ class DataPointIdentification(BaseModel):
     data_type: str = Field(
         description="Type of data: 'table', 'key_value_pairs', 'list', 'metrics', 'chart_data'"
     )
-    schema_fields: List[Dict[str, Any]] = Field(
-        description="List of fields for extraction. Each field should have: 'name' (snake_case field name), 'type' (data type), 'description' (what the field contains), and 'optional' (boolean, preferably true). For financial tables, use descriptive names like 'revenue_q1_2024' instead of generic names."
+    schema_fields: List[SchemaField] = Field(
+        description="List of fields for extraction. For financial tables, use descriptive names like 'revenue_q1_2024' instead of generic names."
     )
 
 
@@ -80,9 +89,9 @@ class PDFDataExtractor:
 
     def __init__(
         self,
-        analysis_provider: Union[str, LLMProvider] = "anthropic",
+        analysis_provider: str = "anthropic",
         analysis_model: str = "claude-sonnet-4-20250514",
-        extraction_provider: Union[str, LLMProvider] = "anthropic",
+        extraction_provider: str = "anthropic",
         extraction_model: str = "claude-sonnet-4-20250514",
         max_parallel_extractions: int = 5,
         temperature: float = 0.0,
@@ -105,10 +114,19 @@ class PDFDataExtractor:
         self.max_parallel_extractions = max_parallel_extractions
         self.temperature = temperature
 
-        # Initialize PDF processor for initial analysis
-        self.pdf_processor = ClaudePDFProcessor(
-            provider=analysis_provider, model=analysis_model, temperature=temperature
-        )
+        # Initialize PDF processor for initial analysis based on provider
+        if analysis_provider == "openai":
+            self.pdf_processor = OpenAIPDFProcessor(
+                provider=analysis_provider,
+                model=analysis_model,
+                temperature=temperature,
+            )
+        else:
+            self.pdf_processor = ClaudePDFProcessor(
+                provider=analysis_provider,
+                model=analysis_model,
+                temperature=temperature,
+            )
 
     async def analyze_pdf_structure(
         self, pdf_url: str, focus_areas: Optional[List[str]] = None
@@ -196,15 +214,15 @@ Be thorough and identify ALL potential datapoints that could be valuable when co
         # Build field definitions
         field_definitions = {}
         for field_info in datapoint.schema_fields:
-            field_name = field_info.get("name", "").replace(" ", "_").lower()
-            field_type_str = field_info.get("type", "string").lower()
-            field_description = field_info.get("description", f"Field {field_name}")
+            field_name = field_info.name.replace(" ", "_").lower()
+            field_type_str = field_info.type.lower()
+            field_description = field_info.description
 
             # Get Python type
             python_type = type_mapping.get(field_type_str, str)
 
             # Make all fields optional by default for better data handling
-            is_optional = field_info.get("optional", True)
+            is_optional = field_info.optional
             if is_optional:
                 python_type = Optional[python_type]
 
@@ -372,12 +390,22 @@ Please extract this data and format it according to the provided schema.
 Be precise and include all available data that matches the schema."""
 
         try:
-            # Use PDF processor for extraction with schema
-            processor = ClaudePDFProcessor(
-                provider=self.extraction_provider,
-                model=self.extraction_model,
-                temperature=self.temperature,
-            )
+            # Use appropriate PDF processor for extraction with schema
+            if (
+                isinstance(self.extraction_provider, str)
+                and self.extraction_provider == "openai"
+            ):
+                processor = OpenAIPDFProcessor(
+                    provider=self.extraction_provider,
+                    model=self.extraction_model,
+                    temperature=self.temperature,
+                )
+            else:
+                processor = ClaudePDFProcessor(
+                    provider=self.extraction_provider,
+                    model=self.extraction_model,
+                    temperature=self.temperature,
+                )
 
             result = await processor.analyze_pdf(
                 url=pdf_url, task=extraction_task, response_format=schema
@@ -623,7 +651,11 @@ Be precise and include all available data that matches the schema."""
 
 # Convenience function for simple usage
 async def extract_pdf_data(
-    pdf_url: str, focus_areas: Optional[List[str]] = None, **kwargs
+    pdf_url: str,
+    focus_areas: Optional[List[str]] = None,
+    provider: str = "anthropic",
+    model: Optional[str] = None,
+    **kwargs,
 ) -> Dict[str, Any]:
     """
     Convenience function to extract all data from a PDF.
@@ -631,10 +663,27 @@ async def extract_pdf_data(
     Args:
         pdf_url: URL of the PDF to process
         focus_areas: Optional areas to focus on
+        provider: LLM provider to use (e.g., "anthropic", "openai")
+        model: Model to use (if not specified, uses default for provider)
         **kwargs: Additional arguments for PDFDataExtractor
 
     Returns:
         Dictionary with extracted data
     """
-    extractor = PDFDataExtractor(**kwargs)
+    # Set default model based on provider if not specified
+    if provider not in ["anthropic", "openai"]:
+        raise ValueError(f"Invalid provider: {provider}")
+
+    if provider == "openai":
+        model = "o4-mini"
+    else:
+        model = "claude-sonnet-4-20250514"
+
+    extractor = PDFDataExtractor(
+        analysis_provider=provider,
+        analysis_model=model,
+        extraction_provider=provider,
+        extraction_model=model,
+        **kwargs,
+    )
     return await extractor.extract_as_dict(pdf_url, focus_areas)
