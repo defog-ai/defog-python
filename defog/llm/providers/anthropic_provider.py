@@ -135,11 +135,13 @@ class AnthropicProvider(BaseLLMProvider):
                             [item["text"] for item in msg["content"] if "text" in item]
                         )
                     )
-
-            # Convert message content to Anthropic format
-            converted_msg = msg.copy()
-            converted_msg["content"] = self.convert_content_to_anthropic(msg["content"])
-            converted_messages.append(converted_msg)
+            else:
+                # Convert message content to Anthropic format
+                converted_msg = msg.copy()
+                converted_msg["content"] = self.convert_content_to_anthropic(
+                    msg["content"]
+                )
+                converted_messages.append(converted_msg)
 
         # Concatenate all system messages into a single string
         sys_msg = "\n\n".join(system_messages) if system_messages else ""
