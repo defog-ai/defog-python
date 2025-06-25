@@ -86,16 +86,6 @@ Provide a thorough analysis based on the PDF content."""
 
         messages = [
             {
-                "role": "system",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": system_content,
-                        "cache_control": {"type": "ephemeral"},  # 5-minute cache
-                    }
-                ],
-            },
-            {
                 "role": "user",
                 "content": [
                     {
@@ -109,7 +99,7 @@ Provide a thorough analysis based on the PDF content."""
                     },
                     {
                         "type": "text",
-                        "text": f"Please analyze this PDF for the task: `{task}`",
+                        "text": f"{system_content}\n\nThe task to be completed is: `{task}`",
                     },
                 ],
             },
