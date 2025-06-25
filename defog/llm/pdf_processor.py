@@ -1,11 +1,14 @@
 """
-Claude PDF Support Tool with Anthropic Input Caching and Structured Responses.
+PDF processors for analyzing PDFs with Claude and OpenAI APIs.
 """
 
 import asyncio
 import logging
+from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Type, Union
 from pydantic import BaseModel, Field
+import openai
+from defog import config as defog_config
 
 from .pdf_utils import download_and_process_pdf
 from .utils import chat_async
@@ -34,36 +37,39 @@ class PDFAnalysisResult(BaseModel):
     chunks_processed: int = Field(description="Number of PDF chunks processed")
 
 
-class ClaudePDFProcessor:
-    """PDF processor that integrates with Claude's API and input caching."""
+class BasePDFProcessor(ABC):
+    """Abstract base class for PDF processors."""
+
+    CONCURRENT_CHUNKS = 3  # Max concurrent chunk processing
 
     def __init__(
         self,
-        provider: Union[str, LLMProvider] = "anthropic",
-        model: str = "claude-sonnet-4-20250514",
+        provider: Union[str, LLMProvider],
+        model: str,
         temperature: float = 0.0,
     ):
         """
-        Initialize Claude PDF processor.
+        Initialize base PDF processor.
 
         Args:
-            provider: LLM provider (should be anthropic for input caching)
-            model: Claude model to use
+            provider: LLM provider
+            model: Model to use
             temperature: Sampling temperature
         """
         self.provider = provider
         self.model = model
         self.temperature = temperature
 
-    async def _create_pdf_message(
+    @abstractmethod
+    async def _create_api_input(
         self,
         pdf_chunks: List[str],
         task: str,
         chunk_index: int = 0,
         total_chunks: int = 1,
-    ) -> List[Dict[str, Any]]:
+    ) -> Any:
         """
-        Create message content for Claude API with PDF and cache control.
+        Create provider-specific API input.
 
         Args:
             pdf_chunks: List of base64 encoded PDF chunks
@@ -72,10 +78,29 @@ class ClaudePDFProcessor:
             total_chunks: Total number of chunks
 
         Returns:
-            List of messages for Claude API
+            Provider-specific API input
         """
-        # System message with caching
-        system_content = f"""You are an expert PDF analyzer. Analyze the provided PDF content and complete the requested task.
+        pass
+
+    @abstractmethod
+    async def _call_api(
+        self, api_input: Any, response_format: Optional[Type[BaseModel]] = None
+    ) -> Dict[str, Any]:
+        """
+        Make provider-specific API call.
+
+        Args:
+            api_input: Provider-specific API input
+            response_format: Optional Pydantic model for structured response
+
+        Returns:
+            Dictionary with content, tokens, and cost information
+        """
+        pass
+
+    def _get_system_prompt(self, chunk_index: int, total_chunks: int) -> str:
+        """Get common system prompt for PDF analysis."""
+        return f"""You are an expert PDF analyzer. Analyze the provided PDF content and complete the requested task.
 
 PDF Context:
 - This is chunk {chunk_index + 1} of {total_chunks} total chunks
@@ -83,29 +108,6 @@ PDF Context:
 - If this is part of a multi-chunk document, note that context may be limited
 
 Provide a thorough analysis based on the PDF content."""
-
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "application/pdf",
-                            "data": pdf_chunks[chunk_index],
-                        },
-                        "cache_control": {"type": "ephemeral"},  # Cache PDF content
-                    },
-                    {
-                        "type": "text",
-                        "text": f"{system_content}\n\nThe task to be completed is: `{task}`",
-                    },
-                ],
-            },
-        ]
-
-        return messages
 
     async def _process_single_chunk(
         self,
@@ -116,7 +118,7 @@ Provide a thorough analysis based on the PDF content."""
         response_format: Optional[Type[BaseModel]] = None,
     ) -> Dict[str, Any]:
         """
-        Process a single PDF chunk with Claude.
+        Process a single PDF chunk.
 
         Args:
             pdf_chunks: List of base64 encoded PDF chunks
@@ -129,34 +131,20 @@ Provide a thorough analysis based on the PDF content."""
             Processing result for this chunk
         """
         try:
-            messages = await self._create_pdf_message(
+            api_input = await self._create_api_input(
                 pdf_chunks, task, chunk_index, total_chunks
             )
 
-            # Prepare chat parameters
-            chat_params = {
-                "provider": self.provider,
-                "model": self.model,
-                "messages": messages,
-                "temperature": self.temperature,
-                "reasoning_effort": "low",  # 2048 token thinking budget
-            }
-
-            # Add response format if specified
-            if response_format:
-                chat_params["response_format"] = response_format
-
-            # Call Claude API
-            response = await chat_async(**chat_params)
+            result = await self._call_api(api_input, response_format)
 
             return {
                 "success": True,
-                "content": response.content,
+                "content": result["content"],
                 "chunk_index": chunk_index,
-                "input_tokens": response.input_tokens or 0,
-                "output_tokens": response.output_tokens or 0,
-                "cost_in_cents": response.cost_in_cents or 0,
-                "cached_tokens": getattr(response, "cached_input_tokens", None) or 0,
+                "input_tokens": result.get("input_tokens", 0),
+                "output_tokens": result.get("output_tokens", 0),
+                "cost_in_cents": result.get("cost_in_cents", 0),
+                **result.get("extra", {}),  # Provider-specific fields
             }
 
         except Exception as e:
@@ -183,7 +171,7 @@ Provide a thorough analysis based on the PDF content."""
         total_chunks = len(pdf_chunks)
 
         # Process chunks concurrently (limit concurrency to avoid rate limits)
-        semaphore = asyncio.Semaphore(3)  # Max 3 concurrent requests
+        semaphore = asyncio.Semaphore(self.CONCURRENT_CHUNKS)
 
         async def process_with_semaphore(chunk_index: int):
             async with semaphore:
@@ -255,7 +243,7 @@ Provide a thorough analysis based on the PDF content."""
         self, url: str, task: str, response_format: Optional[Type[BaseModel]] = None
     ) -> PDFAnalysisResult:
         """
-        Analyze a PDF from URL with Claude.
+        Analyze a PDF from URL.
 
         Args:
             url: PDF URL to analyze
@@ -297,18 +285,15 @@ Provide a thorough analysis based on the PDF content."""
                 # Combine text results for multiple chunks or unstructured response
                 final_result = self._combine_chunk_results(chunk_results, metadata)
 
-            # Calculate total tokens and cost (handle None values)
+            # Calculate total tokens and cost
             total_input_tokens = sum(
-                r.get("input_tokens") or 0 for r in chunk_results if r.get("success")
+                r.get("input_tokens", 0) for r in chunk_results if r.get("success")
             )
             total_output_tokens = sum(
-                r.get("output_tokens") or 0 for r in chunk_results if r.get("success")
+                r.get("output_tokens", 0) for r in chunk_results if r.get("success")
             )
             total_cost = sum(
-                r.get("cost_in_cents") or 0 for r in chunk_results if r.get("success")
-            )
-            total_cached_tokens = sum(
-                r.get("cached_tokens") or 0 for r in chunk_results if r.get("success")
+                r.get("cost_in_cents", 0) for r in chunk_results if r.get("success")
             )
 
             # Add processing metadata
@@ -317,7 +302,6 @@ Provide a thorough analysis based on the PDF content."""
                 "total_input_tokens": total_input_tokens,
                 "total_output_tokens": total_output_tokens,
                 "total_cost_in_cents": total_cost,
-                "cached_tokens": total_cached_tokens,
                 "successful_chunks": len(
                     [r for r in chunk_results if r.get("success")]
                 ),
@@ -325,6 +309,16 @@ Provide a thorough analysis based on the PDF content."""
                     [r for r in chunk_results if not r.get("success")]
                 ),
             }
+
+            # Add provider-specific metadata
+            for key in ["cached_tokens"]:
+                values = [
+                    r.get(key, 0)
+                    for r in chunk_results
+                    if r.get("success") and key in r
+                ]
+                if values:
+                    processing_metadata[key] = sum(values)
 
             return PDFAnalysisResult(
                 success=True,
@@ -344,44 +338,162 @@ Provide a thorough analysis based on the PDF content."""
             )
 
 
-# Default processor instance
-_default_processor = ClaudePDFProcessor()
+class ClaudePDFProcessor(BasePDFProcessor):
+    """PDF processor that integrates with Claude's API and input caching."""
 
+    async def _create_api_input(
+        self,
+        pdf_chunks: List[str],
+        task: str,
+        chunk_index: int = 0,
+        total_chunks: int = 1,
+    ) -> List[Dict[str, Any]]:
+        """Create message content for Claude API with PDF and cache control."""
+        system_content = self._get_system_prompt(chunk_index, total_chunks)
 
-async def analyze_pdf(input: PDFAnalysisInput) -> Dict[str, Any]:
-    """
-    Tool function for PDF analysis that can be used in orchestrator.
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": pdf_chunks[chunk_index],
+                        },
+                        "cache_control": {"type": "ephemeral"},  # Cache PDF content
+                    },
+                    {
+                        "type": "text",
+                        "text": f"{system_content}\n\nThe task to be completed is: `{task}`",
+                    },
+                ],
+            },
+        ]
 
-    Args:
-        input: PDFAnalysisInput with URL, task, and optional response format
+        return messages
 
-    Returns:
-        Dictionary with analysis results
-    """
-    try:
-        # Use the Pydantic model directly as response_format
-        response_format = input.response_format
-        task = input.task
-
-        # Analyze PDF
-        result = await _default_processor.analyze_pdf(
-            url=input.url, task=task, response_format=response_format
-        )
-
-        return {
-            "success": result.success,
-            "result": result.result,
-            "metadata": result.metadata,
-            "error": result.error,
-            "chunks_processed": result.chunks_processed,
+    async def _call_api(
+        self, api_input: Any, response_format: Optional[Type[BaseModel]] = None
+    ) -> Dict[str, Any]:
+        """Make Claude API call."""
+        # Prepare chat parameters
+        chat_params = {
+            "provider": self.provider,
+            "model": self.model,
+            "messages": api_input,
+            "temperature": self.temperature,
+            "reasoning_effort": "low",  # 2048 token thinking budget
         }
 
-    except Exception as e:
-        logger.error(f"PDF analysis tool failed: {e}")
+        # Add response format if specified
+        if response_format:
+            chat_params["response_format"] = response_format
+
+        # Call Claude API
+        response = await chat_async(**chat_params)
+
         return {
-            "success": False,
-            "result": None,
-            "metadata": {},
-            "error": str(e),
-            "chunks_processed": 0,
+            "content": response.content,
+            "input_tokens": response.input_tokens or 0,
+            "output_tokens": response.output_tokens or 0,
+            "cost_in_cents": response.cost_in_cents or 0,
+            "extra": {
+                "cached_tokens": getattr(response, "cached_input_tokens", None) or 0
+            },
+        }
+
+
+class OpenAIPDFProcessor(BasePDFProcessor):
+    """PDF processor that integrates with OpenAI's API using base64 encoding."""
+
+    def __init__(
+        self,
+        provider: Union[str, LLMProvider] = "openai",
+        model: str = "gpt-4o",
+        temperature: float = 0.0,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
+        """Initialize OpenAI PDF processor with API client."""
+        super().__init__(provider, model, temperature)
+
+        # Initialize OpenAI client
+        self.client = openai.AsyncOpenAI(
+            api_key=api_key or defog_config.get("OPENAI_API_KEY"),
+            base_url=base_url or "https://api.openai.com/v1/",
+        )
+
+    async def _create_api_input(
+        self,
+        pdf_chunks: List[str],
+        task: str,
+        chunk_index: int = 0,
+        total_chunks: int = 1,
+    ) -> List[Dict[str, Any]]:
+        """Create input content for OpenAI API with PDF."""
+        prompt = f"{self._get_system_prompt(chunk_index, total_chunks)}\n\nTask: {task}"
+
+        input_content = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_file",
+                        "filename": f"document_chunk_{chunk_index + 1}.pdf",
+                        "file_data": f"data:application/pdf;base64,{pdf_chunks[chunk_index]}",
+                    },
+                    {
+                        "type": "input_text",
+                        "text": prompt,
+                    },
+                ],
+            },
+        ]
+
+        return input_content
+
+    async def _call_api(
+        self, api_input: Any, response_format: Optional[Type[BaseModel]] = None
+    ) -> Dict[str, Any]:
+        """Make OpenAI API call."""
+        # Prepare API parameters
+        api_params = {
+            "model": self.model,
+            "input": api_input,
+        }
+
+        # Only add temperature if not 0 (some models don't support it)
+        if self.temperature > 0:
+            api_params["temperature"] = self.temperature
+
+        # Call OpenAI API using appropriate method
+        if response_format:
+            # Use parse method for structured output
+            api_params["text_format"] = response_format
+            response = await self.client.responses.parse(**api_params)
+            content = response.output_parsed
+        else:
+            # Use create method for unstructured output
+            response = await self.client.responses.create(**api_params)
+            content = response.output_text
+
+        # Get token usage from response
+        usage = getattr(response, "usage", None)
+        input_tokens = usage.input_tokens if usage else 0
+        output_tokens = usage.output_tokens if usage else 0
+
+        # Calculate cost (using approximate OpenAI pricing)
+        # Note: Adjust these rates based on actual model pricing
+        input_cost = input_tokens * 0.0025 / 1000  # $2.50 per 1M input tokens
+        output_cost = output_tokens * 0.01 / 1000  # $10 per 1M output tokens
+        cost_in_cents = (input_cost + output_cost) * 100
+
+        return {
+            "content": content,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_in_cents": cost_in_cents,
+            "extra": {},
         }
