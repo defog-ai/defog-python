@@ -86,6 +86,9 @@ class PDFDataExtractor:
     structured data from PDFs using parallel agent orchestration.
     """
 
+    # Supported providers
+    SUPPORTED_PROVIDERS = ["anthropic", "openai"]
+
     def __init__(
         self,
         analysis_provider: str = "anthropic",
@@ -106,6 +109,18 @@ class PDFDataExtractor:
             max_parallel_extractions: Maximum parallel extraction tasks
             temperature: Sampling temperature
         """
+        # Validate providers
+        if analysis_provider not in self.SUPPORTED_PROVIDERS:
+            raise ValueError(
+                f"Unsupported analysis provider: {analysis_provider}. "
+                f"Supported providers: {', '.join(self.SUPPORTED_PROVIDERS)}"
+            )
+        if extraction_provider not in self.SUPPORTED_PROVIDERS:
+            raise ValueError(
+                f"Unsupported extraction provider: {extraction_provider}. "
+                f"Supported providers: {', '.join(self.SUPPORTED_PROVIDERS)}"
+            )
+
         self.analysis_provider = analysis_provider
         self.analysis_model = analysis_model
         self.extraction_provider = extraction_provider
@@ -669,14 +684,19 @@ async def extract_pdf_data(
     Returns:
         Dictionary with extracted data
     """
-    # Set default model based on provider if not specified
-    if provider not in ["anthropic", "openai"]:
-        raise ValueError(f"Invalid provider: {provider}")
+    # Validate provider
+    if provider not in PDFDataExtractor.SUPPORTED_PROVIDERS:
+        raise ValueError(
+            f"Unsupported provider: {provider}. "
+            f"Supported providers: {', '.join(PDFDataExtractor.SUPPORTED_PROVIDERS)}"
+        )
 
-    if provider == "openai":
-        model = "o4-mini"
-    else:
-        model = "claude-sonnet-4-20250514"
+    # Set default model based on provider if not specified
+    if model is None:
+        if provider == "openai":
+            model = "o4-mini"
+        else:
+            model = "claude-sonnet-4-20250514"
 
     extractor = PDFDataExtractor(
         analysis_provider=provider,
