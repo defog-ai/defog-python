@@ -142,8 +142,10 @@ async def main():
 
     try:
         # Example 1: Extract with Anthropic (default)
-        # print("\n📄 Example 1: Extracting Apple Financial Report with Anthropic")
-        # await extract_pdf_example(apple_financial_pdf, provider="anthropic", model="claude-sonnet-4-20250514")
+        print("\n📄 Example 1: Extracting Apple Financial Report with Anthropic")
+        await extract_pdf_example(
+            apple_financial_pdf, provider="anthropic", model="claude-sonnet-4-20250514"
+        )
 
         # Example 2: Extract with OpenAI
         print("\n\n📄 Example 2: Extracting Apple Financial Report with OpenAI")
