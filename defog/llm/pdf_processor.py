@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional, Type, Union
 from pydantic import BaseModel, Field
 import openai
 from defog import config as defog_config
+from .cost.calculator import CostCalculator
 
 from .pdf_utils import download_and_process_pdf
 from .utils import chat_async
@@ -484,11 +485,16 @@ class OpenAIPDFProcessor(BasePDFProcessor):
         input_tokens = usage.input_tokens if usage else 0
         output_tokens = usage.output_tokens if usage else 0
 
-        # Calculate cost (using approximate OpenAI pricing)
-        # Note: Adjust these rates based on actual model pricing
-        input_cost = input_tokens * 0.0025 / 1000  # $2.50 per 1M input tokens
-        output_cost = output_tokens * 0.01 / 1000  # $10 per 1M output tokens
-        cost_in_cents = (input_cost + output_cost) * 100
+        # Calculate cost using the actual model pricing
+        cost_in_cents = CostCalculator.calculate_cost(
+            model=self.model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+        # If cost calculation fails, return 0
+        if cost_in_cents is None:
+            cost_in_cents = 0
 
         return {
             "content": content,
