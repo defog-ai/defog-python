@@ -127,7 +127,7 @@ class ExecuteAsyncQueryOnceTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results, [["data1", "data2"], ["data3", "data4"]])
         print("Postgres async query execution test passed!")
 
-    @mock.patch("aiohttp.ClientSession.post")
+    @mock.patch("httpx.AsyncClient.post")
     @mock.patch("defog.query.async_execute_query_once")
     async def test_async_execute_query_success(
         self, mock_execute_query_once, mock_aiohttp_post
@@ -154,10 +154,10 @@ class ExecuteAsyncQueryOnceTestCase(unittest.IsolatedAsyncioTestCase):
             [["data1", "data2"], ["data3", "data4"]],
         )
 
-        # Mock the async aiohttp response
+        # Mock the async httpx response
         mock_response = mock.Mock()
-        mock_response.json = mock.AsyncMock(return_value={"new_query": query2})
-        mock_aiohttp_post.return_value.__aenter__.return_value = mock_response
+        mock_response.json = mock.Mock(return_value={"new_query": query2})
+        mock_aiohttp_post.return_value = mock_response
 
         # Call the function being tested
         colnames, results = await async_execute_query(
