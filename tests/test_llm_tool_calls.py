@@ -6,7 +6,7 @@ from defog.llm.config.settings import LLMConfig
 from tests.conftest import skip_if_no_api_key
 
 from pydantic import BaseModel, Field
-import aiohttp
+import httpx
 from io import StringIO
 import json
 
@@ -43,11 +43,11 @@ async def get_weather(input: WeatherInput):
     """
     This function returns the current temperature (in celsius) for the given latitude and longitude.
     """
-    async with aiohttp.ClientSession() as client:
+    async with httpx.AsyncClient() as client:
         r = await client.get(
             f"https://api.open-meteo.com/v1/forecast?latitude={input.latitude}&longitude={input.longitude}&current=temperature_2m,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m",
         )
-        return_object = await r.json()
+        return_object = r.json()
         return return_object["current"]["temperature_2m"]
 
 
