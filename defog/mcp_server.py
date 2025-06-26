@@ -340,7 +340,7 @@ else:
     logger.warning("No API keys found for Gemini, YouTube tool will not be available")
 
 
-if config.get("ANTHROPIC_API_KEY"):
+if config.get("ANTHROPIC_API_KEY") or config.get("OPENAI_API_KEY"):
 
     @mcp.tool(
         description="Extract structured data from a PDF document. Requires a URL to the PDF."
@@ -357,9 +357,18 @@ if config.get("ANTHROPIC_API_KEY"):
         Returns:
             JSON string containing extracted data or error message
         """
+        if config.get("OPENAI_API_KEY"):
+            provider = "openai"
+            model = "o4-mini"
+        else:
+            provider = "anthropic"
+            model = "claude-sonnet-4-20250514"
+
         try:
             result = await extract_pdf_data_tool(
                 pdf_url=pdf_url,
+                provider=provider,
+                model=model,
             )
 
             return json.dumps(result, indent=2)
