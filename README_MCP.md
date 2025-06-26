@@ -1,15 +1,16 @@
 # Defog MCP Server
 
-The Model Context Protocol (MCP) server for Defog Python provides tools for SQL queries, code interpretation, web search, YouTube transcription, and PDF data extraction.
+The Model Context Protocol (MCP) server for Defog Python provides tools for SQL queries, code interpretation, web search, YouTube transcription, PDF data extraction, and structured data extraction from HTML and text.
 
 ## Overview
 
 This MCP server exposes the following tools:
-- **run_query**: Execute natural language queries against SQL databases
-- **code_interpreter**: Execute Python code for data analysis and calculations
-- **web_search**: Search the web for information with citations
+- **text_to_sql_tool**: Execute natural language queries against SQL databases
+- **list_database_schema**: List all tables and their schemas in the configured database
 - **youtube_video_summary**: Get transcripts/summaries of YouTube videos
 - **extract_pdf_data**: Extract structured data from PDF documents
+- **extract_html_data**: Extract structured data from HTML content (tables, lists, key-value pairs)
+- **extract_text_data**: Extract structured data from plain text (Q&A pairs, tables, lists, metrics)
 
 ## Setup
 
