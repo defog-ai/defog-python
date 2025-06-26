@@ -49,6 +49,7 @@ setup(
         "jsonref",
         "fastmcp",
         "pwinput>=1.0.3",
+        "aiofiles",
     ],
     author_email="founders@defog.ai",
     url="https://github.com/defog-ai/defog-python",
