@@ -357,11 +357,11 @@ if config.get("ANTHROPIC_API_KEY") or config.get("OPENAI_API_KEY"):
         Returns:
             JSON string containing extracted data or error message
         """
-        if config.get("OPENAI_API_KEY"):
-            provider = "openai"
-            model = "o4-mini"
-        else:
+        if config.get("ANTHROPIC_API_KEY"):
             provider = "anthropic"
+            model = "claude-sonnet-4-20250514"
+        else:
+            provider = "openai"
             model = "claude-sonnet-4-20250514"
 
         try:
