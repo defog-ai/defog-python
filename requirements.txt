@@ -6,7 +6,6 @@ aiomysql
 aioodbc
 pwinput
 requests>=2.28.2
-aiohttp
 aiofiles>=23.0.0
 tabulate
 uvicorn
@@ -34,3 +33,4 @@ ruff
 pre-commit
 portalocker
 click
+httpx
