@@ -14,6 +14,7 @@ import json
 import logging
 from urllib.parse import urlparse
 import re
+import time
 
 logging.basicConfig(level=logging.INFO)
 
@@ -44,11 +45,11 @@ def generate_safe_filename(url: str) -> str:
         # Ensure we have a non-empty filename
         if not safe_name:
             safe_name = "extracted_data"
-        return f"extracted_data_{safe_name}.json"
+
+        timestamp = int(time.time())
+        return f"extracted_data_{safe_name}_{timestamp}.json"
     except Exception:
         # Fallback to a simple timestamp-based name if URL parsing fails
-        import time
-
         timestamp = int(time.time())
         return f"extracted_data_{timestamp}.json"
 
@@ -113,20 +114,8 @@ async def extract_pdf_example(url, provider="anthropic", model=None):
     # Save the extracted data to a JSON file
     filename = generate_safe_filename(url)
     with open(filename, "w") as f:
-        # Convert Pydantic models to dict for JSON serialization
-        json_data = {}
-        for key, value in result.items():
-            if key == "data":
-                # Convert each Pydantic model in data to dict
-                json_data[key] = {}
-                for data_key, data_value in value.items():
-                    if hasattr(data_value, "model_dump"):
-                        json_data[key][data_key] = data_value.model_dump()
-                    else:
-                        json_data[key][data_key] = data_value
-            else:
-                json_data[key] = value
-        json.dump(json_data, f, indent=2)
+        # The result is already JSON-serializable
+        json.dump(result, f, indent=2)
     print(f"\n💾 Data saved to: {filename}")
 
     return result
