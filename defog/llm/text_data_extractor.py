@@ -150,7 +150,6 @@ class TextDataExtractor:
 Find all structured data patterns:
 - Key-value pairs (metrics, statistics, dates)
 - Numerical data (percentages, amounts, rates)
-- Time-based data (dates, timelines, sequences)
 
 ONLY focus on numerically focused data. Do not focus on general qualitative statements, general questions and answers, or other non-numerical data.
 
