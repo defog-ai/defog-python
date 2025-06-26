@@ -6,6 +6,10 @@ Provides tools for SQL queries, code interpretation, web search, and YouTube tra
 
 from typing import List, Dict, Any
 import logging
+import json
+import os
+import httpx
+import aiofiles
 
 # we use fastmcp 2.0 provider instead of the fastmcp provided by mcp
 # this is because this version makes it easier to change multiple variables, like the port
@@ -13,9 +17,10 @@ from fastmcp import FastMCP
 from defog.llm.youtube import get_youtube_summary
 from defog.llm.sql import sql_answer_tool
 from defog.llm.pdf_data_extractor import extract_pdf_data as extract_pdf_data_tool
+from defog.llm.html_data_extractor import HTMLDataExtractor
+from defog.llm.text_data_extractor import TextDataExtractor
 from defog import config
 from defog.local_metadata_extractor import extract_metadata_from_db_async
-import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -357,12 +362,12 @@ if config.get("ANTHROPIC_API_KEY") or config.get("OPENAI_API_KEY"):
         Returns:
             JSON string containing extracted data or error message
         """
-        if config.get("ANTHROPIC_API_KEY"):
+        if config.get("OPENAI_API_KEY"):
+            provider = "openai"
+            model = "o3"
+        else:
             provider = "anthropic"
             model = "claude-sonnet-4-20250514"
-        else:
-            provider = "openai"
-            model = "o4-mini"
 
         try:
             result = await extract_pdf_data_tool(
@@ -379,6 +384,157 @@ if config.get("ANTHROPIC_API_KEY") or config.get("OPENAI_API_KEY"):
 else:
     logger.warning(
         "No API keys found for Anthropic, PDF extraction tool will not be available"
+    )
+
+
+if (
+    config.get("ANTHROPIC_API_KEY")
+    or config.get("OPENAI_API_KEY")
+    or config.get("GEMINI_API_KEY")
+):
+
+    @mcp.tool(
+        description="Extract structured data from HTML content. Automatically identifies tables, lists, key-value pairs, and other data structures."
+    )
+    async def extract_html_data(
+        url: str,
+        focus_areas: List[str] = None,
+    ) -> str:
+        """
+        Extract structured data from HTML content.
+
+        Args:
+            url: URL of the HTML page to analyze and extract data from
+            focus_areas: Optional list of areas to focus analysis on (e.g., ["pricing table", "product specifications"])
+
+        Returns:
+            JSON string containing extracted data with confidence scores and metadata
+        """
+        # Determine which provider and model to use
+        if config.get("OPENAI_API_KEY"):
+            provider = "openai"
+            model = "o3"
+        elif config.get("ANTHROPIC_API_KEY"):
+            provider = "anthropic"
+            model = "claude-sonnet-4-20250514"
+        else:
+            provider = "gemini"
+            model = "gemini-pro-2.5"
+
+        try:
+            # Initialize the HTML data extractor
+            extractor = HTMLDataExtractor(
+                analysis_provider=provider,
+                analysis_model=model,
+                extraction_provider=provider,
+                extraction_model=model,
+                enable_caching=True,
+                max_parallel_extractions=5,
+            )
+
+            # Fetch HTML content from URL
+            async with httpx.AsyncClient() as client:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Referer": "https://www.google.com/",
+                    "DNT": "1",  # Do Not Track
+                    "Connection": "keep-alive",
+                    "Upgrade-Insecure-Requests": "1",
+                }
+                response = await client.get(url, headers=headers)
+                if response.status_code != 200:
+                    return json.dumps(
+                        {
+                            "error": f"Failed to fetch URL: HTTP {response.status_code}",
+                            "status": "error",
+                        },
+                        indent=2,
+                    )
+                html_content = response.text
+
+            # Extract all data
+            result = await extractor.extract_all_data(
+                html_content=html_content,
+                focus_areas=focus_areas,
+            )
+
+            # Convert result to dict for JSON serialization
+            return json.dumps(result.model_dump(), indent=2, default=str)
+
+        except Exception as e:
+            logger.error(f"Error in extract_html_data: {e}")
+            return json.dumps({"error": str(e), "status": "error"}, indent=2)
+
+    @mcp.tool(
+        description="Extract structured data from plain text. Identifies Q&A pairs, tables, lists, key-value pairs, and other data structures."
+    )
+    async def extract_text_data(
+        file_path: str,
+        focus_areas: List[str] = None,
+        datapoint_filter: List[str] = None,
+    ) -> str:
+        """
+        Extract structured data from unstructured text.
+
+        Args:
+            file_path: Path to the text file to analyze and extract data from
+            focus_areas: Optional list of areas to focus analysis on (e.g., ["Q&A section", "financial metrics"])
+            datapoint_filter: Optional list of specific datapoint names to extract
+
+        Returns:
+            JSON string containing extracted data with confidence scores and metadata
+        """
+        # Determine which provider and model to use
+        if config.get("OPENAI_API_KEY"):
+            provider = "openai"
+            model = "o3"
+        elif config.get("ANTHROPIC_API_KEY"):
+            provider = "anthropic"
+            model = "claude-sonnet-4-20250514"
+        else:
+            provider = "gemini"
+            model = "gemini-pro-2.5"
+
+        try:
+            # Initialize the text data extractor
+            extractor = TextDataExtractor(
+                analysis_provider=provider,
+                analysis_model=model,
+                extraction_provider=provider,
+                extraction_model=model,
+                enable_caching=True,
+                max_parallel_extractions=5,
+            )
+
+            # Read text content from file
+            if not os.path.exists(file_path):
+                return json.dumps(
+                    {"error": f"File not found: {file_path}", "status": "error"},
+                    indent=2,
+                )
+
+            async with aiofiles.open(file_path, mode="r", encoding="utf-8") as f:
+                text_content = await f.read()
+
+            # Extract all data
+            result = await extractor.extract_all_data(
+                text_content=text_content,
+                focus_areas=focus_areas,
+                datapoint_filter=datapoint_filter,
+            )
+
+            # Convert result to dict for JSON serialization
+            return json.dumps(result.model_dump(), indent=2, default=str)
+
+        except Exception as e:
+            logger.error(f"Error in extract_text_data: {e}")
+            return json.dumps({"error": str(e), "status": "error"}, indent=2)
+
+else:
+    logger.warning(
+        "No API keys found for LLM providers, HTML and text extraction tools will not be available"
     )
 
 
