@@ -138,7 +138,7 @@ See the [full documentation](docs/README.md).
 
 1. Run `defog serve` once to complete your setup, and `defog db` to update your database credentials
 2. Add to your MCP Client
-    - Claude Code: `claude mcp add defog -- python -m defog.mcp_server`
+    - Claude Code: `claude mcp add defog -- python -m defog.mcp_server`. Or if you do not want to install the defog package globally or set up environment variables, run `claude mcp add defog -- uv run --env-file .env -m defog.mcpserver`
     - Claude Desktop: add the config below
     ```json
     {
