@@ -643,22 +643,33 @@ Be precise and include all available data that matches the schema."""
             "metadata": {
                 "pdf_url": result.pdf_url,
                 "document_type": result.document_type,
-                "extraction_summary": {
-                    "total_identified": result.total_datapoints_identified,
-                    "successful": result.successful_extractions,
-                    "failed": result.failed_extractions,
-                    "time_ms": result.total_time_ms,
-                    "cost_cents": result.total_cost_cents,
-                },
+                "total_datapoints_identified": result.total_datapoints_identified,
+                "successful_extractions": result.successful_extractions,
+                "failed_extractions": result.failed_extractions,
+                "total_time_ms": result.total_time_ms,
+                "total_cost_cents": result.total_cost_cents,
+                "total_input_tokens": result.metadata.get("total_input_tokens", 0),
+                "total_output_tokens": result.metadata.get("total_output_tokens", 0),
+                "total_cached_tokens": result.metadata.get("total_cached_tokens", 0),
+                "analysis_cost_cents": result.metadata.get("analysis_cost_cents", 0.0),
+                "extraction_cost_cents": result.metadata.get(
+                    "extraction_cost_cents", 0.0
+                ),
             },
             "data": {},
         }
 
         for extraction in result.extraction_results:
             if extraction.success and extraction.extracted_data:
-                extracted_data["data"][extraction.datapoint_name] = (
-                    extraction.extracted_data
-                )
+                # Convert Pydantic models to dict for JSON serialization
+                if hasattr(extraction.extracted_data, "model_dump"):
+                    extracted_data["data"][extraction.datapoint_name] = (
+                        extraction.extracted_data.model_dump()
+                    )
+                else:
+                    extracted_data["data"][extraction.datapoint_name] = (
+                        extraction.extracted_data
+                    )
 
         return extracted_data
 
