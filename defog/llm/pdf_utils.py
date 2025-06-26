@@ -3,7 +3,7 @@ PDF utilities for processing PDFs with page-based splitting and metadata extract
 """
 
 import base64
-import aiohttp
+import httpx
 from typing import List, Tuple, Optional, Dict, Any
 import logging
 
@@ -25,20 +25,20 @@ class PDFProcessor:
     MAX_SIZE_BYTES = 24 * 1024 * 1024  # 24MB
 
     def __init__(self):
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.client: Optional[httpx.AsyncClient] = None
 
     async def __aenter__(self):
         """Async context manager entry."""
-        self.session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=60),
+        self.client = httpx.AsyncClient(
+            timeout=60.0,
             headers={"User-Agent": "Claude-PDF-Processor/1.0"},
         )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        if self.session:
-            await self.session.close()
+        if self.client:
+            await self.client.aclose()
 
     async def download_pdf(self, url: str) -> bytes:
         """
@@ -52,36 +52,36 @@ class PDFProcessor:
 
         Raises:
             ValueError: If URL is invalid or download fails
-            aiohttp.ClientError: For network-related errors
+            httpx.HTTPError: For network-related errors
         """
         if not url.startswith(("http://", "https://")):
             raise ValueError(f"Invalid URL: {url}")
 
-        if not self.session:
+        if not self.client:
             raise RuntimeError("PDFProcessor must be used as async context manager")
 
         try:
-            async with self.session.get(url) as response:
-                response.raise_for_status()
+            response = await self.client.get(url)
+            response.raise_for_status()
 
-                # Check content type
-                content_type = response.headers.get("content-type", "").lower()
-                if "application/pdf" not in content_type and not url.lower().endswith(
-                    ".pdf"
-                ):
-                    logger.warning(f"Content-Type is {content_type}, proceeding anyway")
+            # Check content type
+            content_type = response.headers.get("content-type", "").lower()
+            if "application/pdf" not in content_type and not url.lower().endswith(
+                ".pdf"
+            ):
+                logger.warning(f"Content-Type is {content_type}, proceeding anyway")
 
-                # Read content
-                content = await response.read()
+            # Read content
+            content = response.content
 
-                if len(content) == 0:
-                    raise ValueError("Downloaded PDF is empty")
+            if len(content) == 0:
+                raise ValueError("Downloaded PDF is empty")
 
-                logger.info(f"Downloaded PDF: {len(content)} bytes from {url}")
-                return content
+            logger.info(f"Downloaded PDF: {len(content)} bytes from {url}")
+            return content
 
-        except aiohttp.ClientError as e:
-            raise aiohttp.ClientError(f"Failed to download PDF from {url}: {e}")
+        except httpx.HTTPError as e:
+            raise httpx.HTTPError(f"Failed to download PDF from {url}: {e}")
 
     def get_pdf_metadata(self, pdf_content: bytes) -> Dict[str, Any]:
         """
