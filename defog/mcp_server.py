@@ -362,7 +362,7 @@ if config.get("ANTHROPIC_API_KEY") or config.get("OPENAI_API_KEY"):
             model = "claude-sonnet-4-20250514"
         else:
             provider = "openai"
-            model = "claude-sonnet-4-20250514"
+            model = "o4-mini"
 
         try:
             result = await extract_pdf_data_tool(
