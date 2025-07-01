@@ -1,9 +1,146 @@
 import inspect
 import jsonref
 import asyncio
-from typing import Callable, List, Dict, Any, Union
-from pydantic import BaseModel
+from typing import (
+    Callable,
+    List,
+    Dict,
+    Any,
+    Union,
+    get_type_hints,
+    get_origin,
+    get_args,
+)
+from pydantic import BaseModel, Field, create_model
 from defog.llm.models import OpenAIFunctionSpecs, AnthropicFunctionSpecs
+
+
+def python_type_to_json_schema_type(python_type):
+    """Convert Python type to JSON Schema type."""
+    type_mapping = {
+        str: "string",
+        int: "integer",
+        float: "number",
+        bool: "boolean",
+        list: "array",
+        dict: "object",
+        type(None): "null",
+    }
+
+    # Handle Optional types
+    origin = get_origin(python_type)
+    if origin is Union:
+        args = get_args(python_type)
+        # Check if it's Optional (Union with None)
+        if type(None) in args:
+            non_none_args = [arg for arg in args if arg is not type(None)]
+            if len(non_none_args) == 1:
+                return python_type_to_json_schema_type(non_none_args[0])
+
+    return type_mapping.get(python_type, "string")
+
+
+def create_pydantic_model_from_function(func: Callable) -> type[BaseModel]:
+    """
+    Create a Pydantic model from a regular function's signature.
+    """
+    sig = inspect.signature(func)
+    type_hints = get_type_hints(func)
+
+    fields = {}
+    for param_name, param in sig.parameters.items():
+        # Skip *args and **kwargs
+        if param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            continue
+
+        # Get type annotation or default to Any
+        param_type = type_hints.get(param_name, Any)
+
+        # Get default value
+        if param.default is inspect.Parameter.empty:
+            default = ...
+        else:
+            default = param.default
+
+        # Get description from docstring if available
+        docstring = inspect.getdoc(func) or ""
+        description = f"Parameter {param_name}"
+
+        # Try to extract parameter descriptions from docstring
+        # Simple parsing for common docstring formats
+        lines = docstring.split("\n")
+        for i, line in enumerate(lines):
+            if param_name in line and ":" in line:
+                # Found a parameter description
+                desc_parts = line.split(":", 1)
+                if len(desc_parts) > 1:
+                    description = desc_parts[1].strip()
+                    break
+
+        fields[param_name] = (
+            param_type,
+            Field(default=default, description=description),
+        )
+
+    # Create a dynamic Pydantic model
+    model_name = f"{func.__name__}_Input"
+    return create_model(model_name, **fields)
+
+
+def wrap_regular_function(func: Callable) -> Callable:
+    """
+    Wrap a regular function to accept a single Pydantic model parameter.
+    """
+    # Create the Pydantic model for this function
+    input_model = create_pydantic_model_from_function(func)
+
+    # Store the original function and model as attributes
+    if inspect.iscoroutinefunction(func):
+
+        async def wrapper(input: input_model):
+            # Convert the Pydantic model back to kwargs
+            kwargs = input.model_dump()
+            return await func(**kwargs)
+    else:
+
+        def wrapper(input: input_model):
+            # Convert the Pydantic model back to kwargs
+            kwargs = input.model_dump()
+            return func(**kwargs)
+
+    # Copy function metadata
+    wrapper.__name__ = func.__name__
+    wrapper.__doc__ = func.__doc__
+    wrapper.__dict__["_original_function"] = func
+    wrapper.__dict__["_input_model"] = input_model
+    wrapper.__annotations__ = {"input": input_model}
+
+    return wrapper
+
+
+def is_pydantic_style_function(func: Callable) -> bool:
+    """
+    Check if a function follows the Pydantic style (single parameter named 'input' that is a BaseModel).
+    """
+    sig = inspect.signature(func)
+    params = list(sig.parameters.values())
+
+    if len(params) != 1:
+        return False
+
+    param = params[0]
+    if param.name != "input":
+        return False
+
+    # Check if the annotation is a Pydantic BaseModel
+    model_class = param.annotation
+    if model_class is inspect.Parameter.empty:
+        return False
+
+    return isinstance(model_class, type) and issubclass(model_class, BaseModel)
 
 
 def cleanup_obj(obj: dict, model: str):
@@ -47,6 +184,11 @@ def get_function_specs(
     function_specs = []
 
     for func in functions:
+        # Check if function is already in Pydantic style or needs wrapping
+        if not is_pydantic_style_function(func):
+            # Wrap regular function to make it compatible
+            func = wrap_regular_function(func)
+
         # Get docstring
         docstring = inspect.getdoc(func) or ""
 
@@ -231,35 +373,35 @@ def convert_tool_choice(tool_choice: str, tool_name_list: List[str], model: str)
 def execute_tool(tool: Callable, inputs: Dict[str, Any]):
     """
     Execute a tool function with the given inputs.
-    The inputs are raw values that are expacted to match the function's parameter schema.
-    However, the function only takes a Pydantic model as input, so we need to convert the inputs to a Pydantic model.
-    We use the tool's function signature to get the Pydantic model class.
+    The inputs are raw values that are expected to match the function's parameter schema.
+    Handles both Pydantic-style functions and regular functions.
     """
-    # Get the function signature
-    sig = inspect.signature(tool)
-    # Get the Pydantic model class from the function signature
-    model_class = sig.parameters["input"].annotation
-    # Convert the inputs to a Pydantic model
-    model = model_class.model_validate(inputs)
-    # Call the tool function with the Pydantic model
-    return tool(model)
+    if is_pydantic_style_function(tool):
+        # Original Pydantic-style function
+        sig = inspect.signature(tool)
+        model_class = sig.parameters["input"].annotation
+        model = model_class.model_validate(inputs)
+        return tool(model)
+    else:
+        # Regular function - call directly with inputs as kwargs
+        return tool(**inputs)
 
 
 async def execute_tool_async(tool: Callable, inputs: Dict[str, Any]):
     """
     Execute a tool function with the given inputs.
-    The inputs are raw values that are expacted to match the function's parameter schema.
-    However, the function only takes a Pydantic model as input, so we need to convert the inputs to a Pydantic model.
-    We use the tool's function signature to get the Pydantic model class.
+    The inputs are raw values that are expected to match the function's parameter schema.
+    Handles both Pydantic-style functions and regular functions.
     """
-    # Get the function signature
-    sig = inspect.signature(tool)
-    # Get the Pydantic model class from the function signature
-    model_class = sig.parameters["input"].annotation
-    # Convert the inputs to a Pydantic model
-    model = model_class.model_validate(inputs)
-    # Call the tool function with the Pydantic model
-    return await tool(model)
+    if is_pydantic_style_function(tool):
+        # Original Pydantic-style function
+        sig = inspect.signature(tool)
+        model_class = sig.parameters["input"].annotation
+        model = model_class.model_validate(inputs)
+        return await tool(model)
+    else:
+        # Regular function - call directly with inputs as kwargs
+        return await tool(**inputs)
 
 
 async def execute_tools_parallel(
