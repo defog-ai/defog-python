@@ -8,6 +8,7 @@ from .constants import (
     OPENAI_BASE_URL,
     ALIBABA_BASE_URL,
 )
+from defog import config
 
 
 class LLMConfig:
@@ -36,7 +37,7 @@ class LLMConfig:
         self._setup_base_urls()
 
     def _setup_api_keys(self):
-        """Setup API keys with environment variable fallbacks."""
+        """Setup API keys with environment variable and config file fallbacks."""
         key_mappings = {
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
@@ -49,7 +50,8 @@ class LLMConfig:
 
         for provider, env_var in key_mappings.items():
             if provider not in self.api_keys:
-                self.api_keys[provider] = os.getenv(env_var)
+                # Try environment variable first, then fall back to config file
+                self.api_keys[provider] = os.getenv(env_var) or config.get(env_var)
 
     def _setup_base_urls(self):
         """Setup base URLs with defaults."""
