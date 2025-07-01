@@ -1,7 +1,11 @@
 import unittest
 import pytest
 from defog.llm.utils import chat_async
-from defog.llm.utils_function_calling import get_function_specs
+from defog.llm.utils_function_calling import (
+    get_function_specs,
+    is_pydantic_style_function,
+    wrap_regular_function,
+)
 from defog.llm.config.settings import LLMConfig
 from tests.conftest import skip_if_no_api_key
 
@@ -9,6 +13,7 @@ from pydantic import BaseModel, Field
 import httpx
 from io import StringIO
 import json
+from typing import Optional
 
 # ==================================================================================================
 # Functions for function calling
@@ -868,3 +873,163 @@ You MUST use the numsum and numprod tools for these calculations. Do not calcula
             except Exception as e:
                 # Skip if provider is not configured
                 print(f"Skipping {provider_name}: {e}")
+
+
+# ==================================================================================================
+# Regular function tests
+# ==================================================================================================
+
+
+# Test regular functions
+def add_numbers(a: int, b: int) -> int:
+    """Add two numbers together."""
+    return a + b
+
+
+async def multiply_numbers(x: float, y: float) -> float:
+    """
+    Multiply two numbers.
+
+    Args:
+        x: First number to multiply
+        y: Second number to multiply
+    """
+    return x * y
+
+
+def greet(name: str, greeting: str = "Hello") -> str:
+    """
+    Generate a greeting message.
+
+    Parameters:
+        name: The name of the person to greet
+        greeting: The greeting word to use (default: Hello)
+    """
+    return f"{greeting}, {name}!"
+
+
+def optional_params(required: str, optional: Optional[int] = None) -> str:
+    """Test function with optional parameters."""
+    if optional is not None:
+        return f"{required} - {optional}"
+    return required
+
+
+class TestRegularFunctionTools(unittest.TestCase):
+    def test_is_pydantic_style_function(self):
+        """Test function style detection."""
+        # Regular functions should return False
+        self.assertFalse(is_pydantic_style_function(add_numbers))
+        self.assertFalse(is_pydantic_style_function(multiply_numbers))
+        self.assertFalse(is_pydantic_style_function(greet))
+
+        # Wrapped function should return True
+        wrapped = wrap_regular_function(add_numbers)
+        self.assertTrue(is_pydantic_style_function(wrapped))
+
+    def test_wrap_regular_function(self):
+        """Test wrapping regular functions."""
+        # Test sync function
+        wrapped_add = wrap_regular_function(add_numbers)
+        self.assertEqual(wrapped_add.__name__, "add_numbers")
+        self.assertEqual(wrapped_add.__doc__, "Add two numbers together.")
+
+        # Test the wrapped function can be called
+        input_model = wrapped_add.__dict__["_input_model"]
+        inputs = input_model(a=5, b=3)
+        result = wrapped_add(inputs)
+        self.assertEqual(result, 8)
+
+        # Test async function
+        wrapped_multiply = wrap_regular_function(multiply_numbers)
+        self.assertEqual(wrapped_multiply.__name__, "multiply_numbers")
+
+    def test_function_with_defaults(self):
+        """Test functions with default parameters."""
+        wrapped_greet = wrap_regular_function(greet)
+        input_model = wrapped_greet.__dict__["_input_model"]
+
+        # Test with default
+        inputs = input_model(name="Alice")
+        result = wrapped_greet(inputs)
+        self.assertEqual(result, "Hello, Alice!")
+
+        # Test with custom greeting
+        inputs = input_model(name="Bob", greeting="Hi")
+        result = wrapped_greet(inputs)
+        self.assertEqual(result, "Hi, Bob!")
+
+    def test_function_with_optional(self):
+        """Test functions with optional parameters."""
+        wrapped_optional = wrap_regular_function(optional_params)
+        input_model = wrapped_optional.__dict__["_input_model"]
+
+        # Test without optional
+        inputs = input_model(required="test")
+        result = wrapped_optional(inputs)
+        self.assertEqual(result, "test")
+
+        # Test with optional
+        inputs = input_model(required="test", optional=42)
+        result = wrapped_optional(inputs)
+        self.assertEqual(result, "test - 42")
+
+    def test_get_function_specs_with_regular_functions(self):
+        """Test that get_function_specs works with regular functions."""
+        functions = [add_numbers, greet]
+
+        # Test OpenAI format
+        specs = get_function_specs(functions, "gpt-4.1")
+        self.assertEqual(len(specs), 2)
+
+        # Check first function
+        self.assertEqual(specs[0]["type"], "function")
+        self.assertEqual(specs[0]["function"]["name"], "add_numbers")
+        self.assertEqual(
+            specs[0]["function"]["description"], "Add two numbers together."
+        )
+        self.assertIn("a", specs[0]["function"]["parameters"]["properties"])
+        self.assertIn("b", specs[0]["function"]["parameters"]["properties"])
+
+        # Check second function
+        self.assertEqual(specs[1]["function"]["name"], "greet")
+        self.assertIn("name", specs[1]["function"]["parameters"]["properties"])
+        self.assertIn("greeting", specs[1]["function"]["parameters"]["properties"])
+
+        # Test Anthropic format
+        specs = get_function_specs(functions, "claude-3-7-sonnet")
+        self.assertEqual(len(specs), 2)
+        self.assertEqual(specs[0]["name"], "add_numbers")
+        self.assertIn("a", specs[0]["input_schema"]["properties"])
+
+
+@pytest.mark.asyncio
+@skip_if_no_api_key("openai")
+async def test_regular_functions_with_chat_async():
+    """Test using regular functions with chat_async."""
+
+    def calculate_area(length: float, width: float) -> float:
+        """Calculate the area of a rectangle given its length and width."""
+        return length * width
+
+    messages = [
+        {
+            "role": "user",
+            "content": "What is the area of a rectangle with length 5.5 and width 3.2?",
+        }
+    ]
+
+    response = await chat_async(
+        provider="openai",
+        model="gpt-4.1-mini",
+        messages=messages,
+        tools=[calculate_area],
+        tool_choice="auto",
+        temperature=0,
+    )
+
+    # Check that the tool was called
+    assert response.tool_outputs is not None
+    assert len(response.tool_outputs) > 0
+    assert response.tool_outputs[0]["name"] == "calculate_area"
+    assert response.tool_outputs[0]["result"] == 5.5 * 3.2
