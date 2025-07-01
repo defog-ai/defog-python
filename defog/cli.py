@@ -7,7 +7,6 @@ import argparse
 import sys
 import logging
 import os
-from defog.mcp_server import run_server
 from defog.server_config_manager import ConfigManager
 from defog.cli_wizard import CLIWizard
 
@@ -28,8 +27,16 @@ def serve_command(args):
     for key, value in env_vars.items():
         os.environ[key] = value
 
+    # Reload the config module to pick up new environment variables
+    from defog import config
+
+    config.reload()
+
+    # Import and run the MCP server after config is updated
+    from defog.mcp_server import run_server
+
     logger.info("Starting Defog MCP server...")
-    run_server()
+    run_server(transport=args.transport, port=args.port)
 
 
 def db_command(args):
@@ -50,6 +57,18 @@ def main():
 
     # Add serve command
     serve_parser = subparsers.add_parser("serve", help="Start the Defog MCP server")
+    serve_parser.add_argument(
+        "--transport",
+        type=str,
+        default=None,
+        help="Transport type (e.g., 'stdio', 'streamable-http'). Default: stdio",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Port number for streamable-http transport",
+    )
     serve_parser.set_defaults(func=serve_command)
 
     # Add db command

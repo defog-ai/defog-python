@@ -538,8 +538,13 @@ else:
     )
 
 
-def run_server():
-    """Run the MCP server."""
+def run_server(transport=None, port=None):
+    """Run the MCP server.
+
+    Args:
+        transport: Transport type (e.g., 'stdio', 'streamable-http')
+        port: Port number for streamable-http transport
+    """
     logger.info("Starting Defog Browser")
 
     # Log database validation status
@@ -561,12 +566,38 @@ def run_server():
     except Exception as e:
         logger.warning(f"Could not list tools: {e}")
 
-    # disable streamable-http for now, until Claude Desktop supports it
-    # mcp.run(transport="streamable-http", port=33364)
-
-    # use normal HTTP (stdio under the hood, AFAIK) for now
-    mcp.run()
+    # Run with specified transport and port, or defaults
+    if transport == "streamable-http":
+        if port:
+            logger.info(f"Starting MCP server with streamable-http on port {port}")
+            mcp.run(transport="streamable-http", port=port)
+        else:
+            logger.info("Starting MCP server with streamable-http on default port")
+            mcp.run(transport="streamable-http")
+    else:
+        # Default to stdio
+        logger.info("Starting MCP server with stdio transport")
+        mcp.run()
 
 
 if __name__ == "__main__":
-    run_server()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Defog MCP Server - Provides tools for SQL queries, code interpretation, and more"
+    )
+    parser.add_argument(
+        "--transport",
+        type=str,
+        default=None,
+        help="Transport type (e.g., 'stdio', 'streamable-http'). Default: stdio",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Port number for streamable-http transport",
+    )
+
+    args = parser.parse_args()
+    run_server(transport=args.transport, port=args.port)
