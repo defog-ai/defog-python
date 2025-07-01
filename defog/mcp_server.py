@@ -570,10 +570,10 @@ def run_server(transport=None, port=None):
     if transport == "streamable-http":
         if port:
             logger.info(f"Starting MCP server with streamable-http on port {port}")
-            mcp.run(transport="streamable-http", port=port)
+            mcp.run(transport="streamable-http", port=port, host="0.0.0.0")
         else:
             logger.info("Starting MCP server with streamable-http on default port")
-            mcp.run(transport="streamable-http")
+            mcp.run(transport="streamable-http", host="0.0.0.0")
     else:
         # Default to stdio
         logger.info("Starting MCP server with stdio transport")
