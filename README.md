@@ -111,9 +111,6 @@ export OPENAI_API_KEY="your-openai-key"
 export ANTHROPIC_API_KEY="your-anthropic-key"
 export GEMINI_API_KEY="your-gemini-key"
 export TOGETHER_API_KEY="your-together-key"
-
-# Optional: Defog API for legacy features
-export DEFOG_API_KEY="your-api-key"
 ```
 
 ## Advanced Use Cases
