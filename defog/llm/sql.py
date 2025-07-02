@@ -11,7 +11,7 @@ from defog.llm.utils_logging import (
     NoOpSubTaskLogger,
 )
 from defog.llm.sql_generator import generate_sql_query_local
-from defog.local_metadata_extractor import extract_metadata_from_db
+from defog.local_metadata_extractor import extract_metadata_from_db_async
 from defog.query import async_execute_query
 from defog.llm.utils import chat_async
 from defog.llm.config import LLMConfig
@@ -80,7 +80,7 @@ async def sql_answer_tool(
             # Extract database metadata
             tracker.update(20, "Extracting database schema")
             subtask_logger.log_subtask("Extracting table metadata", "processing")
-            table_metadata = extract_metadata_from_db(db_type, db_creds)
+            table_metadata = await extract_metadata_from_db_async(db_type, db_creds)
 
             # Check if we need to filter tables due to large database
             total_tables = len(table_metadata)
