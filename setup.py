@@ -18,7 +18,7 @@ extras = {
 setup(
     name="defog",
     packages=find_packages(),
-    version="1.1.15",
+    version="1.1.16",
     description="Defog is a Python library that helps you generate data queries from natural language questions.",
     author="Full Stack Data Pte. Ltd.",
     license="MIT",
