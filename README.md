@@ -160,6 +160,24 @@ See the [full documentation](docs/README.md).
         }
     ```
 
+### Available MCP Tools and Resources
+
+The Defog MCP server provides the following capabilities:
+
+**Tools** (actions the AI can perform):
+- `text_to_sql_tool` - Execute natural language queries against your database
+- `list_database_schema` - List all tables and their schemas
+- `youtube_video_summary` - Get transcript/summary of YouTube videos (requires Gemini API key)
+- `extract_pdf_data` - Extract structured data from PDFs
+- `extract_html_data` - Extract structured data from HTML pages
+- `extract_text_data` - Extract structured data from text files
+
+**Resources** (read-only data the AI can access):
+- `schema://tables` - Get list of all tables in the database
+- `schema://table/{table_name}` - Get detailed schema for a specific table
+- `stats://table/{table_name}` - Get statistics and metadata for a table (row count, column statistics)
+- `sample://table/{table_name}` - Get sample data (10 rows) from a table
+
 ## License
 
 MIT License - see LICENSE file for details.
