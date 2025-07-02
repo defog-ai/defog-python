@@ -21,6 +21,7 @@ from defog.llm.html_data_extractor import HTMLDataExtractor
 from defog.llm.text_data_extractor import TextDataExtractor
 from defog import config
 from defog.local_metadata_extractor import extract_metadata_from_db_async
+from defog.query import async_execute_query_once
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -80,9 +81,299 @@ def validate_database_credentials() -> Dict[str, Any]:
     }
 
 
+def get_db_creds(db_type: str) -> Dict[str, Any]:
+    """
+    Get database credentials based on DB_TYPE.
+    Returns a dictionary with the appropriate credentials for the database type.
+    """
+    creds = {}
+    if db_type == "postgres":
+        creds = {
+            "host": config.get("DB_HOST"),
+            "port": config.get("DB_PORT"),
+            "user": config.get("DB_USER"),
+            "password": config.get("DB_PASSWORD"),
+            "database": config.get("DB_NAME"),
+        }
+    elif db_type == "mysql":
+        creds = {
+            "host": config.get("DB_HOST"),
+            "user": config.get("DB_USER"),
+            "password": config.get("DB_PASSWORD"),
+            "database": config.get("DB_NAME"),
+        }
+    elif db_type == "bigquery":
+        creds = {
+            "json_key_path": config.get("DB_KEY_PATH"),
+        }
+    elif db_type == "snowflake":
+        creds = {
+            "user": config.get("DB_USER"),
+            "password": config.get("DB_PASSWORD"),
+            "account": config.get("DB_ACCOUNT"),
+            "warehouse": config.get("DB_WAREHOUSE"),
+            "database": config.get("DB_NAME"),
+        }
+    elif db_type == "databricks":
+        creds = {
+            "server_hostname": config.get("DB_HOST"),
+            "http_path": config.get("DB_PATH"),
+            "access_token": config.get("DB_TOKEN"),
+        }
+    elif db_type == "sqlserver":
+        creds = {
+            "server": config.get("DB_HOST"),
+            "user": config.get("DB_USER"),
+            "password": config.get("DB_PASSWORD"),
+            "database": config.get("DB_NAME"),
+        }
+    elif db_type == "sqlite":
+        creds = {
+            "database": config.get("DATABASE_PATH"),
+        }
+    elif db_type == "duckdb":
+        creds = {
+            "database": config.get("DATABASE_PATH"),
+        }
+    elif db_type == "redshift":
+        creds = {
+            "host": config.get("DB_HOST"),
+            "port": config.get("DB_PORT"),
+            "user": config.get("DB_USER"),
+            "password": config.get("DB_PASSWORD"),
+            "database": config.get("DB_NAME"),
+        }
+    return creds
+
+
 # Only register text_to_sql_tool if database credentials are valid
 validation_result = validate_database_credentials()
+
+# Register resources if database credentials are valid
 if validation_result["valid"]:
+    # Schema Resources
+    @mcp.resource("schema://tables")
+    async def get_all_tables():
+        """Get a list of all tables in the database"""
+        db_type = config.get("DB_TYPE")
+        db_creds = get_db_creds(db_type)
+
+        try:
+            # Extract metadata for all tables
+            schema_result = await extract_metadata_from_db_async(
+                db_type=db_type,
+                db_creds=db_creds,
+                tables=[],  # Empty list means all tables
+            )
+
+            # Return list of table names
+            tables = list(schema_result.keys())
+            return {"database_type": db_type, "tables": tables, "count": len(tables)}
+        except Exception as e:
+            logger.error(f"Error in get_all_tables resource: {e}")
+            return {"error": str(e), "status": "error"}
+
+    @mcp.resource("schema://table/{table_name}")
+    async def get_table_schema(table_name: str):
+        """Get detailed schema for a specific table"""
+        db_type = config.get("DB_TYPE")
+        db_creds = get_db_creds(db_type)
+
+        try:
+            # Extract metadata for specific table
+            schema_result = await extract_metadata_from_db_async(
+                db_type=db_type,
+                db_creds=db_creds,
+                tables=[table_name],
+            )
+
+            if table_name not in schema_result:
+                return {"error": f"Table '{table_name}' not found", "status": "error"}
+
+            table_info = schema_result[table_name]
+
+            # Handle both new and old format
+            if isinstance(table_info, dict) and "columns" in table_info:
+                return {
+                    "database_type": db_type,
+                    "table_name": table_name,
+                    "description": table_info.get("table_description", ""),
+                    "columns": table_info["columns"],
+                    "column_count": len(table_info["columns"]),
+                }
+            else:
+                # Old format (list of columns)
+                return {
+                    "database_type": db_type,
+                    "table_name": table_name,
+                    "description": "",
+                    "columns": table_info,
+                    "column_count": len(table_info),
+                }
+
+        except Exception as e:
+            logger.error(f"Error in get_table_schema resource: {e}")
+            return {"error": str(e), "status": "error"}
+
+    # Metadata Resources
+    @mcp.resource("stats://table/{table_name}")
+    async def get_table_stats(table_name: str):
+        """Get statistics and metadata for a specific table"""
+        db_type = config.get("DB_TYPE")
+        db_creds = get_db_creds(db_type)
+
+        try:
+            # Get row count
+            count_query = f"SELECT COUNT(*) as row_count FROM {table_name}"
+            colnames, rows = await async_execute_query_once(
+                db_type, db_creds, count_query
+            )
+            row_count = rows[0][0] if rows else 0
+
+            # Get table schema first
+            schema_result = await extract_metadata_from_db_async(
+                db_type=db_type,
+                db_creds=db_creds,
+                tables=[table_name],
+            )
+
+            if table_name not in schema_result:
+                return {"error": f"Table '{table_name}' not found", "status": "error"}
+
+            table_info = schema_result[table_name]
+            columns = (
+                table_info.get("columns", table_info)
+                if isinstance(table_info, dict)
+                else table_info
+            )
+
+            # Get column statistics for numeric columns
+            column_stats = {}
+            for col_info in columns:
+                col_name = col_info["column_name"]
+                col_type = col_info["data_type"].lower()
+
+                # Check if column is numeric
+                if any(
+                    numeric_type in col_type
+                    for numeric_type in [
+                        "int",
+                        "float",
+                        "decimal",
+                        "numeric",
+                        "double",
+                        "real",
+                    ]
+                ):
+                    try:
+                        stats_query = f"""
+                        SELECT 
+                            MIN({col_name}) as min_value,
+                            MAX({col_name}) as max_value,
+                            AVG({col_name}) as avg_value,
+                            COUNT(DISTINCT {col_name}) as distinct_count,
+                            COUNT({col_name}) as non_null_count
+                        FROM {table_name}
+                        """
+                        col_colnames, col_rows = await async_execute_query_once(
+                            db_type, db_creds, stats_query
+                        )
+
+                        if col_rows and col_rows[0]:
+                            column_stats[col_name] = {
+                                "type": "numeric",
+                                "min": col_rows[0][0],
+                                "max": col_rows[0][1],
+                                "avg": col_rows[0][2],
+                                "distinct_count": col_rows[0][3],
+                                "non_null_count": col_rows[0][4],
+                                "null_count": row_count - col_rows[0][4],
+                            }
+                    except Exception as e:
+                        logger.warning(
+                            f"Could not get stats for column {col_name}: {e}"
+                        )
+
+                # For non-numeric columns, just get distinct count
+                else:
+                    try:
+                        distinct_query = f"""
+                        SELECT 
+                            COUNT(DISTINCT {col_name}) as distinct_count,
+                            COUNT({col_name}) as non_null_count
+                        FROM {table_name}
+                        """
+                        col_colnames, col_rows = await async_execute_query_once(
+                            db_type, db_creds, distinct_query
+                        )
+
+                        if col_rows and col_rows[0]:
+                            column_stats[col_name] = {
+                                "type": "non_numeric",
+                                "distinct_count": col_rows[0][0],
+                                "non_null_count": col_rows[0][1],
+                                "null_count": row_count - col_rows[0][1],
+                            }
+                    except Exception as e:
+                        logger.warning(
+                            f"Could not get stats for column {col_name}: {e}"
+                        )
+
+            return {
+                "database_type": db_type,
+                "table_name": table_name,
+                "row_count": row_count,
+                "column_count": len(columns),
+                "columns": columns,
+                "column_statistics": column_stats,
+            }
+
+        except Exception as e:
+            logger.error(f"Error in get_table_stats resource: {e}")
+            return {"error": str(e), "status": "error"}
+
+    # Sample Data Resources
+    @mcp.resource("sample://table/{table_name}")
+    async def get_table_sample(table_name: str):
+        """Get sample data from a specific table"""
+        db_type = config.get("DB_TYPE")
+        db_creds = get_db_creds(db_type)
+
+        try:
+            # Different databases have different LIMIT syntax
+            if db_type in ["sqlserver"]:
+                sample_query = f"SELECT TOP 10 * FROM {table_name}"
+            else:
+                sample_query = f"SELECT * FROM {table_name} LIMIT 10"
+
+            colnames, rows = await async_execute_query_once(
+                db_type, db_creds, sample_query
+            )
+
+            # Convert rows to list of dictionaries for better readability
+            sample_data = []
+            for row in rows:
+                row_dict = {}
+                for i, col_name in enumerate(colnames):
+                    # Convert to string for JSON serialization
+                    value = row[i]
+                    if value is None:
+                        row_dict[col_name] = None
+                    else:
+                        row_dict[col_name] = str(value)
+                sample_data.append(row_dict)
+
+            return {
+                "database_type": db_type,
+                "table_name": table_name,
+                "columns": colnames,
+                "sample_size": len(sample_data),
+                "data": sample_data,
+            }
+
+        except Exception as e:
+            logger.error(f"Error in get_table_sample resource: {e}")
+            return {"error": str(e), "status": "error"}
 
     @mcp.tool(
         description="Execute a natural language query against a SQL database. Supports multiple database types."
@@ -100,67 +391,9 @@ if validation_result["valid"]:
             JSON string containing query results or error message
         """
         db_type = config.get("DB_TYPE")
+        creds = get_db_creds(db_type)
 
-        # Parse database credentials
-        creds = {}
-        # get db creds from env, depending on db_type
-        if db_type == "postgres":
-            creds = {
-                "host": config.get("DB_HOST"),
-                "port": config.get("DB_PORT"),
-                "user": config.get("DB_USER"),
-                "password": config.get("DB_PASSWORD"),
-                "database": config.get("DB_NAME"),
-            }
-        elif db_type == "mysql":
-            creds = {
-                "host": config.get("DB_HOST"),
-                "user": config.get("DB_USER"),
-                "password": config.get("DB_PASSWORD"),
-                "database": config.get("DB_NAME"),
-            }
-        elif db_type == "bigquery":
-            creds = {
-                "json_key_path": config.get("DB_KEY_PATH"),
-            }
-        elif db_type == "snowflake":
-            creds = {
-                "user": config.get("DB_USER"),
-                "password": config.get("DB_PASSWORD"),
-                "account": config.get("DB_ACCOUNT"),
-                "warehouse": config.get("DB_WAREHOUSE"),
-                "database": config.get("DB_NAME"),
-            }
-        elif db_type == "databricks":
-            creds = {
-                "server_hostname": config.get("DB_HOST"),
-                "http_path": config.get("DB_PATH"),
-                "access_token": config.get("DB_TOKEN"),
-            }
-        elif db_type == "sqlserver":
-            creds = {
-                "server": config.get("DB_HOST"),
-                "user": config.get("DB_USER"),
-                "password": config.get("DB_PASSWORD"),
-                "database": config.get("DB_NAME"),
-            }
-        elif db_type == "sqlite":
-            creds = {
-                "database": config.get("DATABASE_PATH"),
-            }
-        elif db_type == "duckdb":
-            creds = {
-                "database": config.get("DATABASE_PATH"),
-            }
-        elif db_type == "redshift":
-            creds = {
-                "host": config.get("DB_HOST"),
-                "port": config.get("DB_PORT"),
-                "user": config.get("DB_USER"),
-                "password": config.get("DB_PASSWORD"),
-                "database": config.get("DB_NAME"),
-            }
-        else:
+        if not creds:
             raise ValueError(f"Unsupported database type: {db_type}")
 
         # select model/provider based on what API keys are available
@@ -199,66 +432,9 @@ if validation_result["valid"]:
             JSON string containing database schema information
         """
         db_type = config.get("DB_TYPE")
+        creds = get_db_creds(db_type)
 
-        # Parse database credentials (same as in text_to_sql_tool)
-        creds = {}
-        if db_type == "postgres":
-            creds = {
-                "host": config.get("DB_HOST"),
-                "port": config.get("DB_PORT"),
-                "user": config.get("DB_USER"),
-                "password": config.get("DB_PASSWORD"),
-                "database": config.get("DB_NAME"),
-            }
-        elif db_type == "mysql":
-            creds = {
-                "host": config.get("DB_HOST"),
-                "user": config.get("DB_USER"),
-                "password": config.get("DB_PASSWORD"),
-                "database": config.get("DB_NAME"),
-            }
-        elif db_type == "bigquery":
-            creds = {
-                "json_key_path": config.get("DB_KEY_PATH"),
-            }
-        elif db_type == "snowflake":
-            creds = {
-                "user": config.get("DB_USER"),
-                "password": config.get("DB_PASSWORD"),
-                "account": config.get("DB_ACCOUNT"),
-                "warehouse": config.get("DB_WAREHOUSE"),
-                "database": config.get("DB_NAME"),
-            }
-        elif db_type == "databricks":
-            creds = {
-                "server_hostname": config.get("DB_HOST"),
-                "http_path": config.get("DB_PATH"),
-                "access_token": config.get("DB_TOKEN"),
-            }
-        elif db_type == "sqlserver":
-            creds = {
-                "server": config.get("DB_HOST"),
-                "user": config.get("DB_USER"),
-                "password": config.get("DB_PASSWORD"),
-                "database": config.get("DB_NAME"),
-            }
-        elif db_type == "sqlite":
-            creds = {
-                "database": config.get("DATABASE_PATH"),
-            }
-        elif db_type == "duckdb":
-            creds = {
-                "database": config.get("DATABASE_PATH"),
-            }
-        elif db_type == "redshift":
-            creds = {
-                "host": config.get("DB_HOST"),
-                "port": config.get("DB_PORT"),
-                "user": config.get("DB_USER"),
-                "password": config.get("DB_PASSWORD"),
-                "database": config.get("DB_NAME"),
-            }
-        else:
+        if not creds:
             return json.dumps(
                 {"error": f"Unsupported database type: {db_type}"}, indent=2
             )
@@ -556,15 +732,27 @@ def run_server(transport=None, port=None):
         )
         logger.warning("SQL tool will not be available")
 
-    # List all registered tools
+    # List all registered tools and resources
     try:
         import asyncio
 
+        # List tools
         tools = asyncio.run(mcp._list_tools())
         tool_names = [tool.name for tool in tools]
         logger.info(f"Registered {len(tool_names)} tools: {', '.join(tool_names)}")
+
+        # List resources
+        resources = asyncio.run(mcp._list_resources())
+        resource_templates = asyncio.run(mcp._list_resource_templates())
+        resource_uris = [str(resource.uri) for resource in resources] + [
+            str(resource_template.uri_template)
+            for resource_template in resource_templates
+        ]
+        logger.info(
+            f"Registered {len(resource_uris)} resources: {', '.join(resource_uris)}"
+        )
     except Exception as e:
-        logger.warning(f"Could not list tools: {e}")
+        logger.warning(f"Could not list tools/resources: {e}")
 
     # Run with specified transport and port, or defaults
     if transport == "streamable-http":
